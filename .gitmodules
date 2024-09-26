@@ -1,9 +1,6 @@
 [submodule "nepi_app_pointcloud"]
 	path = nepi_app_pointcloud
 	url = git@github.com:nepi-engine/nepi_app_pointcloud.git
-[submodule "nepi_app_image_viewer"]
-	path = nepi_app_image_viewer
-	url = git@github.com:nepi-engine/nepi_app_image_viewer.git
 [submodule "nepi_app_nav_pose_publisher"]
 	path = nepi_app_nav_pose_publisher
 	url = git@github.com:nepi-engine/nepi_app_nav_pose_publisher.git
