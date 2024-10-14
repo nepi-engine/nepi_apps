@@ -13,6 +13,3 @@
 [submodule "nepi_app_image_viewer"]
 	path = nepi_app_image_viewer
 	url = git@github.com:nepi-engine/nepi_app_image_viewer.git
-[submodule "nepi_app_onvif"]
-	path = nepi_app_onvif
-	url = git@github.com:nepi-engine/nepi_app_onvif.git
