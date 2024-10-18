@@ -13,3 +13,12 @@
 [submodule "nepi_app_image_viewer"]
 	path = nepi_app_image_viewer
 	url = git@github.com:nepi-engine/nepi_app_image_viewer.git
+[submodule "nepi_app_file_pub_img"]
+	path = nepi_app_file_pub_img
+	url = git@github.com:nepi-engine/nepi_app_file_pub_img.git
+[submodule "nepi_app_file_pub_vid"]
+	path = nepi_app_file_pub_vid
+	url = git@github.com:nepi-engine/nepi_app_file_pub_vid.git
+[submodule "nepi_app_file_pub_pcd"]
+	path = nepi_app_file_pub_pcd
+	url = git@github.com:nepi-engine/nepi_app_file_pub_pcd.git
