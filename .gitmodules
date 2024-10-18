@@ -22,3 +22,6 @@
 [submodule "nepi_app_file_pub_pcd"]
 	path = nepi_app_file_pub_pcd
 	url = git@github.com:nepi-engine/nepi_app_file_pub_pcd.git
+[submodule "nepi_app_onvif_mgr"]
+	path = nepi_app_onvif_mgr
+	url = git@github.com:nepi-engine/nepi_app_onvif_mgr.git
