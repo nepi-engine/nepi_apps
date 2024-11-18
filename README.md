@@ -1,2 +1,2 @@
 # nepi_apps
-Collection of NEPI Engine custom ROS applications
+Collection of solution applications for the nepi-engine AI and automation software environment
