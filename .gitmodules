@@ -1,6 +1,3 @@
-[submodule "nepi_app_nav_pose_publisher"]
-	path = nepi_app_nav_pose_publisher
-	url = git@github.com:nepi-engine/nepi_app_nav_pose_publisher.git
 [submodule "nepi_app_ai_targeting"]
 	path = nepi_app_ai_targeting
 	url = git@github.com:nepi-engine/nepi_app_ai_targeting.git
