@@ -25,6 +25,3 @@
 [submodule "nepi_app_pointcloud_viewer"]
 	path = nepi_app_pointcloud_viewer
 	url = git@github.com:nepi-engine/nepi_app_pointcloud_viewer.git
-[submodule "nepi_app_nav_pose"]
-	path = nepi_app_nav_pose
-	url = git@github.com:nepi-engine/nepi_app_nav_pose.git
