@@ -1,0 +1,15 @@
+APP_DICT:
+  description: Application for publishing images from image files
+  pkg_name: nepi_app_file_pub_img
+  group_name: DATA
+  config_file: app_file_pub_img.yaml
+  app_file: file_pub_img_app_node.py
+  node_name: app_file_pub_img
+  license_type: Numurus Software License
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
+RUI_DICT:
+  rui_menu_name: Image File Publisher
+  rui_files:
+  - NepiAppFilePubImg.js
+  rui_main_file: NepiAppFilePubImg.js
+  rui_main_class: FilePubImgApp

@@ -1,0 +1,15 @@
+APP_DICT:
+  description: Application for viewing and saving multiple image streams
+  pkg_name: nepi_app_image_viewer
+  group_name: DATA
+  config_file: app_image_viewer.yaml
+  app_file: image_viewer_app_node.py
+  node_name: app_image_viewer
+  license_type: 3-clause BSD
+  license_link: https://opensource.org/licenses/BSD-3-Clause
+RUI_DICT:
+  rui_menu_name: Image Viewer
+  rui_files:
+  - NepiAppImageViewer.js
+  rui_main_file: NepiAppImageViewer.js
+  rui_main_class: ImageViewerApp
