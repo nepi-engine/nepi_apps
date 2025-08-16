@@ -61,7 +61,7 @@ from nepi_api.connect_mgr_if_system import ConnectMgrSystemServicesIF
 APP_PACKAGE_NAME = 'nepi_app_ai_pt_tracker'
 APP_IMG_PUB_FILE = 'ai_pt_tracker_app_img_pub_node.py'
 
-API_LIB_FOLDER = "/opt/nepi/engine/lib/nepi_api"
+API_LIB_FOLDER = "/opt/nepi/nepi_engine/lib/nepi_api"
 
 #########################################
 # Node Class

@@ -199,7 +199,7 @@ install(DIRECTORY etc/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
-  /opt/nepi/engine/share/nepi_apps/params
+  /opt/nepi/nepi_engine/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
@@ -208,7 +208,7 @@ install(DIRECTORY params/
 
 set( NEPI_API_FOLDER 
   # Must hard-coded 
-  /opt/nepi/engine/lib/python3/dist-packages/nepi_api
+  /opt/nepi/nepi_engine/lib/python3/dist-packages/nepi_api
 )
 
 install(DIRECTORY api/
@@ -220,7 +220,7 @@ install(DIRECTORY api/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_RUI_FOLDER 
   # Must hard-coded 
-  /opt/nepi/rui/src/rui_webserver/rui-app/src
+  /opt/nepi/nepi_rui/src/rui_webserver/rui-app/src
 )
 
 install(DIRECTORY rui/

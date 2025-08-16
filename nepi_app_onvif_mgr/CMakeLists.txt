@@ -166,13 +166,37 @@ catkin_package(
 ## Install ##
 #############
 
+if(NOT NEPI_BASE)
+  set( NEPI_BASE 
+    /opt/nepi
+  )
+endif()
+
+if(NOT NEPI_RUI)
+  set( NEPI_RUI 
+    ${NEPI_BASE}/nepi_rui
+  )
+endif()
+
+if(NOT NEPI_ENGINE)
+  set( NEPI_ENGINE 
+    ${NEPI_BASE}/nepi_engine
+  )
+endif()
+
+if(NOT NEPI_ETC)
+  set( NEPI_ETC 
+    ${NEPI_BASE}/etc
+  )
+endif()
+
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
  catkin_install_python(PROGRAMS
-   scripts/onvif_mgr_app_node.py
+   scripts/ai_alerts_app_node.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 
@@ -206,16 +230,16 @@ install(DIRECTORY etc/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
-  /opt/nepi/engine/share/nepi_apps/params
+  ${NEPI_ENGINE}/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
-  DESTINATION ${NEPI_APP_PARAMS_FOLDER} 
+  DESTINATION ${NEPI_APP_PARAMS_FOLDER}
 )
 
 set( NEPI_API_FOLDER 
   # Must hard-coded 
-  /opt/nepi/engine/lib/python3/dist-packages/nepi_api
+  ${NEPI_ENGINE}/lib/python3/dist-packages/nepi_api
 )
 
 install(DIRECTORY api/
@@ -226,12 +250,13 @@ install(DIRECTORY api/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_RUI_FOLDER 
   # Must hard-coded 
-  /opt/nepi/rui/src/rui_webserver/rui-app/src
+  ${NEPI_RUI}/src/rui_webserver/rui-app/src
 )
 
 install(DIRECTORY rui/
   DESTINATION ${NEPI_RUI_FOLDER}
 )
+
 #############
 ## Testing ##
 #############

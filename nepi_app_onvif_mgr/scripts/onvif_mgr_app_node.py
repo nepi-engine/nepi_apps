@@ -55,7 +55,7 @@ class ONVIFMgr:
 
   NODE_LAUNCH_TIME_SEC = 20  # Will not check node status before
 
-  DEFAULT_NEPI_CONFIG_PATH = "/opt/nepi/engine/etc"
+  DEFAULT_NEPI_CONFIG_PATH = "/opt/nepi/nepi_engine/etc"
   WSDL_FOLDER = os.path.join(DEFAULT_NEPI_CONFIG_PATH, "onvif/wsdl/")
 
  
