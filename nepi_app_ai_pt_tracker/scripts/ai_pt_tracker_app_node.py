@@ -17,10 +17,6 @@
 #
 
 import os
-#### ROS namespace setup
-#NEPI_BASE_NAMESPACE = '/nepi/s2x/'
-#os.environ["ROS_NAMESPACE"] = NEPI_BASE_NAMESPACE[0:-1] # remove to run as automation script
-
 import time
 import sys
 import copy
@@ -882,11 +878,6 @@ class pantiltTargetTrackerApp(object):
 
 
   def updaterCb(self,timer):
-    ############## DEBUG
-    #self.node_if.set_param("enabled",True)
-    #self.node_if.set_param("selected_pantilt","/nepi/s2x/iqr_pan_tilt/ptx")
-    #self.node_if.set_param("selected_class","person")
-    ############## DEBUG
 
     update_status = False
     enabled = self.enabled

@@ -16,9 +16,6 @@
 # - mailto:nepi@numurus.com
 #
 import os
-# ROS namespace setup
-NEPI_BASE_NAMESPACE = '/nepi/s2x/'
-#os.environ["ROS_NAMESPACE"] = NEPI_BASE_NAMESPACE[0:-1]
 
 
 import time
