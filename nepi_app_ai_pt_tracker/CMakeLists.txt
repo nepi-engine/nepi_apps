@@ -6,7 +6,7 @@ This file is part of nepi-engine
 
 License: 3-clause BSD, see https://opensource.org/licenses/BSD-3-Clause
 ]]
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 1.0.0)
 project(nepi_app_ai_pt_tracker)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -176,30 +176,6 @@ catkin_package(
 ## Install ##
 #############
 
-if(NOT NEPI_BASE)
-  set( NEPI_BASE 
-    /opt/nepi
-  )
-endif()
-
-if(NOT NEPI_RUI)
-  set( NEPI_RUI 
-    ${NEPI_BASE}/nepi_rui
-  )
-endif()
-
-if(NOT NEPI_ENGINE)
-  set( NEPI_ENGINE 
-    ${NEPI_BASE}/nepi_engine
-  )
-endif()
-
-if(NOT NEPI_ETC)
-  set( NEPI_ETC 
-    ${NEPI_BASE}/etc
-  )
-endif()
-
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
 
@@ -207,6 +183,7 @@ endif()
 ## in contrast to setup.py, you can choose the destination
  catkin_install_python(PROGRAMS
    scripts/ai_pt_tracker_app_node.py
+   scripts/ai_pt_tracker_app_img_pub_node.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 
@@ -240,16 +217,16 @@ install(DIRECTORY etc/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
-  ${NEPI_ENGINE}/share/nepi_apps/params
+  /opt/nepi/ros/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
-  DESTINATION ${NEPI_APP_PARAMS_FOLDER}
+  DESTINATION ${NEPI_APP_PARAMS_FOLDER} 
 )
 
 set( NEPI_API_FOLDER 
   # Must hard-coded 
-  ${NEPI_ENGINE}/lib/python3/dist-packages/nepi_api
+  /opt/nepi/ros/lib/python3/dist-packages/nepi_api
 )
 
 install(DIRECTORY api/
@@ -260,13 +237,12 @@ install(DIRECTORY api/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_RUI_FOLDER 
   # Must hard-coded 
-  ${NEPI_RUI}/src/rui_webserver/rui-app/src
+  /opt/nepi/nepi_rui/src/rui_webserver/rui-app/src
 )
 
 install(DIRECTORY rui/
   DESTINATION ${NEPI_RUI_FOLDER}
 )
-
 #############
 ## Testing ##
 #############
