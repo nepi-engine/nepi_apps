@@ -22,7 +22,6 @@ std_msgs
 sensor_msgs
 geometry_msgs
 nav_msgs
-nepi_interfaces
 )
 
 ## System dependencies are found with CMake's conventions
@@ -62,7 +61,6 @@ nepi_interfaces
  add_message_files(FILES
     TrackingErrors.msg
     AiPtTrackerStatus.msg
-
  )
 
 ## Generate services in the 'srv' folder
@@ -86,7 +84,6 @@ generate_messages(
    sensor_msgs
    geometry_msgs
    nav_msgs
-   nepi_interfaces
 )
 
 ################################################
@@ -121,9 +118,7 @@ generate_messages(
 catkin_package(
    CATKIN_DEPENDS std_msgs
    	message_runtime
-	sensor_msgs
-	nepi_interfaces
-#  DEPENDS CATKIN_DEPENDS sensor_msgs nepi_interfaces nepi_sdk 
+	  sensor_msgs
 )
 
 

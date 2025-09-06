@@ -33,5 +33,5 @@ string[] combine_options
 string combine_option
 
 # Following provides the max and min ranges for combined point_cloud
-nepi_interfaces/RangeWindow range_min_max_m
+RangeWindow range_min_max_m
 

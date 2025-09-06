@@ -22,7 +22,6 @@ std_msgs
 sensor_msgs
 geometry_msgs
 nav_msgs
-nepi_interfaces
 )
 
 ## System dependencies are found with CMake's conventions
@@ -85,7 +84,6 @@ generate_messages(
    sensor_msgs
    geometry_msgs
    nav_msgs
-   nepi_interfaces
 )
 
 ################################################
@@ -121,8 +119,6 @@ catkin_package(
    CATKIN_DEPENDS std_msgs
    	message_runtime
 	sensor_msgs
-	nepi_interfaces
-#  DEPENDS CATKIN_DEPENDS sensor_msgs nepi_interfaces nepi_sdk 
 )
 
 
