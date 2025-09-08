@@ -1,7 +1,0 @@
-float32 pitch_cur_deg
-float32 pitch_error_deg
-float32 pitch_goal_deg
-float32 yaw_cur_deg
-float32 yaw_error_deg
-float32 yaw_goal_deg
-
