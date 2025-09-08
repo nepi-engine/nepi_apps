@@ -157,9 +157,9 @@ class NepiImageViewerApp(object):
     self.msg_if.pub_info("Starting Save Data IF Initialization")
     factory_data_rates= {}
     for d in self.data_products_list:
-        factory_data_rates[d] = [0.0, 0.0, 3.5] # Default to 0Hz save rate, set last save = 0.0, max rate = 3.5Hz
+        factory_data_rates[d] = [0.0, 0.0, 100] # Default to 0Hz save rate, set last save = 0.0, max rate = 100Hz
     if 'image1' in self.data_products_list:
-        factory_data_rates['color_2d_image'] = [1.0, 0.0, 3.5] 
+        factory_data_rates['color_2d_image'] = [1.0, 0.0, 100] 
     self.msg_if.pub_warn("Starting data products list: " + str(self.data_products_list))
 
     factory_filename_dict = {
