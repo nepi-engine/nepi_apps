@@ -73,6 +73,7 @@ class NepiFilePubImgApp(object):
   last_folder = ""
   current_folders = []
   current_file = 'None'
+  current_ind = 0
   last_folder = ""
 
   file_count = 0
