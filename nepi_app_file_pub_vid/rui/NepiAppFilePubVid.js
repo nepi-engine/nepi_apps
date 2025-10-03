@@ -213,6 +213,13 @@ class FilePubVidApp extends Component {
             </div>
 
 
+              <NepiIFConfig
+                              namespace={appNamespace}
+                              title={"Nepi_IF_Conig"}
+              />
+            
+
+
 
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
@@ -403,17 +410,6 @@ class FilePubVidApp extends Component {
         </Column>
         </Columns>
 
-
-        <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-        <div hidden={!this.state.connected}>
-
-        <NepiIFConfig
-                        namespace={appNamespace}
-                        title={"Nepi_IF_Conig"}
-        />
-      
-       </div>
 
 
 

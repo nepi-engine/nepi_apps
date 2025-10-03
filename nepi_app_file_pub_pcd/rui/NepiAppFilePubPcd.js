@@ -279,6 +279,13 @@ class FilePubPcdApp extends Component {
             </ButtonMenu>
             </div>
 
+            <NepiIFConfig
+                            namespace={appNamespace}
+                            title={"Nepi_IF_Conig"}
+            />
+
+
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
             <Label title={"Current Folder"}>
             <Input disabled value={this.state.current_folder} />
@@ -453,15 +460,6 @@ class FilePubPcdApp extends Component {
         </Columns>
 
 
-        <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-        <div hidden={!this.state.connected}>
-
-        <NepiIFConfig
-                        namespace={appNamespace}
-                        title={"Nepi_IF_Conig"}
-        />
-       </div>
 
 
 

@@ -341,8 +341,7 @@ class NepiFilePubImgApp(object):
       self.delay = self.node_if.get_param('delay')
       self.running = self.node_if.get_param('running')
     if do_updates == True:
-      if self.node_if is not None and self.running == True:
-        self.startPub()
+      pass
     self.publish_status
 
   def resetCb(self,do_updates = True):
@@ -550,7 +549,7 @@ class NepiFilePubImgApp(object):
       self.last_folder = current_folder
     # Start publishing if needed
     running = self.running
-    if running and self.image_if == None:
+    if running == True and self.file_count > 0:
       self.startPub()
       update_status = True
     # Publish status if needed
