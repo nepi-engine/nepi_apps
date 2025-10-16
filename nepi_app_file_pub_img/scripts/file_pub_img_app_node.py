@@ -549,7 +549,7 @@ class NepiFilePubImgApp(object):
       self.last_folder = current_folder
     # Start publishing if needed
     running = self.running
-    if running == True and self.file_count > 0:
+    if running == False and self.file_count > 0:
       self.startPub()
       update_status = True
     # Publish status if needed

@@ -408,7 +408,7 @@ class NepiFilePubVidApp(object):
       self.last_folder = current_folder
     # Start publishing if needed
     running = self.running
-    if running and self.image_if == None:
+    if running == False and self.image_if == None:
       self.startPub()
       update_status = True
     # Publish status if needed
