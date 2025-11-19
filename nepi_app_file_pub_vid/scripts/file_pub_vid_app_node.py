@@ -349,23 +349,22 @@ class NepiFilePubVidApp(object):
     status_msg = FilePubVidStatus()
 
     status_msg.home_folder = self.HOME_FOLDER
-    
     current_folder = self.current_folder
     status_msg.current_folder = current_folder
     if current_folder == self.HOME_FOLDER:
       selected_folder = 'Home'
     else:
       selected_folder = os.path.basename(current_folder)
-      status_msg.selected_folder = selected_folder
-      status_msg.current_folders = self.current_folders
-      status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
-      status_msg.file_count = self.file_count
-      status_msg.current_file =  self.current_file
-      status_msg.current_fps = self.current_fps
+    status_msg.selected_folder = selected_folder
+    status_msg.current_folders = self.current_folders
+    status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
+    status_msg.file_count = self.file_count
+    status_msg.current_file =  self.current_file
+    status_msg.current_fps = self.current_fps
 
-      status_msg.paused = self.paused
+    status_msg.paused = self.paused
 
-      status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
+    status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
     
     status_msg.set_size = self.size
     status_msg.encoding_options_list = self.IMG_PUB_ENCODING_OPTIONS
@@ -375,6 +374,7 @@ class NepiFilePubVidApp(object):
 
     status_msg.running = self.running
 
+    #self.msg_if.pub_warn("Pub Status Msg: " + str(status_msg))
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub', status_msg)
 
@@ -398,7 +398,7 @@ class NepiFilePubVidApp(object):
         current_folders = []
         for path in current_paths:
           folder = os.path.basename(path)
-          if folder[0] != ".":
+          if folder[0] != "." and folder != "line_data":
             current_folders.append(folder)
         self.current_folders = sorted(current_folders)
         #self.msg_if.pub_warn("Folders: " + str(self.current_folders))
@@ -516,8 +516,11 @@ class NepiFilePubVidApp(object):
 
 
   def startPub(self):
-    if self.image_if == None:
+    self.msg_if.pub_warn("Start Pub called")
+    if self.image_if is not None:
+      
       current_folder = self.current_folder
+      self.msg_if.pub_warn("OK to run in folder: " + str(current_folder))
       # Now start publishing images
       self.file_list = []
       self.num_files = 0
@@ -526,14 +529,17 @@ class NepiFilePubVidApp(object):
           [file_list, num_files] = nepi_utils.get_file_list(current_folder,f_type)
           self.file_list.extend(file_list)
           self.num_files += num_files
-          #self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
-          #self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
+          self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
+          self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
         if self.num_files > 0:
           self.current_ind = 0
-          nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
+          
+          self.msg_if.pub_warn("Calling publish callback with running enabled")
           self.running = True
           self.publish_status()
+          nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
           if self.node_if is not None:
+            self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
             self.node_if.set_param('running',True)
         else:
           self.msg_if.pub_info("No image files found in folder " + current_folder)
@@ -564,7 +570,7 @@ class NepiFilePubVidApp(object):
     set_random = self.random
     overlay = self.overlay
 
-    if running:
+    if running == True:
       if self.image_if != None:
         # Set current index
         if set_random == True and self.paused == False:

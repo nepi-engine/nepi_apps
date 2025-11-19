@@ -209,13 +209,12 @@ class NepiImageViewerApp(object):
     self.msg_if.pub_info(str(msg))
     img_index = msg.image_index
     img_topic = msg.image_topic
-    current_sel = self.selected_topics
-    current_sel[img_index] = img_topic
-    self.selected_topics = current_sel
-    self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('selected_topics', current_sel)
-    
+    if img_index < len(self.selected_topics):
+      self.selected_topics[img_index] = img_topic
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_topics', self.selected_topics)
+      
 
 
 
