@@ -194,6 +194,18 @@ class FilePubVidApp extends Component {
 
         <div hidden={!this.state.connected}>
 
+
+            <Label title={"Current Folder"} >
+          </Label>
+          <pre style={{ height: "25px", overflowY: "auto" }}>
+            {this.state.current_folder}
+          </pre>
+
+            <Label title={"Video Count"}>
+            <Input disabled value={this.state.file_count} />
+            </Label>
+
+
           <Label title={"Publishing"}>
               <BooleanIndicator value={pubRunning} />
             </Label>
@@ -253,19 +265,9 @@ class FilePubVidApp extends Component {
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
 
-            <Label title={"Image Count"}>
-            <Input disabled value={this.state.file_count} />
-            </Label>
 
 
-            <Label title={"Current Folder"} >
-          </Label>
-          <pre style={{ height: "25px", overflowY: "auto" }}>
-            {this.state.current_folder}
-          </pre>
-
-
-          <Label title={"Current Folder"} >
+          <Label title={"Current File"} >
           </Label>
           <pre style={{ height: "25px", overflowY: "auto" }}>
             {this.state.current_file}

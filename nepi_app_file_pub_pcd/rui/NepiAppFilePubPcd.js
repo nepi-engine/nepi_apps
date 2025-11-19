@@ -261,6 +261,14 @@ class FilePubPcdApp extends Component {
 
         <div hidden={!this.state.connected}>
 
+            <Label title={"Current Folder"}>
+            <Input disabled value={this.state.current_folder} />
+            </Label>
+
+            <Label title={"PointCloud File Count"}>
+            <Input disabled value={this.state.file_count} />
+            </Label>
+
         <Label title={"Publishing"}>
           <BooleanIndicator value={pubRunning} />
         </Label>
@@ -287,13 +295,7 @@ class FilePubPcdApp extends Component {
 
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-            <Label title={"Current Folder"}>
-            <Input disabled value={this.state.current_folder} />
-            </Label>
 
-            <Label title={"Pcd File Count"}>
-            <Input disabled value={this.state.file_count} />
-            </Label>
 
 
             <Label title={"Max Files"}>

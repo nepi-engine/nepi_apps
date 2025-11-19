@@ -96,7 +96,7 @@ class NepiFilePubImgApp(object):
   delay = FACTORY_IMG_PUB_DELAY
   running = False
 
-
+  restart = False
 
 
   #######################
@@ -339,7 +339,7 @@ class NepiFilePubImgApp(object):
       self.random = self.node_if.get_param('random')
       self.overlay = self.node_if.get_param('overlay')
       self.delay = self.node_if.get_param('delay')
-      self.running = self.node_if.get_param('running')
+      self.restart = self.node_if.get_param('running')
     if do_updates == True:
       pass
     self.publish_status
@@ -548,10 +548,11 @@ class NepiFilePubImgApp(object):
         self.file_count =  num_files
       self.last_folder = current_folder
     # Start publishing if needed
-    running = self.running
-    if running == False and self.file_count > 0:
+    restart = self.restart
+    if restart == True and self.image_if == None:
       self.startPub()
       update_status = True
+    restart = False
     # Publish status if needed
     if update_status == True:
       self.publish_status()

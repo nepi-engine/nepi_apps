@@ -88,7 +88,6 @@ class NepiFilePubPcdApp(object):
   available_files_list = []
   sel_all = False
 
-  running = False
   file_count = 0
   pc_if = None
 
@@ -103,6 +102,8 @@ class NepiFilePubPcdApp(object):
   pub_transforms = False
   create_transforms = False
   running = False
+
+  restart = False
 
     
 
@@ -438,9 +439,12 @@ class NepiFilePubPcdApp(object):
         
     # Start publishing if needed
     running = self.node_if.get_param('running')
-    if running == False:
+
+    restart = self.restart
+    if restart == True:
       self.startPub()
       update_status = True
+    restart = False
     # Publish status if needed
     if update_status == True:
       self.publish_status()
