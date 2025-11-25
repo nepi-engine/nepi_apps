@@ -3,7 +3,7 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https:github.com/nepi-engine/nepi_apps)
 #
 # License: nepi applications are licensed under the "Numurus Software License", 
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
@@ -273,17 +273,6 @@ class NepiFilePubVidApp(object):
     )
 
 
-    image_ns = self.node_namespace
-    data_product = 'color_image'
-    self.image_if = ColorImageIF(namespace = image_ns, 
-                data_product_name = data_product, 
-                data_source_description = 'file',
-                data_ref_description = 'source',
-                perspective = 'pov',
-                log_name = data_product,
-                msg_if = self.msg_if
-                )
-
     ##############################
     self.initCb(do_updates = True)
 
@@ -409,7 +398,7 @@ class NepiFilePubVidApp(object):
       self.last_folder = current_folder
     # Start publishing if needed
     restart = self.restart
-    if restart == True and self.image_if == None:
+    if restart == True:
       self.startPub()
       update_status = True
     restart = False
@@ -517,34 +506,45 @@ class NepiFilePubVidApp(object):
 
   def startPub(self):
     self.msg_if.pub_warn("Start Pub called")
-    if self.image_if is not None:
       
-      current_folder = self.current_folder
-      self.msg_if.pub_warn("OK to run in folder: " + str(current_folder))
-      # Now start publishing images
-      self.file_list = []
-      self.num_files = 0
-      if os.path.exists(current_folder):
-        for f_type in self.SUPPORTED_FILE_TYPES:
-          [file_list, num_files] = nepi_utils.get_file_list(current_folder,f_type)
-          self.file_list.extend(file_list)
-          self.num_files += num_files
-          self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
+    current_folder = self.current_folder
+    self.msg_if.pub_warn("OK to run in folder: " + str(current_folder))
+    # Now start publishing images
+    self.file_list = []
+    self.num_files = 0
+    if os.path.exists(current_folder):
+      for f_type in self.SUPPORTED_FILE_TYPES:
+        [file_list, num_files] = nepi_utils.get_file_list(current_folder,f_type)
+        self.file_list.extend(file_list)
+        self.num_files += num_files
+        self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
+        self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
+      if self.num_files > 0:
+        if self.image_if is None:
+          image_ns = self.node_namespace
+          data_product = 'color_image'
+          self.image_if = ColorImageIF(namespace = image_ns, 
+                      data_product_name = data_product, 
+                      data_source_description = 'file',
+                      data_ref_description = 'source',
+                      perspective = 'pov',
+                      log_name = data_product,
+                      msg_if = self.msg_if
+                      )
+          nepi_sdk.sleep(1)
+        self.current_ind = 0
+        
+        self.msg_if.pub_warn("Calling publish callback with running enabled")
+        self.running = True
+        self.publish_status()
+        nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
+        if self.node_if is not None:
           self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
-        if self.num_files > 0:
-          self.current_ind = 0
-          
-          self.msg_if.pub_warn("Calling publish callback with running enabled")
-          self.running = True
-          self.publish_status()
-          nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
-          if self.node_if is not None:
-            self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
-            self.node_if.set_param('running',True)
-        else:
-          self.msg_if.pub_info("No image files found in folder " + current_folder)
+          self.node_if.set_param('running',True)
       else:
-        self.msg_if.pub_info("Folder " + current_folder + " not found")
+        self.msg_if.pub_info("No image files found in folder " + current_folder)
+    else:
+      self.msg_if.pub_info("Folder " + current_folder + " not found")
     self.publish_status()
 
 
@@ -556,6 +556,11 @@ class NepiFilePubVidApp(object):
     running = False
     self.running = False
     self.publish_status()
+    if self.image_if is not None:
+      self.msg_if.pub_warn("Unregistering Image IF")
+      self.image_if.unregister()
+      nepi_sdk.sleep(1)
+      self.image_if = None
     if self.node_if is not None:
       self.node_if.set_param('running',False)
     self.current_file = "None"
@@ -640,12 +645,13 @@ class NepiFilePubVidApp(object):
                     if encoding != 'mono8' and img_shape[2] == 1:
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
                     frame_3d = 'sensor_frame'
-                    self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                                    frame_3d = frame_3d,
-                                                    width_deg = self.width_deg,
-                                                    height_deg = self.height_deg,
-                                                    device_mount_description = 'unknown',
-                                                    pub_twice = self.paused)
+                    if self.image_if is not None:
+                      self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
+                                                      frame_3d = frame_3d,
+                                                      width_deg = self.width_deg,
+                                                      height_deg = self.height_deg,
+                                                      device_mount_description = 'unknown',
+                                                      pub_twice = self.paused)
                                                         
     nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
 

@@ -291,19 +291,6 @@ class NepiFilePubImgApp(object):
                     subs_dict = self.SUBS_DICT
     )
 
-    image_ns = self.node_namespace
-    data_product = 'color_image'
-    self.image_if = ColorImageIF(namespace = image_ns, 
-                data_product_name = data_product, 
-                data_source_description = 'file',
-                data_ref_description = 'source',
-                perspective = 'pov',
-                log_name = data_product,
-                msg_if = self.msg_if
-                )
-
-
-
 
     ##############################
     self.initCb(do_updates = True)
@@ -549,7 +536,7 @@ class NepiFilePubImgApp(object):
       self.last_folder = current_folder
     # Start publishing if needed
     restart = self.restart
-    if restart == True and self.image_if == None:
+    if restart == True:
       self.startPub()
       update_status = True
     restart = False
@@ -564,28 +551,43 @@ class NepiFilePubImgApp(object):
 
   def startPub(self):
     self.msg_if.pub_warn("Start Pub Called")
-    if self.image_if != None:
-      current_folder = self.current_folder
-      # Now start publishing images
-      self.file_list = []
-      self.num_files = 0
-      if os.path.exists(current_folder):
-        for f_type in self.SUPPORTED_FILE_TYPES:
-          [file_list, num_files] = nepi_utils.get_file_list(current_folder,f_type)
-          self.file_list.extend(file_list)
-          self.num_files += num_files
-          #self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
-          #self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
-        if self.num_files > 0:
-          self.current_ind = 0
-          self.running = True
-          self.publish_status()
-          if self.node_if is not None:
-            self.node_if.set_param('running',True)
-        else:
-          self.msg_if.pub_info("No image files found in folder " + current_folder + " not found")
+
+
+    current_folder = self.current_folder
+    # Now start publishing images
+    self.file_list = []
+    self.num_files = 0
+    if os.path.exists(current_folder):
+      for f_type in self.SUPPORTED_FILE_TYPES:
+        [file_list, num_files] = nepi_utils.get_file_list(current_folder,f_type)
+        self.file_list.extend(file_list)
+        self.num_files += num_files
+        #self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
+        #self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
+      if self.num_files > 0:
+        if self.image_if is None:
+          self.msg_if.pub_warn("Registering Image IF")
+          image_ns = self.node_namespace
+          data_product = 'color_image'
+          self.image_ns = os.path.join(image_ns,data_product)
+          self.image_if = ColorImageIF(namespace = image_ns, 
+                      data_product_name = data_product, 
+                      data_source_description = 'file',
+                      data_ref_description = 'source',
+                      perspective = 'pov',
+                      log_name = data_product,
+                      msg_if = self.msg_if
+                      )
+          nepi_sdk.sleep(1)
+        self.current_ind = 0
+        self.running = True
+        self.publish_status()
+        if self.node_if is not None:
+          self.node_if.set_param('running',True)
       else:
-        self.msg_if.pub_info("Folder " + current_folder + " not found")
+        self.msg_if.pub_info("No image files found in folder " + current_folder + " not found")
+    else:
+      self.msg_if.pub_info("Folder " + current_folder + " not found")
     self.publish_status()
 
   def stopPubCb(self,msg):
@@ -595,6 +597,12 @@ class NepiFilePubImgApp(object):
     self.running = False
     self.publish_status()
     self.current_file = "None"
+    if self.image_if is not None:
+      self.msg_if.pub_warn("Unregistering Image IF")
+      self.image_if.unregister()
+      nepi_sdk.sleep(1)
+      self.image_if = None
+    
     if self.node_if is not None:
       self.node_if.set_param('running',False)
     
@@ -668,13 +676,13 @@ class NepiFilePubImgApp(object):
           cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
         frame_3d = 'sensor_frame'
         #self.msg_if.pub_info("Publishing")
-        self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                        frame_3d = frame_3d,
-                                        width_deg = self.width_deg,
-                                        height_deg = self.height_deg,
-                                        device_mount_description = 'unknown',
-                                        pub_twice = self.paused)
-
+        if self.image_if is not None:
+          self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
+                                          frame_3d = frame_3d,
+                                          width_deg = self.width_deg,
+                                          height_deg = self.height_deg,
+                                          device_mount_description = 'unknown',
+                                          pub_twice = self.paused)
     delay = 0.1
     running = self.running
     if running == True and self.paused == False:
