@@ -196,10 +196,34 @@ install(DIRECTORY etc/
   USE_SOURCE_PERMISSIONS
 )
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
+if(NOT NEPI_BASE)
+  set( NEPI_BASE 
+    /opt/nepi
+  )
+endif()
+
+if(NOT NEPI_RUI)
+  set( NEPI_RUI 
+    ${NEPI_BASE}/nepi_rui
+  )
+endif()
+
+if(NOT NEPI_ENGINE)
+  set( NEPI_ENGINE 
+    ${NEPI_BASE}/nepi_engine
+  )
+endif()
+
+if(NOT NEPI_ETC)
+  set( NEPI_ETC 
+    ${NEPI_BASE}/etc
+  )
+endif()
+
+## Install NEPI Engine App Files
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
-  /opt/nepi/nepi_engine/share/nepi_apps/params
+  ${NEPI_ENGINE}/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
@@ -208,7 +232,7 @@ install(DIRECTORY params/
 
 set( NEPI_API_FOLDER 
   # Must hard-coded 
-  /opt/nepi/nepi_engine/lib/python3/dist-packages/nepi_api
+  ${NEPI_ENGINE}/lib/python3/dist-packages/nepi_api
 )
 
 install(DIRECTORY api/
@@ -217,14 +241,24 @@ install(DIRECTORY api/
 )
 
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
-set( NEPI_RUI_FOLDER 
+## Install NEPI RUI Files
+
+set( NEPI_RUI_PARAMS_FOLDER 
   # Must hard-coded 
-  /opt/nepi/nepi_rui/src/rui_webserver/rui-app/src
+  ${NEPI_RUI}/src/rui_webserver/rui-app/src/apps
+)
+
+install(DIRECTORY params/
+  DESTINATION ${NEPI_RUI_PARAMS_FOLDER} 
+)
+
+set( NEPI_RUI_SOURCE_FOLDER 
+  # Must hard-coded 
+  ${NEPI_RUI}/src/rui_webserver/rui-app/src
 )
 
 install(DIRECTORY rui/
-  DESTINATION ${NEPI_RUI_FOLDER}
+  DESTINATION ${NEPI_RUI_SOURCE_FOLDER}
 )
 
 #############

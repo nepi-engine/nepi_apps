@@ -166,29 +166,6 @@ catkin_package(
 ## Install ##
 #############
 
-if(NOT NEPI_BASE)
-  set( NEPI_BASE 
-    /opt/nepi
-  )
-endif()
-
-if(NOT NEPI_RUI)
-  set( NEPI_RUI 
-    ${NEPI_BASE}/nepi_rui
-  )
-endif()
-
-if(NOT NEPI_ENGINE)
-  set( NEPI_ENGINE 
-    ${NEPI_BASE}/nepi_engine
-  )
-endif()
-
-if(NOT NEPI_ETC)
-  set( NEPI_ETC 
-    ${NEPI_BASE}/etc
-  )
-endif()
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
@@ -227,14 +204,38 @@ install(DIRECTORY etc/
   USE_SOURCE_PERMISSIONS
 )
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
+if(NOT NEPI_BASE)
+  set( NEPI_BASE 
+    /opt/nepi
+  )
+endif()
+
+if(NOT NEPI_RUI)
+  set( NEPI_RUI 
+    ${NEPI_BASE}/nepi_rui
+  )
+endif()
+
+if(NOT NEPI_ENGINE)
+  set( NEPI_ENGINE 
+    ${NEPI_BASE}/nepi_engine
+  )
+endif()
+
+if(NOT NEPI_ETC)
+  set( NEPI_ETC 
+    ${NEPI_BASE}/etc
+  )
+endif()
+
+## Install NEPI Engine App Files
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
   ${NEPI_ENGINE}/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
-  DESTINATION ${NEPI_APP_PARAMS_FOLDER}
+  DESTINATION ${NEPI_APP_PARAMS_FOLDER} 
 )
 
 set( NEPI_API_FOLDER 
@@ -247,14 +248,25 @@ install(DIRECTORY api/
   FILES_MATCHING PATTERN "*.py"
 )
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
-set( NEPI_RUI_FOLDER 
+
+## Install NEPI RUI Files
+
+set( NEPI_RUI_PARAMS_FOLDER 
+  # Must hard-coded 
+  ${NEPI_RUI}/src/rui_webserver/rui-app/src/apps
+)
+
+install(DIRECTORY params/
+  DESTINATION ${NEPI_RUI_PARAMS_FOLDER} 
+)
+
+set( NEPI_RUI_SOURCE_FOLDER 
   # Must hard-coded 
   ${NEPI_RUI}/src/rui_webserver/rui-app/src
 )
 
 install(DIRECTORY rui/
-  DESTINATION ${NEPI_RUI_FOLDER}
+  DESTINATION ${NEPI_RUI_SOURCE_FOLDER}
 )
 
 #############
