@@ -1,6 +1,5 @@
 APP_DICT:
-  description: Application for configuring credetials and connecting to ONVIF type
-    camera and pan-tilt devices
+  description: Application for configuring credetials and connecting to ONVIF type camera and pan-tilt devices
   pkg_name: nepi_app_onvif_mgr
   group_name: DEVICES
   config_file: app_onvif_mgr.yaml

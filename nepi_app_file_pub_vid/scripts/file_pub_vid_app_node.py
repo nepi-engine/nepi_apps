@@ -393,7 +393,7 @@ class NepiFilePubVidApp(object):
         #self.msg_if.pub_warn("Folders: " + str(self.current_folders))
         num_files = 0
         for f_type in self.SUPPORTED_FILE_TYPES:
-          num_files = num_files + nepi_utils.get_file_count(current_folder,f_type)
+          num_files = num_files + nepi_utils.get_file_count(current_folder,ext_str=f_type)
         self.file_count =  num_files
       self.last_folder = current_folder
     # Start publishing if needed
