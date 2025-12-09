@@ -52,6 +52,7 @@ MGR_NAME = 'ONVIF Manager' # Use in display menus
 FILE_TYPE = 'MANAGER'
 
 class ONVIFMgr:
+  
 
   NODE_LAUNCH_TIME_SEC = 20  # Will not check node status before
 
@@ -98,6 +99,7 @@ class ONVIFMgr:
     self.msg_if = MsgIF(log_name = self.class_name)
     self.msg_if.pub_info("Starting IF Initialization Processes")
 
+    self.MGR_USER_CFG_FILE="/mnt/nepi_storage/user_cfg/" + self.node_name + ".yaml"
 
     ##############################
     # Get for System Folders
@@ -287,7 +289,7 @@ class ONVIFMgr:
       self.configured_onvifs[uuid]['node_base_name'] = self.configured_onvifs[uuid]['node_base_name'].replace(' ','_').replace('-','_')
 
     # Must handle our own store params rather than offloading to SaveCfgIF per WARNING above
-    self.saveParamsCb_publisher = rospy.Publisher('saveParamsCb', String, queue_size=1)
+    #self.saveParamsCb_publisher = rospy.Publisher('saveParamsCb', String, queue_size=1)
 
     nepi_sdk.start_timer_process(self.discovery_interval, self.runDiscovery, oneshot=True)
     nepi_sdk.start_timer_process(1, self.statusPublishCb)
@@ -346,7 +348,7 @@ class ONVIFMgr:
     if self.autosave_cfg_changes is True:
       self.msg_if.pub_info('Auto-saving updated config')
       self.setCurrentSettingsAsDefault()
-      self.saveParamsCb_publisher.publish(self.node_namespace)
+      #self.saveParamsCb_publisher.publish(self.node_namespace)
 
   def driversStatusCb(self,msg):
     # First check if drv driver database needs updating
@@ -450,7 +452,7 @@ class ONVIFMgr:
       if self.autosave_cfg_changes is True:
         self.msg_if.pub_info('Auto-saving updated config')
         self.setCurrentSettingsAsDefault()
-        self.saveParamsCb_publisher.publish(nepi_sdk.get_node_namespace())
+        #self.saveParamsCb_publisher.publish(nepi_sdk.get_node_namespace())
 
     return OnvifDeviceCfgUpdateResponse(success = True)
 
@@ -475,7 +477,7 @@ class ONVIFMgr:
     if self.autosave_cfg_changes is True:
       self.msg_if.pub_info('Auto-saving deleted config')
       self.setCurrentSettingsAsDefault()
-      self.saveParamsCb_publisher.publish(self.node_namespace)
+      #self.saveParamsCb_publisher.publish(self.node_namespace)
 
     return True
 
@@ -950,6 +952,7 @@ class ONVIFMgr:
       self.node_if.set_param('discovery_interval', self.discovery_interval)
       self.node_if.set_param('autosave_cfg_changes', self.autosave_cfg_changes)
       self.node_if.set_param('configured_onvifs', self.configured_onvifs)
+      nepi_sdk.save_params_to_file(self.MGR_USER_CFG_FILE, self.node_namespace, save_all = True, log_name_list = [self.node_name])
   
 
 
