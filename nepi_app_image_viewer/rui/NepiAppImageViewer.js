@@ -30,7 +30,7 @@ import Styles from "./Styles"
 import Toggle from "react-toggle"
 
 import ImageViewer from "./Nepi_IF_ImageViewer"
-import {createShortImagesFromNamespaces} from "./Utilities"
+import {createShortValuesFromNamespaces} from "./Utilities"
 
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 
@@ -149,7 +149,7 @@ class ImageViewerApp extends Component {
     items.push(<Option>{"None"}</Option>) 
     const { imageTopics } = this.props.ros
     const baseNamespace = this.getBaseNamespace()
-    var imageTopicShortnames = createShortImagesFromNamespaces(baseNamespace, imageTopics)
+    var imageTopicShortnames = createShortValuesFromNamespaces(imageTopics)
     for (var i = 0; i < imageTopics.length; i++) {
       items.push(<Option value={imageTopics[i]}>{imageTopicShortnames[i]}</Option>)
     }
@@ -198,11 +198,11 @@ class ImageViewerApp extends Component {
     const selectedImageTopics = this.getSelectedImageTopics()
     const { namespacePrefix, deviceId} = this.props.ros
     const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
-    const selectedImageText = createShortImagesFromNamespaces(baseNamespace, selectedImageTopics)
+    const selectedImageText = createShortValuesFromNamespaces(selectedImageTopics)
     const appNamespace = this.getAppNamespace()
-    const colCount = ((selectedImageTopics[1] !== 'None') || (selectedImageTopics[2] !== 'None') || (selectedImageTopics[3] !== 'None'))? 2 : 1
-    const colFlexSize_1 = (colCount === 1)? "100%" : "50%"
-    const colFlexSize_2 = (colCount === 1)? "0%" : "50%"
+    const has_col_2 = (selectedImageTopics[1] !== 'None') || (selectedImageTopics[3] !== 'None') ? true : false
+    const colFlexSize_1 = (has_col_2 === false)? "100%" : "50%"
+    const colFlexSize_2 = (has_col_2 === false)? "0%" : "50%"
     const flexSize = this.state.showFullscreen === true ? ['100%','0%','0%'] : ['70%','2%','28%']
     
     
@@ -223,71 +223,52 @@ class ImageViewerApp extends Component {
 
            <div style={{ width: flexSize[0] }}>
      
-                <div style={{ display: 'flex' }}>
-
-                  <div style={{ width: colFlexSize_1 }}>
-
+                 
+                      <div style={{ width: colFlexSize_1 }}>
+                            <ImageViewer
+                              imageTopic={selectedImageTopics[0]}
+                              title={selectedImageText[0]}
+                            />
+                            {(selectedImageTopics[2] !== 'None')?
                               <ImageViewer
-                                imageTopic={selectedImageTopics[0]}
-                                show_controls={false}
-                                title={selectedImageText[0]}
-                                hideQualitySelector={true}
-                                squareCanvas={true}
-                              />
-                              {(selectedImageTopics[2] !== 'None')?
-                                <ImageViewer
-                                imageTopic={selectedImageTopics[2]}
-                                show_controls={false}
-                                title={selectedImageText[2]}
-                                hideQualitySelector={true}
-                                squareCanvas={true}
+                              imageTopic={selectedImageTopics[2]}
+                              title={selectedImageText[2]}
+                            />          
+                            : null
+                            }
+                      </div>
+
+
+                      <div style={{ width: colFlexSize_2 }}>
+
+                            {(selectedImageTopics[1] !== 'None' || selectedImageTopics[3] !== 'None' )?
+                              <ImageViewer
+                                imageTopic={selectedImageTopics[1]}
+                                title={selectedImageText[1]}
                               />          
-                              : null
-                              }
+                            : null
+                            }
 
-                        </div>
-
-  
-
-                        <div style={{ width: colFlexSize_2 }}>
-
-                              {(selectedImageTopics[1] !== 'None' || selectedImageTopics[3] !== 'None' )?
-                                <ImageViewer
-                                  imageTopic={selectedImageTopics[1]}
-                                  show_controls={false}
-                                  title={selectedImageText[1]}
-                                  hideQualitySelector={true}
-                                  squareCanvas={true}
-                                />          
-                              : null
-                              }
-
-                              {(selectedImageTopics[3] !== 'None')?
-                                <ImageViewer
-                                  imageTopic={selectedImageTopics[3]}
-                                  show_controls={false}
-                                  title={selectedImageText[3]}
-                                  hideQualitySelector={true}
-                                  squareCanvas={true}
-                                />          
-                              : null
-                              }
-
-                        </div>
-
-
-                </div>
-
+                            {(selectedImageTopics[3] !== 'None')?
+                              <ImageViewer
+                                imageTopic={selectedImageTopics[3]}
+                                title={selectedImageText[3]}
+                              />          
+                            : null
+                            }
+                      </div>
 
           </div>
+
 
           <div style={{ width: flexSize[1] }}>
           </div>
 
-          <div hidden={this.state.showFullscreen}>
+
 
           <div style={{width: flexSize[2]}}>
-
+              <div hidden={this.state.showFullscreen}>
+             
 
                      <Label title={"Img 1"} div style={{display:"flex", flexWrap:"wrap", justifyContent:"space-between"}}>
                       <Select onChange={this.onChangeInputImgSelection} 
@@ -296,27 +277,38 @@ class ImageViewerApp extends Component {
                         {imageOptions}
                       </Select>
                     </Label>
-                    <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
-                      <Select onChange={this.onChangeInputImgSelection} 
-                          id="ImageSelector_1"
-                          value={selectedImageTopics[1]}>
-                          {imageOptions}
-                      </Select>
-                    </Label>
-                    <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
-                      <Select onChange={this.onChangeInputImgSelection} 
-                        id="ImageSelector_2"
-                        value={selectedImageTopics[2]}>
-                        {imageOptions}
-                      </Select>
-                    </Label>
-                    <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
-                      <Select onChange={this.onChangeInputImgSelection} 
-                        id="ImageSelector_3"
-                        value={selectedImageTopics[3]}>
-                        {imageOptions}
-                      </Select>
-                    </Label>
+
+                    <div hidden={(selectedImageTopics[0] === 'None')}></div>
+                          <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
+                            <Select onChange={this.onChangeInputImgSelection} 
+                                id="ImageSelector_1"
+                                value={selectedImageTopics[1]}>
+                                {imageOptions}
+                            </Select>
+                          </Label>
+                          
+                          <div hidden={(selectedImageTopics[1] === 'None')}>
+
+
+                                  <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
+                                    <Select onChange={this.onChangeInputImgSelection} 
+                                      id="ImageSelector_2"
+                                      value={selectedImageTopics[2]}>
+                                      {imageOptions}
+                                    </Select>
+                                  </Label>
+
+                                   <div hidden={(selectedImageTopics[2] === 'None')}>
+                                        <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
+                                          <Select onChange={this.onChangeInputImgSelection} 
+                                            id="ImageSelector_3"
+                                            value={selectedImageTopics[3]}>
+                                            {imageOptions}
+                                          </Select>
+                                        </Label>
+                                  </div>
+
+                          </div>
 
                     </div>
 
@@ -350,16 +342,17 @@ class ImageViewerApp extends Component {
 
 
                     <div hidden={appNamespace === null}>
-                    <NepiIFSaveData
-                    saveNamespace={appNamespace}
-                    title={"Nepi_IF_SaveData"}
-                    />
+                      <NepiIFSaveData
+                      namespace={appNamespace}
+                      title={"Nepi_IF_SaveData"}
+                      />
                     </div>
 
+              
+              </div>
 
           </div>
       
-      </div>
       </div>
 
 
