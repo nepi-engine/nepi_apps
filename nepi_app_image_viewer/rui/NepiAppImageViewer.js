@@ -205,158 +205,176 @@ class ImageViewerApp extends Component {
     const colFlexSize_2 = (has_col_2 === false)? "0%" : "50%"
     const flexSize = this.state.showFullscreen === true ? ['100%','0%','0%'] : ['70%','2%','28%']
     
+    const connected = this.state.connected
     
-    return (
-    <div>
-      <div style={{ width: "10%" }}>
-        <div style={{ marginBottom: "10px" }}>
-          <Label title="fullscreen"> 
-            <Toggle
-              checked={this.state.showFullscreen}
-              onClick={this.onClickToggleShowFullscreen}>
-            </Toggle>
-          </Label>
+
+    if (connected === false){
+      return (
+
+            <Columns>
+              <Column>
+
+
+              </Column>
+            </Columns>
+
+      )
+
+
+    }
+    else {
+      return (
+      <div>
+        <div style={{ width: "10%" }}>
+          <div style={{ marginBottom: "10px" }}>
+            <Label title="fullscreen"> 
+              <Toggle
+                checked={this.state.showFullscreen}
+                onClick={this.onClickToggleShowFullscreen}>
+              </Toggle>
+            </Label>
+          </div>
         </div>
-      </div>
 
-      <div style={{ display: 'flex' }}>
+        <div style={{ display: 'flex' }}>
 
-           <div style={{ width: flexSize[0] }}>
-     
-                 
-                      <div style={{ width: colFlexSize_1 }}>
-                            <ImageViewer
-                              imageTopic={selectedImageTopics[0]}
-                              title={selectedImageText[0]}
-                            />
-                            {(selectedImageTopics[2] !== 'None')?
+            <div style={{ width: flexSize[0] }}>
+      
+                  <div style={{ display: 'flex' }}>
+                  
+                        <div style={{ width: colFlexSize_1 }}>
                               <ImageViewer
-                              imageTopic={selectedImageTopics[2]}
-                              title={selectedImageText[2]}
-                            />          
-                            : null
-                            }
+                                imageTopic={selectedImageTopics[0]}
+                                title={selectedImageText[0]}
+                              />
+                              {(selectedImageTopics[2] !== 'None')?
+                                <ImageViewer
+                                imageTopic={selectedImageTopics[2]}
+                                title={selectedImageText[2]}
+                              />          
+                              : null
+                              }
+                        </div>
+
+
+                        <div style={{ width: colFlexSize_2 }}>
+
+                              {(selectedImageTopics[1] !== 'None' || selectedImageTopics[3] !== 'None' )?
+                                <ImageViewer
+                                  imageTopic={selectedImageTopics[1]}
+                                  title={selectedImageText[1]}
+                                />          
+                              : null
+                              }
+
+                              {(selectedImageTopics[3] !== 'None')?
+                                <ImageViewer
+                                  imageTopic={selectedImageTopics[3]}
+                                  title={selectedImageText[3]}
+                                />          
+                              : null
+                              }
+                        </div>
+
+                  </div> 
+
+            </div>
+
+
+            <div style={{ width: flexSize[1] }}>
+            </div>
+
+
+
+            <div style={{width: flexSize[2]}}>
+                <div hidden={this.state.showFullscreen}>
+              
+
+                      <Label title={"Img 1"} div style={{display:"flex", flexWrap:"wrap", justifyContent:"space-between"}}>
+                        <Select onChange={this.onChangeInputImgSelection} 
+                          id="ImageSelector_0"
+                          value={selectedImageTopics[0]}>                       
+                          {imageOptions}
+                        </Select>
+                      </Label>
+
+                      <div hidden={(selectedImageTopics[0] === 'None')}></div>
+                            <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
+                              <Select onChange={this.onChangeInputImgSelection} 
+                                  id="ImageSelector_1"
+                                  value={selectedImageTopics[1]}>
+                                  {imageOptions}
+                              </Select>
+                            </Label>
+                            
+                            <div hidden={(selectedImageTopics[1] === 'None')}>
+
+
+                                    <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
+                                      <Select onChange={this.onChangeInputImgSelection} 
+                                        id="ImageSelector_2"
+                                        value={selectedImageTopics[2]}>
+                                        {imageOptions}
+                                      </Select>
+                                    </Label>
+
+                                    <div hidden={(selectedImageTopics[2] === 'None')}>
+                                          <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
+                                            <Select onChange={this.onChangeInputImgSelection} 
+                                              id="ImageSelector_3"
+                                              value={selectedImageTopics[3]}>
+                                              {imageOptions}
+                                            </Select>
+                                          </Label>
+                                    </div>
+
+                            </div>
+
                       </div>
 
+                      <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-                      <div style={{ width: colFlexSize_2 }}>
-
-                            {(selectedImageTopics[1] !== 'None' || selectedImageTopics[3] !== 'None' )?
-                              <ImageViewer
-                                imageTopic={selectedImageTopics[1]}
-                                title={selectedImageText[1]}
-                              />          
-                            : null
-                            }
-
-                            {(selectedImageTopics[3] !== 'None')?
-                              <ImageViewer
-                                imageTopic={selectedImageTopics[3]}
-                                title={selectedImageText[3]}
-                              />          
-                            : null
-                            }
-                      </div>
-
-          </div>
+                      <Columns>
+                        <Column>
 
 
-          <div style={{ width: flexSize[1] }}>
-          </div>
+                                <ButtonMenu>
+                                  <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_app")}>{"Reset App"}</Button>
+                                </ButtonMenu>
 
+                          </Column>
+                        <Column>
 
-
-          <div style={{width: flexSize[2]}}>
-              <div hidden={this.state.showFullscreen}>
-             
-
-                     <Label title={"Img 1"} div style={{display:"flex", flexWrap:"wrap", justifyContent:"space-between"}}>
-                      <Select onChange={this.onChangeInputImgSelection} 
-                        id="ImageSelector_0"
-                        value={selectedImageTopics[0]}>                       
-                        {imageOptions}
-                      </Select>
-                    </Label>
-
-                    <div hidden={(selectedImageTopics[0] === 'None')}></div>
-                          <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
-                            <Select onChange={this.onChangeInputImgSelection} 
-                                id="ImageSelector_1"
-                                value={selectedImageTopics[1]}>
-                                {imageOptions}
-                            </Select>
-                          </Label>
-                          
-                          <div hidden={(selectedImageTopics[1] === 'None')}>
-
-
-                                  <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
-                                    <Select onChange={this.onChangeInputImgSelection} 
-                                      id="ImageSelector_2"
-                                      value={selectedImageTopics[2]}>
-                                      {imageOptions}
-                                    </Select>
-                                  </Label>
-
-                                   <div hidden={(selectedImageTopics[2] === 'None')}>
-                                        <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
-                                          <Select onChange={this.onChangeInputImgSelection} 
-                                            id="ImageSelector_3"
-                                            value={selectedImageTopics[3]}>
-                                            {imageOptions}
-                                          </Select>
-                                        </Label>
-                                  </div>
-
-                          </div>
-
-                    </div>
-
-                    <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-                    <Columns>
-                      <Column>
-
-
-                              <ButtonMenu>
-                                <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_app")}>{"Reset App"}</Button>
+                                  <ButtonMenu>
+                                    <Button onClick={() => sendTriggerMsg(appNamespace + "/save_config")}>{"Save Config"}</Button>
                               </ButtonMenu>
 
                         </Column>
-                      <Column>
+                        <Column>
 
                                 <ButtonMenu>
-                                  <Button onClick={() => sendTriggerMsg(appNamespace + "/save_config")}>{"Save Config"}</Button>
-                            </ButtonMenu>
-
-                      </Column>
-                      <Column>
-
-                              <ButtonMenu>
-                                    <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_config")}>{"Reset Config"}</Button>
-                              </ButtonMenu>
+                                      <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_config")}>{"Reset Config"}</Button>
+                                </ButtonMenu>
 
 
-                      </Column>
-                    </Columns>
+                        </Column>
+                      </Columns>
 
 
-                    <div hidden={appNamespace === null}>
-                      <NepiIFSaveData
-                      namespace={appNamespace}
-                      title={"Nepi_IF_SaveData"}
-                      />
-                    </div>
+                        <NepiIFSaveData
+                          namespace={appNamespace}
+                          title={"Nepi_IF_SaveData"}
+                        />
+                
+                </div>
 
-              
-              </div>
-
-          </div>
-      
-      </div>
+            </div>
+        
+        </div>
 
 
-    )
+      )
+    }
   }
 
 
