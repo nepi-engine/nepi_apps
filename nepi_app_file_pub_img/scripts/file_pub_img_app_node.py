@@ -539,7 +539,7 @@ class NepiFilePubImgApp(object):
     if restart == True:
       self.startPub()
       update_status = True
-    restart = False
+    self.restart = False
     # Publish status if needed
     if update_status == True:
       self.publish_status()
@@ -625,7 +625,7 @@ class NepiFilePubImgApp(object):
     if running and step != 0:
       #self.msg_if.pub_info("Start index and onshot: " + str([current_ind,oneshot_offset]))
       #self.msg_if.pub_info("running")
-      if self.image_if != None:
+      if self.image_if != None and len(self.file_list) > 0:
         #self.msg_if.pub_info("pass check")
         # Set current index
         
@@ -634,7 +634,7 @@ class NepiFilePubImgApp(object):
         else:
           current_ind += step
         # Check ind bounds
-        if current_ind > (self.num_files-1):
+        if current_ind > (len(self.file_list)-1):
           current_ind = 0 # Start over
         elif current_ind < 0:
           current_ind = self.num_files-1
