@@ -401,8 +401,6 @@ class FilePubImgApp extends Component {
     if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
-    const {sendTriggerMsg} = this.props.ros
-    const appNamespace = this.state.appNamespace
     const folderOptions = this.createFolderOptions()
     const pubRunning = this.state.pub_running
     const appImageTopic = pubRunning === true ? this.state.appNamespace + "/color_image" : null

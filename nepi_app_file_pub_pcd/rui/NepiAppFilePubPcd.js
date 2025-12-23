@@ -29,8 +29,6 @@ import Toggle from "react-toggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
-
-import ImageViewer from "./Nepi_IF_ImageViewer"
 import NepiIFConfig from "./Nepi_IF_Config"
 
 import { onEnterSendFloatValue,  onUpdateSetStateValue} from "./Utilities"
@@ -385,8 +383,6 @@ class FilePubPcdApp extends Component {
     if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
-    const {sendTriggerMsg} = this.props.ros
-    const appNamespace = this.state.appNamespace
     const folderOptions = this.createFolderOptions()
     const fileOptions = this.getFileOptions()
 
