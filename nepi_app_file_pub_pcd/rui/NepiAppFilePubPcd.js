@@ -19,6 +19,7 @@
 import React, { Component } from "react"
 import { observer, inject } from "mobx-react"
 
+
 import { Columns, Column } from "./Columns"
 import Select, { Option } from "./Select"
 import Button, { ButtonMenu } from "./Button"
@@ -28,26 +29,22 @@ import Toggle from "react-toggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
-
-import ImageViewer from "./Nepi_IF_ImageViewer"
 import NepiIFConfig from "./Nepi_IF_Config"
 
-import { onDropdownSelectedSendStr, createMenuListFromStrList,  onUpdateSetStateValue, onEnterSendFloatValue} from "./Utilities"
+import { onEnterSendFloatValue,  onUpdateSetStateValue} from "./Utilities"
 
 
 @inject("ros")
 @observer
 
-class FilePubImgApp extends Component {
+class FilePubPcdApp extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
 		
-      appName: 'app_file_pub_img',
+      appName: 'app_file_pub_pcd',
 	    appNamespace: null,
-      imageTopic: 'images',
-      imageText: 'file_pub_img/images',
 
       viewableFolders: false,
 
@@ -58,20 +55,21 @@ class FilePubImgApp extends Component {
       supported_file_types: [],
       selected_file: 'Home',
       file_count: 0,
-      current_file: 'None',
+      max_pubs: 5,
+      current_file_list: [],
+      current_topic_list: [],
 
       paused: false,
 
-      size_options_list: ['None'],
-      set_size: 'None',
-      encoding_options_list: ['None'],
-      set_encoding: 'None',
+      available_files_list: [],
+      selected_files_list: [],
 
-
-      set_random: false,
-      set_overlay: false,
       min_max_delay: 1,
       set_delay: 1,
+
+      pub_transforms: false,
+      create_transforms: false,
+
       pub_running: false,
 
       statusListener: null,
@@ -88,6 +86,12 @@ class FilePubImgApp extends Component {
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
 
+    this.toggleViewableTopics = this.toggleViewableTopics.bind(this)
+    this.onToggleFileSelection = this.onToggleFileSelection.bind(this)
+    this.getFilesOptions = this.getFilesOptions.bind(this)
+    this.getFileOptions = this.getFileOptions.bind(this)
+
+    
 
   }
 
@@ -109,21 +113,22 @@ class FilePubImgApp extends Component {
       selected_folder: message.selected_folder,
       supported_file_types: message.supported_file_types,
       file_count: message.file_count ,
-      current_file: message.current_file ,
+      max_pubs: message.max_pubs,
+      current_file_list: message.current_file_list ,
+      current_topic_list: message.current_topic_list ,
+      
       paused: message.paused ,
 
-      size_options_list: message.size_options_list ,
-      set_size: message.set_size ,
-      encoding_options_list: message.encoding_options_list ,
-      set_encoding: message.set_encoding ,
-
-
-      set_random: message.set_random ,
-      set_overlay: message.set_overlay ,
       min_max_delay: message.min_max_delay ,
       set_delay: message.set_delay ,
-      pub_running: message.running
 
+      pub_transforms: message.pub_transforms,
+      create_transforms: message.create_transforms,
+
+      pub_running: message.running,
+
+      available_files_list: message.available_files_list,
+      selected_files_list: message.selected_files_list
   })
 
   var current_folder = 'None'
@@ -152,7 +157,7 @@ class FilePubImgApp extends Component {
       }
       var statusListener = this.props.ros.setupStatusListener(
             statusNamespace,
-            "nepi_app_file_pub_img/FilePubImgStatus",
+            "nepi_app_file_pub_pcd/FilePubPcdStatus",
             this.statusListener
           )
       this.setState({ 
@@ -182,14 +187,69 @@ class FilePubImgApp extends Component {
     }
   }
 
+  toggleViewableTopics() {
+    const set = !this.state.viewableTopics
+    this.setState({viewableTopics: set})
+  }
 
+  onToggleFileSelection(event){
+    const {sendTriggerMsg, sendStringMsg} = this.props.ros
+    const appNamespace = this.getAppNamespace()
+    const fileSelection = event.target.value
+    const selectedFiles = this.state.selected_files_list
+    const addAllNamespace = appNamespace + "/add_all_pcd_files"
+    const removeAllNamespace = appNamespace + "/remove_all_pcd_files"
+    const addNamespace = appNamespace + "/add_pcd_file"
+    const removeNamespace = appNamespace + "/remove_pcd_file"
+    if (appNamespace){
+      if (fileSelection === "None"){
+          sendTriggerMsg(removeAllNamespace)
+      }
+      else if (fileSelection === "All"){
+        sendTriggerMsg(addAllNamespace)
+    }
+      else if (selectedFiles.indexOf(fileSelection) !== -1){
+        sendStringMsg(removeNamespace,fileSelection)
+      }
+      else {
+        sendStringMsg(addNamespace,fileSelection)
+      }
+    }
+  }
+
+  getFilesOptions() {
+    const filesList = this.state.available_files_list
+    var items = []
+    items.push(<Option>{"None"}</Option>)
+    items.push(<Option>{"All"}</Option>)
+    if (filesList.length > 0 ){
+      for (var i = 0; i < filesList.length; i++) {
+          if (filesList[i] !== 'None'){
+            items.push(<Option value={filesList[i]}>{filesList[i]}</Option>)
+          }
+      }
+    }
+    return items
+    }
+
+    getFileOptions() {
+      const filesList = this.state.available_files_list
+      var items = []
+      items.push(<Option>{"None"}</Option>)
+      items.push(<Option>{"All"}</Option>)
+      if (filesList.length > 0 ){
+        for (var i = 0; i < filesList.length; i++) {
+            if (filesList[i] !== 'None'){
+              items.push(<Option value={filesList[i]}>{filesList[i]}</Option>)
+            }
+        }
+      }
+      return items
+      }
 
   renderPubControls() {
-    const {sendBoolMsg} = this.props.ros
     const appNamespace = this.state.appNamespace
     const pubRunning = this.state.pub_running
-    const NoneOption = <Option>None</Option>
-
     return (
 
 
@@ -199,22 +259,17 @@ class FilePubImgApp extends Component {
 
         <div hidden={!this.state.connected}>
 
+            <Label title={"Current Folder"}>
+            <Input disabled value={this.state.current_folder} />
+            </Label>
 
-            <Label title={"Current Folder"} >
-          </Label>
-          <pre style={{ height: "25px", overflowY: "auto" }}>
-            {this.state.current_folder}
-          </pre>
-
-
-            <Label title={"Image Count"}>
+            <Label title={"PointCloud File Count"}>
             <Input disabled value={this.state.file_count} />
             </Label>
 
-
-          <Label title={"Publishing"}>
-              <BooleanIndicator value={pubRunning} />
-            </Label>
+        <Label title={"Publishing"}>
+          <BooleanIndicator value={pubRunning} />
+        </Label>
 
               <div hidden={pubRunning}>
             <ButtonMenu>
@@ -230,60 +285,10 @@ class FilePubImgApp extends Component {
             </ButtonMenu>
             </div>
 
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-            <Columns>
-                  <Column>
-
-
-                      <Label title="Pause">
-                            <Toggle
-                            checked={this.state.paused===true}
-                            onClick={() => sendBoolMsg(appNamespace + "/pause_pub",!this.state.paused)}>
-                            </Toggle>
-                      </Label>
-
-                </Column>
-                  <Column>
-
-
-                      <div hidden={this.state.paused === true}>
-
-                            <Label title={"Set Delay (Seconds)"}>
-                              <Input id="set_delay" 
-                                value={this.state.set_delay} 
-                                onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_delay")} 
-                                onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_delay")} />
-                            </Label>
-
-
-                            <Label title="Set Random Order">
-                                  <Toggle
-                                  checked={this.state.set_random===true}
-                                  onClick={() => sendBoolMsg(appNamespace + "/set_random",!this.state.set_random)}>
-                                  </Toggle>
-                            </Label>
-
-                      </div>
-
-
-                      <div hidden={this.state.paused === false}>
-
-                                  <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_forward")}>{"Forward"}</Button>
-                                </ButtonMenu>
-
-                                <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_backward")}>{"Back"}</Button>
-                                </ButtonMenu>
-
-
-
-                        </div>
-
-                
-            </Column>
-            </Columns>
+            <NepiIFConfig
+                            namespace={appNamespace}
+                            title={"Nepi_IF_Conig"}
+            />
 
 
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
@@ -291,62 +296,34 @@ class FilePubImgApp extends Component {
 
 
 
-          <Label title={"Current File"} >
-          </Label>
-          <pre style={{ height: "25px", overflowY: "auto" }}>
-            {this.state.current_file}
-          </pre>
-
-            <Label title={"Set Image Size"}>
-            <Select
-              id="select_targset_sizeet"
-              onChange={(event) => onDropdownSelectedSendStr.bind(this)(event, appNamespace + "/set_size")}
-              value={this.state.set_size}
-            >
-              {this.state.size_options_list
-                ? createMenuListFromStrList(this.state.size_options_list, false, [],[],[])
-                : NoneOption}
-            </Select>
+            <Label title={"Max Files"}>
+            <Input disabled value={this.state.max_pubs} />
             </Label>
 
+              <Label title={"Set Delay (Seconds)"}>
+            <Input id="set_delay" 
+              value={this.state.set_delay} 
+              onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_delay")} 
+              onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_delay")} />
+             </Label>
 
-            <Label title={"Set Image Encoding"}>
-            <Select
-              id="set_encoding"
-              onChange={(event) => onDropdownSelectedSendStr.bind(this)(event, appNamespace + "/set_encoding")}
-              value={this.state.set_encoding}
-            >
-              {this.state.encoding_options_list
-                ? createMenuListFromStrList(this.state.encoding_options_list, false, [],[],[])
-                : NoneOption}
-            </Select>
+             <Label title="Publish Transforms ">
+                  <Toggle
+                    checked={this.state.pub_transforms===true}
+                    onClick={() => this.props.ros.sendBoolMsg(appNamespace + "/set_pub_transforms",!this.state.pub_transforms)}>
+                  </Toggle>
             </Label>
 
-
-
-        <Label title="Overlay Filename">
-              <Toggle
-              checked={this.state.set_overlay===true}
-              onClick={() => sendBoolMsg(appNamespace + "/set_overlay",!this.state.set_overlay)}>
-              </Toggle>
-        </Label>
-
-
-            </div>
-
-
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-              <NepiIFConfig
-                              namespace={appNamespace}
-                              title={"Nepi_IF_Conig"}
-              />
-
+            <Label title="Create Transforms">
+                  <Toggle
+                    checked={this.state.create_transforms===true}
+                    onClick={() => this.props.ros.sendBoolMsg(appNamespace + "/set_create_transforms",!this.state.create_transforms)}>
+                  </Toggle>
+            </Label>
+        </div>
 
         </Column>
         </Columns>
-
-
 
 
     )
@@ -407,57 +384,80 @@ class FilePubImgApp extends Component {
       this.setState({needs_update: false})
     }
     const folderOptions = this.createFolderOptions()
+    const fileOptions = this.getFileOptions()
+
+    const selectedFiles = this.state.selected_files_list
     const pubRunning = this.state.pub_running
-    const appImageTopic = pubRunning === true ? this.state.appNamespace + "/color_image" : null
     const viewableFolders = (this.state.viewableFolders || pubRunning === false)
     return (
 
     <Columns>
       <Column>
+      {/*
+          <CameraViewer
+            imageTopic={appImageTopic}
+            title={this.state.imageText}
+            hideQualitySelector={false}
+          />
+    */}
+
+    </Column>
+    <Column>
 
 
+        <Columns>
+        <Column>
 
 
-                        <div style={{ display: 'flex' }}>
-                          <div style={{ width: '70%' }}>
+            <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+            {"Select Folder"}
+          </label>
+
+            <div onClick={this.toggleViewableFolders} style={{backgroundColor: Styles.vars.colors.grey0}}>
+              <Select style={{width: "10px"}}/>
+            </div>
+            <div hidden={viewableFolders === false}>
+            {folderOptions.map((folder) =>
+            <div onClick={this.onChangeFolderSelection}>
+              <body value = {folder} style={{color: Styles.vars.colors.black}}>{folder}</body>
+            </div>
+            )}
+            </div>
+    
+
+        </Column>
+        <Column>
+
+        <Label title="Select Files"> </Label>
+
+        <div onClick={this.toggleViewableTopics} style={{backgroundColor: Styles.vars.colors.grey0}}>
+          <Select style={{width: "10px"}}/>
+        </div>
+        <div hidden={this.state.viewableTopics === false}>
+        {fileOptions.map((file) =>
+        <div onClick={this.onToggleFileSelection}
+          style={{
+            textAlign: "center",
+            padding: `${Styles.vars.spacing.xs}`,
+            color: Styles.vars.colors.black,
+            backgroundColor: (selectedFiles.includes(file.props.value))? Styles.vars.colors.blue : Styles.vars.colors.grey0,
+            cursor: "pointer",
+            }}>
+            <body file_name ={file} style={{color: Styles.vars.colors.black}}>{file}</body>
+        </div>
+        )}
+        </div>
 
 
-                              <ImageViewer
-                                imageTopic={appImageTopic}
-                                title={this.state.imageText}
-                                hideQualitySelector={false}
-                              />
+        </Column>
+        <Column>
 
-                          </div>
+        {this.renderPubControls()}
 
-                          <div style={{ width: '3%' }}>
-                            {}
-                          </div>
-
-                          <div style={{ width: '27%' }}>
+        </Column>
+        </Columns>
 
 
-                                  <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
-                                  {"Select Folder"}
-                                </label>
-
-                                  <div onClick={this.toggleViewableFolders} style={{backgroundColor: Styles.vars.colors.grey0}}>
-                                    <Select style={{width: "10px"}}/>
-                                  </div>
-                                  <div hidden={viewableFolders === false}>
-                                  {folderOptions.map((folder) =>
-                                  <div onClick={this.onChangeFolderSelection}>
-                                    <body value = {folder} style={{color: Styles.vars.colors.black}}>{folder}</body>
-                                  </div>
-                                  )}
-                                  </div>
-
-
-                                  {this.renderPubControls()}
-
-
-                          </div>
-                        </div>
 
 
 
@@ -469,4 +469,4 @@ class FilePubImgApp extends Component {
 
 }
 
-export default FilePubImgApp
+export default FilePubPcdApp
