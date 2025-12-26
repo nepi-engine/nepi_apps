@@ -100,6 +100,8 @@ class NepiFilePubVidApp(object):
   running = False
 
   restart = False
+
+  update_img = False
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_file_pub_vid" # Can be overwitten by luanch command
@@ -441,6 +443,8 @@ class NepiFilePubVidApp(object):
   def pausePubCb(self,msg):
     ##self.msg_if.pub_info(msg)
     self.paused = msg.data
+    self.oneshot_offset = 0
+    self.update_img = True
     self.publish_status()
 
   def stepForwardPubCb(self,msg):
@@ -500,6 +504,12 @@ class NepiFilePubVidApp(object):
       if self.node_if is not None:
         self.node_if.set_param('overlay',overlay)
 
+
+  def img_needs_update(self):
+    #self.msg_if.pub_info('Got update image request')
+    self.update_img = True
+
+
   def startPubCb(self,msg):
     self.startPub()
 
@@ -528,6 +538,7 @@ class NepiFilePubVidApp(object):
                       data_source_description = 'file',
                       data_ref_description = 'source',
                       perspective = 'pov',
+                      needs_update_callback = self.img_needs_update,
                       log_name = data_product,
                       msg_if = self.msg_if
                       )
@@ -611,7 +622,8 @@ class NepiFilePubVidApp(object):
                 encoding = self.encoding
                 set_random = self.random
                 overlay = self.overlay
-                if cv2_img is None or self.paused == False or self.oneshot == True:
+                if cv2_img is None or self.paused == False or self.oneshot == True or self.img_needs_update == True:
+                  self.img_needs_update = False
                   self.oneshot = False
                   # Publish video at native fps
                   success,cv2_img = self.vidcap.read()

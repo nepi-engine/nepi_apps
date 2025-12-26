@@ -230,12 +230,6 @@ class FilePubImgApp extends Component {
             </ButtonMenu>
             </div>
 
-
-              <NepiIFConfig
-                              namespace={appNamespace}
-                              title={"Nepi_IF_Conig"}
-              />
-
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
             <Columns>
@@ -340,8 +334,19 @@ class FilePubImgApp extends Component {
 
             </div>
 
+
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+              <NepiIFConfig
+                              namespace={appNamespace}
+                              title={"Nepi_IF_Conig"}
+              />
+
+
         </Column>
         </Columns>
+
+
 
 
     )

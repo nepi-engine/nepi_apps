@@ -97,6 +97,10 @@ class NepiFilePubImgApp(object):
   running = False
 
   restart = False
+  update_img = False
+
+  file2open = None
+  cv2_img = None
 
 
   #######################
@@ -428,6 +432,8 @@ class NepiFilePubImgApp(object):
   def pausePubCb(self,msg):
     ##self.msg_if.pub_info(msg)
     self.paused = msg.data
+    self.oneshot_offset = 0
+    self.update_img = True
     self.publish_status()
 
   def stepForwardPubCb(self,msg):
@@ -545,6 +551,10 @@ class NepiFilePubImgApp(object):
       self.publish_status()
 
 
+  def img_needs_update(self):
+    #self.msg_if.pub_info('Got update image request')
+    self.update_img = True
+
   def startPubCb(self,msg):
     self.msg_if.pub_info('Got start publishing msg: ' + str(msg))
     self.startPub()
@@ -575,6 +585,7 @@ class NepiFilePubImgApp(object):
                       data_source_description = 'file',
                       data_ref_description = 'source',
                       perspective = 'pov',
+                      needs_update_callback = self.img_needs_update,
                       log_name = data_product,
                       msg_if = self.msg_if
                       )
@@ -622,14 +633,15 @@ class NepiFilePubImgApp(object):
       step = oneshot_offset
     else:
       step = 1
-    if running and step != 0:
+    if running and (step != 0 or self.update_img == True):
+      self.update_img = False
       #self.msg_if.pub_info("Start index and onshot: " + str([current_ind,oneshot_offset]))
       #self.msg_if.pub_info("running")
       if self.image_if != None and len(self.file_list) > 0:
         #self.msg_if.pub_info("pass check")
         # Set current index
         
-        if set_random == True and self.paused == False:
+        if set_random == True and self.paused == True and step != 0:
           current_ind = int(random.random() * self.num_files)
         else:
           current_ind += step
@@ -644,45 +656,49 @@ class NepiFilePubImgApp(object):
         self.current_file = file2open.split('/')[-1]
         self.current_ind = current_ind
         #self.msg_if.pub_info("Opening File: " + file2open)
-        cv2_img = cv2.imread(file2open)
+        if file2open != self.file2open:
+          self.cv2_img = cv2.imread(file2open)
+          self.file2open = file2open
         #self.msg_if.pub_info("pub file: " + str(file2open))
-        if self.size != 'Original' and self.width > 100 and self.height > 100:
-          cv2_img = cv2.resize(cv2_img,(self.width,self.height))
-        else:
-          [self.width,self.height] = cv2_img.shape[0:2]
+        cv2_img =copy.deepcopy(self.cv2_img)
+        if cv2_img is not None:
+          if self.size != 'Original' and self.width > 100 and self.height > 100:
+            cv2_img = cv2.resize(cv2_img,(self.width,self.height))
+          else:
+            [self.width,self.height] = cv2_img.shape[0:2]
 
-        # Overlay Label
-        if overlay == True:
-          # Overlay text data on OpenCV image
-          font                   = cv2.FONT_HERSHEY_DUPLEX
-          fontScale, thickness  = nepi_img.optimal_font_dims(cv2_img,font_scale = 1.5e-3, thickness_scale = 1.5e-3)
-          fontColor = (0, 255, 0)
-          lineType = 1
-          text2overlay=self.current_file
-          bottomLeftCornerOfText = (int(self.width*.05),int(self.height*.1))
-          cv2.putText(cv2_img,text2overlay, 
-              bottomLeftCornerOfText, 
-              font, 
-              fontScale,
-              fontColor,
-              thickness,
-              lineType)
+          # Overlay Label
+          if overlay == True:
+            # Overlay text data on OpenCV image
+            font                   = cv2.FONT_HERSHEY_DUPLEX
+            fontScale, thickness  = nepi_img.optimal_font_dims(cv2_img,font_scale = 1.5e-3, thickness_scale = 1.5e-3)
+            fontColor = (0, 255, 0)
+            lineType = 1
+            text2overlay=self.current_file
+            bottomLeftCornerOfText = (int(self.width*.05),int(self.height*.1))
+            cv2.putText(cv2_img,text2overlay, 
+                bottomLeftCornerOfText, 
+                font, 
+                fontScale,
+                fontColor,
+                thickness,
+                lineType)
 
-        # Publish new image to ros        
-        img_shape = cv2_img.shape     
-        if encoding == 'mono8' and img_shape[2] == 3:
-          cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
-        if encoding != 'mono8' and img_shape[2] == 1:
-          cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
-        frame_3d = 'sensor_frame'
-        #self.msg_if.pub_info("Publishing")
-        if self.image_if is not None:
-          self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                          frame_3d = frame_3d,
-                                          width_deg = self.width_deg,
-                                          height_deg = self.height_deg,
-                                          device_mount_description = 'unknown',
-                                          pub_twice = self.paused)
+          # Publish new image to ros        
+          img_shape = cv2_img.shape     
+          if encoding == 'mono8' and img_shape[2] == 3:
+            cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
+          if encoding != 'mono8' and img_shape[2] == 1:
+            cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
+          frame_3d = 'sensor_frame'
+          #self.msg_if.pub_info("Publishing")
+          if self.image_if is not None:
+            self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
+                                            frame_3d = frame_3d,
+                                            width_deg = self.width_deg,
+                                            height_deg = self.height_deg,
+                                            device_mount_description = 'unknown',
+                                            pub_twice = self.paused)
     delay = 0.1
     running = self.running
     if running == True and self.paused == False:
