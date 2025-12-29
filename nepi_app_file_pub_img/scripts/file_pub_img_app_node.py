@@ -367,10 +367,7 @@ class NepiFilePubImgApp(object):
     status_msg.selected_folder = selected_folder
     status_msg.current_folders = self.current_folders
     status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
-    if self.paused:
-      file = self.current_file
-    else:
-      file = 'Displayed when paused'
+    file = self.current_file
     status_msg.current_file =  file
 
     status_msg.paused = self.paused
@@ -699,6 +696,7 @@ class NepiFilePubImgApp(object):
                                             height_deg = self.height_deg,
                                             device_mount_description = 'unknown',
                                             pub_twice = self.paused)
+          self.publish_status()
     delay = 0.1
     running = self.running
     if running == True and self.paused == False:
