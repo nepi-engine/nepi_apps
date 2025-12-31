@@ -121,7 +121,7 @@ class FilePubImgApp extends Component {
       set_random: message.set_random ,
       set_overlay: message.set_overlay ,
       min_max_delay: message.min_max_delay ,
-      set_delay: message.set_delay ,
+
       pub_running: message.running
 
   })
@@ -134,12 +134,18 @@ class FilePubImgApp extends Component {
     current_folder = message.current_folder
   }
 
-
   this.setState({
       current_folder: current_folder,
       connected: true
     })
 
+  const set_delay = this.state.set_delay
+  if (set_delay !== message.set_delay){
+  this.setState({
+      set_delay: message.set_delay
+    })
+
+  }
 
   }
 
