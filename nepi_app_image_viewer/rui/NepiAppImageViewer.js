@@ -31,7 +31,7 @@ import Toggle from "react-toggle"
 
 import ImageViewer from "./Nepi_IF_ImageViewer"
 import {createShortValuesFromNamespaces} from "./Utilities"
-
+import NepiIFConfig from "./Nepi_IF_Config"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 
 @inject("ros")
@@ -284,14 +284,20 @@ class ImageViewerApp extends Component {
 
                   </div> 
 
+                  <NepiIFSaveData
+                          namespace={appNamespace}
+                          title={"Nepi_IF_SaveData"}
+                        />
+
+
+
+
+
             </div>
 
 
 
-            <NepiIFSaveData
-                          namespace={appNamespace}
-                          title={"Nepi_IF_SaveData"}
-                        />
+
                 
 
 
@@ -312,7 +318,6 @@ class ImageViewerApp extends Component {
                         </Select>
                       </Label>
 
-                      <div hidden={(selectedImageTopics[0] === 'None')}></div>
                             <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
                               <Select onChange={this.onChangeInputImgSelection} 
                                   id="ImageSelector_1"
@@ -321,7 +326,7 @@ class ImageViewerApp extends Component {
                               </Select>
                             </Label>
                             
-                            <div hidden={(selectedImageTopics[1] === 'None')}>
+
 
 
                                     <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
@@ -332,7 +337,7 @@ class ImageViewerApp extends Component {
                                       </Select>
                                     </Label>
 
-                                    <div hidden={(selectedImageTopics[2] === 'None')}>
+
                                           <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
                                             <Select onChange={this.onChangeInputImgSelection} 
                                               id="ImageSelector_3"
@@ -340,14 +345,14 @@ class ImageViewerApp extends Component {
                                               {imageOptions}
                                             </Select>
                                           </Label>
-                                    </div>
+              
 
-                            </div>
+   
 
                             <div align={"left"} textAlign={"left"}>
                                       
                                       <NepiIFConfig
-                                          namespace={namespace}
+                                          namespace={appNamespace}
                                           title={"Nepi_IF_Conig"}
                                     />
 
