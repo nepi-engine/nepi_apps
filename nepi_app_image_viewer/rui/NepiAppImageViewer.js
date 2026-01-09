@@ -206,8 +206,10 @@ class ImageViewerApp extends Component {
     const flexSize = this.state.showFullscreen === true ? ['100%','0%','0%'] : ['70%','2%','28%']
     
     const connected = this.state.connected
-    
 
+    const show_image_controls = false
+    
+    
     if (connected === false){
       return (
 
@@ -246,11 +248,13 @@ class ImageViewerApp extends Component {
                               <ImageViewer
                                 imageTopic={selectedImageTopics[0]}
                                 title={selectedImageText[0]}
+                                show_image_options={show_image_controls}
                               />
                               {(selectedImageTopics[2] !== 'None')?
                                 <ImageViewer
                                 imageTopic={selectedImageTopics[2]}
                                 title={selectedImageText[2]}
+                                show_image_options={show_image_controls}
                               />          
                               : null
                               }
@@ -263,6 +267,7 @@ class ImageViewerApp extends Component {
                                 <ImageViewer
                                   imageTopic={selectedImageTopics[1]}
                                   title={selectedImageText[1]}
+                                  show_image_options={show_image_controls}
                                 />          
                               : null
                               }
@@ -271,6 +276,7 @@ class ImageViewerApp extends Component {
                                 <ImageViewer
                                   imageTopic={selectedImageTopics[3]}
                                   title={selectedImageText[3]}
+                                  show_image_options={show_image_controls}
                                 />          
                               : null
                               }
@@ -279,6 +285,14 @@ class ImageViewerApp extends Component {
                   </div> 
 
             </div>
+
+
+
+            <NepiIFSaveData
+                          namespace={appNamespace}
+                          title={"Nepi_IF_SaveData"}
+                        />
+                
 
 
             <div style={{ width: flexSize[1] }}>
@@ -330,43 +344,19 @@ class ImageViewerApp extends Component {
 
                             </div>
 
+                            <div align={"left"} textAlign={"left"}>
+                                      
+                                      <NepiIFConfig
+                                          namespace={namespace}
+                                          title={"Nepi_IF_Conig"}
+                                    />
+
+                              </div>
+
+
                       </div>
 
-                      <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-                      <Columns>
-                        <Column>
-
-
-                                <ButtonMenu>
-                                  <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_app")}>{"Reset App"}</Button>
-                                </ButtonMenu>
-
-                          </Column>
-                        <Column>
-
-                                  <ButtonMenu>
-                                    <Button onClick={() => sendTriggerMsg(appNamespace + "/save_config")}>{"Save Config"}</Button>
-                              </ButtonMenu>
-
-                        </Column>
-                        <Column>
-
-                                <ButtonMenu>
-                                      <Button onClick={() => sendTriggerMsg( appNamespace + "/reset_config")}>{"Reset Config"}</Button>
-                                </ButtonMenu>
-
-
-                        </Column>
-                      </Columns>
-
-
-                        <NepiIFSaveData
-                          namespace={appNamespace}
-                          title={"Nepi_IF_SaveData"}
-                        />
-                
-                </div>
+               </div>
 
             </div>
         
