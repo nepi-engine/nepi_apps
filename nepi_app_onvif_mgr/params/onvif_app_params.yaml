@@ -8,7 +8,7 @@ APP_DICT:
   license_type: Numurus Software License
   license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
 RUI_DICT:
-  rui_menu_name: ONVIF Device Mgr
+  rui_menu_name: ONVIF Mgr
   rui_files:
   - NepiAppOnvifMgr.js
   rui_main_file: NepiAppOnvifMgr.js
