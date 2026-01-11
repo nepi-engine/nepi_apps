@@ -25,6 +25,7 @@ import numpy as np
 import time
 import subprocess
 import threading
+import copy
 
 
 from std_msgs.msg import UInt8, Empty, String, Bool, Float32, Int32
@@ -255,7 +256,12 @@ class NepiImageViewerApp(object):
       self.publish_status()
 
   def publish_status(self):
-    status_msg = self.selected_topics
+    topics = copy.deepcopy(self.selected_topics)
+    for i, topic in enumerate(selected_topics):
+       if nepi_sdk.check_for_topic(topic) == false:
+          topics[i] = 'None'
+          
+    status_msg = topics
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub',status_msg)
 
