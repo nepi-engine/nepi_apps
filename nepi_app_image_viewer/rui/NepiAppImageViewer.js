@@ -18,10 +18,11 @@ import Button, { ButtonMenu } from "./Button"
 import Styles from "./Styles"
 import Toggle from "react-toggle"
 
-import ImageViewer from "./Nepi_IF_ImageViewer"
-import {createShortValuesFromNamespaces} from "./Utilities"
+import ImageViewerSelector from "./NepiSelectorImageViewer"
 import NepiIFConfig from "./Nepi_IF_Config"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
+
+import {createShortValuesFromNamespaces, onChangeSwitchStateValue} from "./Utilities"
 
 @inject("ros")
 @observer
@@ -36,23 +37,21 @@ class ImageViewerApp extends Component {
       appName: "app_image_viewer",
       appNamespace: null,
 
-      selectedImageTopics: ['None','None','None','None'],
+      topics: ['None','None','None','None'],
+      num_windows: 1,
       statusListener: null,
       connected: false,
       needs_update: false,
-      showFullscreen: false
+
+      show_selectors: false
     }
-    this.onClickToggleShowFullscreen = this.onClickToggleShowFullscreen.bind(this)
 
     this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
 
-    this.createImageTopicsOptions = this.createImageTopicsOptions.bind(this)
-    this.onChangeInputImgSelection = this.onChangeInputImgSelection.bind(this)
     this.statusListener = this.statusListener.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
 
-    this.getSelectedImageTopics = this.getSelectedImageTopics.bind(this)
   }
 
 
@@ -78,7 +77,8 @@ class ImageViewerApp extends Component {
   // Callback for handling ROS Status messages
   statusListener(message) {
     this.setState({
-      selectedImageTopics: message.entries
+      topics: message.topics,
+      num_windows: message.num_windows
   })
     this.setState({
       connected: true
@@ -88,17 +88,18 @@ class ImageViewerApp extends Component {
   }
 
     // Function for configuring and subscribing to Status
-    updateStatusListener() {
-      const statusNamespace = this.state.appNamespace + '/status'
+    updateStatusListener(namespace) {
+      const statusNamespace = namespace + '/status'
       if (this.state.statusListener) {
         this.state.statusListener.unsubscribe()
       }
       var statusListener = this.props.ros.setupStatusListener(
             statusNamespace,
-            "nepi_interfaces/StringArray",
+            "nepi_app_image_viewer/NepiAppImageViewerStatus",
             this.statusListener
           )
       this.setState({ 
+        appNamespace: namespace,
         statusListener: statusListener,
       })
     }
@@ -111,11 +112,10 @@ class ImageViewerApp extends Component {
   // Used to track changes in the topic
   componentDidUpdate(prevProps, prevState, snapshot) {
     const namespace = this.getAppNamespace()
-    const namespace_updated = (prevState.appNamespace !== namespace && namespace !== null)
+    const namespace_updated = (this.state.appNamespace !== namespace && namespace !== null)
     if (namespace_updated) {
       if (namespace.indexOf('null') === -1){
-        this.setState({appNamespace: namespace})
-        this.updateStatusListener()
+        this.updateStatusListener(namespace)
       } 
     }
   }
@@ -130,73 +130,28 @@ class ImageViewerApp extends Component {
   }
 
 
-
-
-  // Function for creating image topic options.
-  createImageTopicsOptions() {
-    var items = []
-    items.push(<Option>{"None"}</Option>) 
-    const { imageTopics } = this.props.ros
-    //Unused const baseNamespace = this.getBaseNamespace()
-    var imageTopicShortnames = createShortValuesFromNamespaces(imageTopics)
-    for (var i = 0; i < imageTopics.length; i++) {
-      items.push(<Option value={imageTopics[i]}>{imageTopicShortnames[i]}</Option>)
-    }
-    return items
-  }
-
-  onChangeInputImgSelection(event) {
-    const {sendImageSelectionMsg} = this.props.ros
-    var imageTopics = this.state.selectedImageTopics
-    const namespace = this.getAppNamespace() 
-    const selNamespace = namespace + "/set_topic"
-    const value = event.target.value
-    if (namespace !== null){    
-      var selector_img = 0
-      if (event.nativeEvent.target.id === "ImageSelector_1") {
-        selector_img = 1
-      }
-      else if (event.nativeEvent.target.id === "ImageSelector_2") {
-        selector_img = 2
-      }
-      else if (event.nativeEvent.target.id === "ImageSelector_3") {
-        selector_img = 3
-      }
-
-      imageTopics[selector_img] = value
-      sendImageSelectionMsg(selNamespace,selector_img,value)
-    }
-    this.setState({selectedImageTopics: imageTopics})
-  }
-
-  getSelectedImageTopics(){
-    const imageTopics = this.state.selectedImageTopics
-    return imageTopics
-  }
-
-  onClickToggleShowFullscreen() {
-    this.setState({ showFullscreen: !this.state.showFullscreen });
-  }
-
   render() {
     if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
-    const {sendTriggerMsg} = this.props.ros
-    const imageOptions = this.createImageTopicsOptions()
-    const selectedImageTopics = this.getSelectedImageTopics()
-    const { namespacePrefix, deviceId} = this.props.ros
+    const {sendIntMsg} = this.props.ros
+    const topics = this.state.topics
+    const num_windows = this.state.num_windows
+
     //Unused const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
-    const selectedImageText = createShortValuesFromNamespaces(selectedImageTopics)
+    const topics_text = createShortValuesFromNamespaces(topics)
+    const image_filters = ['all']
     const appNamespace = this.getAppNamespace()
-    const has_col_2 = (selectedImageTopics[1] !== 'None') || (selectedImageTopics[3] !== 'None') ? true : false
+    const num_windows_namespace = appNamespace + '/set_num_windows'
+    const streamingImageQuality = (num_windows > 1) ? 50 : 95
+    const has_col_2 = (num_windows > 1) ? true : false
     const colFlexSize_1 = (has_col_2 === false)? "100%" : "50%"
     const colFlexSize_2 = (has_col_2 === false)? "0%" : "50%"
-    const flexSize = this.state.showFullscreen === true ? ['100%','0%','0%'] : ['70%','2%','28%']
     
     const connected = this.state.connected
 
     const show_image_controls = false
+    const show_selectors = this.state.show_selectors
     
     
     if (connected === false){
@@ -215,148 +170,154 @@ class ImageViewerApp extends Component {
     }
     else {
       return (
-      <div>
-        <div style={{ width: "10%" }}>
-          <div style={{ marginBottom: "10px" }}>
-            <Label title="fullscreen"> 
-              <Toggle
-                checked={this.state.showFullscreen}
-                onClick={this.onClickToggleShowFullscreen}>
-              </Toggle>
-            </Label>
-          </div>
-        </div>
+     
+        <div>
+                          <div style={{ display: 'flex' }}>
+                                <div style={{ width: '5%' }}>
+                                  {}
+                                </div>
 
-        <div style={{ display: 'flex' }}>
+                                <div style={{ width: '10%' }}>
+                                  <ButtonMenu>
+                                    <Button onClick={() => sendIntMsg( num_windows_namespace,1)}>{"1 Window"}</Button>
+                                  </ButtonMenu>
+                                </div>
 
-            <div style={{ width: flexSize[0] }}>
-      
-                  <div style={{ display: 'flex' }}>
-                  
-                        <div style={{ width: colFlexSize_1 }}>
-                              <ImageViewer
-                                imageTopic={selectedImageTopics[0]}
-                                title={selectedImageText[0]}
-                                show_image_options={show_image_controls}
-                              />
-                              {(selectedImageTopics[2] !== 'None')?
-                                <ImageViewer
-                                imageTopic={selectedImageTopics[2]}
-                                title={selectedImageText[2]}
-                                show_image_options={show_image_controls}
-                              />          
-                              : null
-                              }
-                        </div>
+                                <div style={{ width: '5%' }}>
+                                  {}
+                                </div>
 
+                                <div style={{ width: '10%' }}>
+                                  <ButtonMenu>
+                                    <Button onClick={() => sendIntMsg( num_windows_namespace,2)}>{"2 Windows"}</Button>
+                                  </ButtonMenu>
+                                </div>
 
-                        <div style={{ width: colFlexSize_2 }}>
+                                <div style={{ width: '5' }}>
+                                  {}
+                                </div>
 
-                              {(selectedImageTopics[1] !== 'None' || selectedImageTopics[3] !== 'None' )?
-                                <ImageViewer
-                                  imageTopic={selectedImageTopics[1]}
-                                  title={selectedImageText[1]}
-                                  show_image_options={show_image_controls}
-                                />          
-                              : null
-                              }
+                                <div style={{ width: '10%' }}>
+                                  <ButtonMenu>
+                                    <Button onClick={() => sendIntMsg( num_windows_namespace,3)}>{"3 Windows"}</Button>
+                                  </ButtonMenu>
+                                </div>
 
-                              {(selectedImageTopics[3] !== 'None')?
-                                <ImageViewer
-                                  imageTopic={selectedImageTopics[3]}
-                                  title={selectedImageText[3]}
-                                  show_image_options={show_image_controls}
-                                />          
-                              : null
-                              }
-                        </div>
-
-                  </div> 
-
-                  <NepiIFSaveData
-                          namespace={appNamespace}
-                          title={"Nepi_IF_SaveData"}
-                        />
-
-
-
-
-
-            </div>
-
-
-
-
+                                <div style={{ width: '5%' }}>
+                                  {}
+                                </div>
                 
+                                <div style={{ width: '10%' }}>
+                                  <ButtonMenu>
+                                    <Button onClick={() => sendIntMsg( num_windows_namespace,4)}>{"4 Windows"}</Button>
+                                  </ButtonMenu>
+                                </div>
+
+                                <div style={{ width: '5%' }}>
+                                  {}
+                                </div>
+
+                                <div style={{ width: '10%' }}></div>
+
+                                  <Label title="Show Selectors">
+                                    <Toggle
+                                      checked={this.state.show_selectors===true}
+                                      onClick={() => onChangeSwitchStateValue.bind(this)("show_selectors",this.state.show_selectors)}>
+                                    </Toggle>
+                                </Label>
+
+                             </div>
+
+                                <div style={{ width: '25%' }}>
+                                  {}
+                                </div>
 
 
-            <div style={{ width: flexSize[1] }}>
-            </div>
+            <div style={{ display: 'flex' }}>
+            
+                  <div style={{ width: colFlexSize_1 }}>
+                        <div id="Image1Viewer">
+                          <ImageViewerSelector
+                            id="Image1Viewer"
+                            imageTopic={topics[0]}
+                            title={topics_text[0]}
+                            show_image_options={show_image_controls}
+                            select_updated_namespace={appNamespace + '/set_topic_1'}
+                            streamingImageQuality={streamingImageQuality}
+                            image_filters={image_filters}
+                            show_selector={show_selectors}
+                            show_buttons={show_selectors}
+                          />
+                        </div>
+
+                        {(num_windows > 2)?
+                          <div id="Image3Viewer">
+                            <ImageViewerSelector
+                              id="Image3Viewer"
+                              imageTopic={topics[2]}
+                              title={topics_text[2]}
+                              show_image_options={show_image_controls}
+                              select_updated_namespace={appNamespace + '/set_topic_3'}
+                              streamingImageQuality={streamingImageQuality}
+                              image_filters={image_filters}
+                              show_selector={show_selectors}
+                              show_buttons={show_selectors}
+                            />
+                          </div>        
+                        : null
+                        }
+                  </div>
 
 
+                  <div style={{ width: colFlexSize_2 }}>
 
-            <div style={{width: flexSize[2]}}>
-                <div hidden={this.state.showFullscreen}>
-              
+                        {(num_windows > 1)?
+                          <div id="Image2Viewer">
+                            <ImageViewerSelector
+                              id="Image2Viewer"
+                              imageTopic={topics[1]}
+                              title={topics_text[1]}
+                              show_image_options={show_image_controls}
+                              select_updated_namespace={appNamespace + '/set_topic_2'}
+                              streamingImageQuality={streamingImageQuality}
+                              image_filters={image_filters}
+                            show_selector={show_selectors}
+                            show_buttons={show_selectors}
+                            />
+                          </div>          
+                        : null
+                        }
 
-                      <Label title={"Img 1"} div style={{display:"flex", flexWrap:"wrap", justifyContent:"space-between"}}>
-                        <Select onChange={this.onChangeInputImgSelection} 
-                          id="ImageSelector_0"
-                          value={selectedImageTopics[0]}>                       
-                          {imageOptions}
-                        </Select>
-                      </Label>
-
-                            <Label title={"Img 2"} style={{ marginRight: '15px', minWidth: '200px' }}>
-                              <Select onChange={this.onChangeInputImgSelection} 
-                                  id="ImageSelector_1"
-                                  value={selectedImageTopics[1]}>
-                                  {imageOptions}
-                              </Select>
-                            </Label>
-                            
-
-
-
-                                    <Label title={"Img 3"} style={{ marginRight: '20px', minWidth: '150px' }}>
-                                      <Select onChange={this.onChangeInputImgSelection} 
-                                        id="ImageSelector_2"
-                                        value={selectedImageTopics[2]}>
-                                        {imageOptions}
-                                      </Select>
-                                    </Label>
-
-
-                                          <Label title={"Img 4"} style={{ marginRight: '25px', minWidth: '60px' }}>
-                                            <Select onChange={this.onChangeInputImgSelection} 
-                                              id="ImageSelector_3"
-                                              value={selectedImageTopics[3]}>
-                                              {imageOptions}
-                                            </Select>
-                                          </Label>
-              
-
+                        {(num_windows === 4)?
+                          <div id="Image4Viewer">
+                            <ImageViewerSelector
+                              id="Image4Viewer"
+                              imageTopic={topics[3]}
+                              title={topics_text[3]}
+                              show_image_options={show_image_controls}
+                              select_updated_namespace={appNamespace + '/set_topic_4'}
+                              streamingImageQuality={streamingImageQuality}
+                              image_filters={image_filters}
+                            show_selector={show_selectors}
+                            show_buttons={show_selectors}
+                            />
+                          </div>          
+                        : null
+                        }
+                  </div>
    
+          </div> 
 
-                            <div align={"left"} textAlign={"left"}>
-                                      
-                                      <NepiIFConfig
-                                          namespace={appNamespace}
-                                          title={"Nepi_IF_Conig"}
-                                    />
+            <NepiIFConfig
+                    namespace={appNamespace}
+                    title={"Nepi_IF_Config"}
+                  />
 
-                              </div>
-
-
-                      </div>
-
-               </div>
-
-            </div>
-        
-        </div>
-
-
+            <NepiIFSaveData
+                    namespace={appNamespace + "/save_data"}
+                    title={"Nepi_IF_SaveData"}
+                  />
+      </div>
       )
     }
   }

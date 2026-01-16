@@ -19,7 +19,7 @@ import copy
 
 from std_msgs.msg import UInt8, Empty, String, Bool, Float32, Int32
 from sensor_msgs.msg import Image
-from nepi_app_image_viewer.msg import ImageSelection
+from nepi_app_image_viewer.msg import NepiAppImageViewerStatus
 from nepi_interfaces.msg import StringArray
 
 from nepi_sdk import nepi_sdk
@@ -56,6 +56,7 @@ class NepiImageViewerApp(object):
   img_subs_dict = dict()
 
   selected_topics = ["None","None","None","None"]
+  num_windows = 1
 
   #selected_topics = selected_topics
     
@@ -101,6 +102,10 @@ class NepiImageViewerApp(object):
         'selected_topics': {
             'namespace': self.node_namespace,
             'factory_val': self.selected_topics
+        },
+        'num_windows': {
+            'namespace': self.node_namespace,
+            'factory_val': self.num_windows
         }
     }
 
@@ -109,7 +114,7 @@ class NepiImageViewerApp(object):
         'status_pub': {
             'namespace': self.node_namespace,
             'topic': 'status',
-            'msg': StringArray,
+            'msg': NepiAppImageViewerStatus,
             'qsize': 1,
             'latch': True
         }
@@ -117,12 +122,44 @@ class NepiImageViewerApp(object):
 
     # Subscribers Config Dict ####################
     self.SUBS_DICT = {
-        'set_topic': {
+        'set_topic_1': {
             'namespace': self.node_namespace,
-            'topic': 'set_topic',
-            'msg': ImageSelection,
+            'topic': 'set_topic_1',
+            'msg': String,
             'qsize': 10,
-            'callback': self.setImageTopicCb, 
+            'callback': self.setImageTopic1Cb, 
+            'callback_args': ()
+        },
+        'set_topic_2': {
+            'namespace': self.node_namespace,
+            'topic': 'set_topic_2',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setImageTopic2Cb, 
+            'callback_args': ()
+        },
+          'set_topic_3': {
+            'namespace': self.node_namespace,
+            'topic': 'set_topic_3',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setImageTopic3Cb, 
+            'callback_args': ()
+        },
+          'set_topic_4': {
+            'namespace': self.node_namespace,
+            'topic': 'set_topic_4',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setImageTopic4Cb, 
+            'callback_args': ()
+        },
+          'set_num_windows': {
+            'namespace': self.node_namespace,
+            'topic': 'set_num_windows',
+            'msg': Int32,
+            'qsize': 10,
+            'callback': self.setNumWindowsCb, 
             'callback_args': ()
         }
     }
@@ -195,17 +232,59 @@ class NepiImageViewerApp(object):
   ## App Callbacks
 
 
-  def setImageTopicCb(self,msg):
+  def setImageTopic1Cb(self,msg):
     self.msg_if.pub_info(str(msg))
-    img_index = msg.image_index
-    img_topic = msg.image_topic
+    img_index = 0
+    img_topic = msg.data
     if img_index < len(self.selected_topics):
       self.selected_topics[img_index] = img_topic
       self.publish_status()
       if self.node_if is not None:
         self.node_if.set_param('selected_topics', self.selected_topics)
-      
+        self.node_if.save_config()
 
+  def setImageTopic2Cb(self,msg):
+    self.msg_if.pub_info(str(msg))
+    img_index = 1
+    img_topic = msg.data
+    if img_index < len(self.selected_topics):
+      self.selected_topics[img_index] = img_topic
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.save_config()
+
+  def setImageTopic3Cb(self,msg):
+    self.msg_if.pub_info(str(msg))
+    img_index = 2
+    img_topic = msg.data
+    if img_index < len(self.selected_topics):
+      self.selected_topics[img_index] = img_topic
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.save_config()
+
+  def setImageTopic4Cb(self,msg):
+    self.msg_if.pub_info(str(msg))
+    img_index = 3
+    img_topic = msg.data
+    if img_index < len(self.selected_topics):
+      self.selected_topics[img_index] = img_topic
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.save_config()
+      
+  def setNumWindowsCb(self,msg):
+    self.msg_if.pub_info(str(msg))
+    num_windows = msg.data
+    if num_windows > 0 and num_windows < 5:
+      self.num_windows = num_windows
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('num_windows', self.num_windows)
+        self.node_if.save_config()
 
 
 
@@ -215,7 +294,7 @@ class NepiImageViewerApp(object):
   def initCb(self,do_updates = False):
     if self.node_if is not None:
       self.selected_topics = self.node_if.get_param('selected_topics')
-
+      self.num_windows = self.node_if.get_param('num_windows')
     if do_updates == True:
       pass
     self.publish_status()
@@ -249,10 +328,12 @@ class NepiImageViewerApp(object):
     for i, topic in enumerate(topics):
        if nepi_sdk.check_for_topic(topic) == False:
           topics[i] = 'None'
-          
-    status_msg = topics
+    status_msg = NepiAppImageViewerStatus()     
+    status_msg.topics = topics
+    status_msg.num_windows = self.num_windows
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub',status_msg)
+
 
 
   #######################
@@ -261,6 +342,14 @@ class NepiImageViewerApp(object):
   def updateImageSubsThread(self,timer):
     # Subscribe to topic image topics if not subscribed
     sel_topics = self.selected_topics
+    param_topics = None
+    if self.node_if is not None:
+        param_topics = self.node_if.get_param('selected_topics')
+    if param_topics is not None:
+      for i, param_topic in enumerate(param_topics):
+        if nepi_sdk.check_for_topic(param_topic):
+          sel_topics[i] = param_topic
+
     #self.msg_if.pub_warn("Selected images: " + str(sel_topics))
     #self.msg_if.pub_warn("Subs dict keys: " + str(self.img_subs_dict.keys()))
     for i, sel_topic in enumerate(sel_topics):

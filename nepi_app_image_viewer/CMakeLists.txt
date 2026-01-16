@@ -54,7 +54,7 @@ std_msgs
 
 ## Generate messages in the 'msg' folder
  add_message_files(FILES
-	ImageSelection.msg
+	NepiAppImageViewerStatus.msg
  )
 
 ## Generate services in the 'srv' folder
