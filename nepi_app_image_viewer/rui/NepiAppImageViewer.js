@@ -10,7 +10,7 @@
 import React, { Component } from "react"
 import { observer, inject } from "mobx-react"
 
-//import Section from "./Section"
+import Section from "./Section"
 import { Columns, Column } from "./Columns"
 import Label from "./Label"
 import Select, { Option } from "./Select"
@@ -18,7 +18,7 @@ import Button, { ButtonMenu } from "./Button"
 import Styles from "./Styles"
 import Toggle from "react-toggle"
 
-import ImageViewerSelector from "./NepiSelectorImageViewer"
+import ImageViewersSelector from "./NepiSelectorImageViewers"
 import NepiIFConfig from "./Nepi_IF_Config"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 
@@ -49,6 +49,10 @@ class ImageViewerApp extends Component {
     this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
 
+    this.renderImageControls = this.renderImageControls.bind(this)
+    this.renderImageWindows = this.renderImageWindows.bind(this)
+    this.renderImageViewers = this.renderImageViewers.bind(this)
+    
     this.statusListener = this.statusListener.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
 
@@ -130,8 +134,9 @@ class ImageViewerApp extends Component {
   }
 
 
-  render() {
-    if (this.state.needs_update === true){
+
+  renderImageViewers() {
+     if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
     const {sendIntMsg} = this.props.ros
@@ -140,185 +145,65 @@ class ImageViewerApp extends Component {
 
     //Unused const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
     const topics_text = createShortValuesFromNamespaces(topics)
-    const image_filters = ['all']
+    const image_filters = ['/all/']
     const appNamespace = this.getAppNamespace()
     const num_windows_namespace = appNamespace + '/set_num_windows'
-    const streamingImageQuality = (num_windows > 1) ? 50 : 95
-    const has_col_2 = (num_windows > 1) ? true : false
-    const colFlexSize_1 = (has_col_2 === false)? "100%" : "50%"
-    const colFlexSize_2 = (has_col_2 === false)? "0%" : "50%"
-    
-    const connected = this.state.connected
+    const select_updated_namespaces = [
+        appNamespace + '/set_topic_1',
+        appNamespace + '/set_topic_2',
+        appNamespace + '/set_topic_3',
+        appNamespace + '/set_topic_4'
+    ]
 
-    const show_image_controls = false
-    const show_selectors = this.state.show_selectors
-    
-    
-    if (connected === false){
       return (
+     
 
-            <Columns>
-              <Column>
+      <React.Fragment>
 
 
-              </Column>
-            </Columns>
+                          <div id="imageviewers">
+                            <ImageViewersSelector
+                              id="imageviewers"
+                              imageTopics={topics}
+                              image_titles={topics_text}
+                              show_image_options={show_image_controls}
+                              num_windows_updated_namespace={num_windows_namespace}
+                              select_updated_namespaces={select_updated_namespaces}
+                              image_filters={image_filters}
+                              make_section={true}
+                            />
+                          </div>        
+ 
+      </React.Fragment>
 
       )
+  }
+
+  render() {
+    const make_section = (this.props.make_section !== undefined)? this.props.make_section : true
 
 
+    if (make_section === false){
+      return (
+        <Columns>
+        <Column>
+              {this.renderImageViewers()}
+
+        </Column>
+        </Columns>
+      )
     }
     else {
       return (
-     
-        <div>
-                          <div style={{ display: 'flex' }}>
-                                <div style={{ width: '5%' }}>
-                                  {}
-                                </div>
 
-                                <div style={{ width: '10%' }}>
-                                  <ButtonMenu>
-                                    <Button onClick={() => sendIntMsg( num_windows_namespace,1)}>{"1 Window"}</Button>
-                                  </ButtonMenu>
-                                </div>
+      <Section>
 
-                                <div style={{ width: '5%' }}>
-                                  {}
-                                </div>
-
-                                <div style={{ width: '10%' }}>
-                                  <ButtonMenu>
-                                    <Button onClick={() => sendIntMsg( num_windows_namespace,2)}>{"2 Windows"}</Button>
-                                  </ButtonMenu>
-                                </div>
-
-                                <div style={{ width: '5' }}>
-                                  {}
-                                </div>
-
-                                <div style={{ width: '10%' }}>
-                                  <ButtonMenu>
-                                    <Button onClick={() => sendIntMsg( num_windows_namespace,3)}>{"3 Windows"}</Button>
-                                  </ButtonMenu>
-                                </div>
-
-                                <div style={{ width: '5%' }}>
-                                  {}
-                                </div>
-                
-                                <div style={{ width: '10%' }}>
-                                  <ButtonMenu>
-                                    <Button onClick={() => sendIntMsg( num_windows_namespace,4)}>{"4 Windows"}</Button>
-                                  </ButtonMenu>
-                                </div>
-
-                                <div style={{ width: '5%' }}>
-                                  {}
-                                </div>
-
-                                <div style={{ width: '10%' }}></div>
-
-                                  <Label title="Show Selectors">
-                                    <Toggle
-                                      checked={this.state.show_selectors===true}
-                                      onClick={() => onChangeSwitchStateValue.bind(this)("show_selectors",this.state.show_selectors)}>
-                                    </Toggle>
-                                </Label>
-
-                             </div>
-
-                                <div style={{ width: '25%' }}>
-                                  {}
-                                </div>
+              {this.renderImageViewers()}
 
 
-            <div style={{ display: 'flex' }}>
-            
-                  <div style={{ width: colFlexSize_1 }}>
-                        <div id="Image1Viewer">
-                          <ImageViewerSelector
-                            id="Image1Viewer"
-                            imageTopic={topics[0]}
-                            title={topics_text[0]}
-                            show_image_options={show_image_controls}
-                            select_updated_namespace={appNamespace + '/set_topic_1'}
-                            streamingImageQuality={streamingImageQuality}
-                            image_filters={image_filters}
-                            show_selector={show_selectors}
-                            show_buttons={show_selectors}
-                          />
-                        </div>
-
-                        {(num_windows > 2)?
-                          <div id="Image3Viewer">
-                            <ImageViewerSelector
-                              id="Image3Viewer"
-                              imageTopic={topics[2]}
-                              title={topics_text[2]}
-                              show_image_options={show_image_controls}
-                              select_updated_namespace={appNamespace + '/set_topic_3'}
-                              streamingImageQuality={streamingImageQuality}
-                              image_filters={image_filters}
-                              show_selector={show_selectors}
-                              show_buttons={show_selectors}
-                            />
-                          </div>        
-                        : null
-                        }
-                  </div>
-
-
-                  <div style={{ width: colFlexSize_2 }}>
-
-                        {(num_windows > 1)?
-                          <div id="Image2Viewer">
-                            <ImageViewerSelector
-                              id="Image2Viewer"
-                              imageTopic={topics[1]}
-                              title={topics_text[1]}
-                              show_image_options={show_image_controls}
-                              select_updated_namespace={appNamespace + '/set_topic_2'}
-                              streamingImageQuality={streamingImageQuality}
-                              image_filters={image_filters}
-                            show_selector={show_selectors}
-                            show_buttons={show_selectors}
-                            />
-                          </div>          
-                        : null
-                        }
-
-                        {(num_windows === 4)?
-                          <div id="Image4Viewer">
-                            <ImageViewerSelector
-                              id="Image4Viewer"
-                              imageTopic={topics[3]}
-                              title={topics_text[3]}
-                              show_image_options={show_image_controls}
-                              select_updated_namespace={appNamespace + '/set_topic_4'}
-                              streamingImageQuality={streamingImageQuality}
-                              image_filters={image_filters}
-                            show_selector={show_selectors}
-                            show_buttons={show_selectors}
-                            />
-                          </div>          
-                        : null
-                        }
-                  </div>
-   
-          </div> 
-
-            <NepiIFConfig
-                    namespace={appNamespace}
-                    title={"Nepi_IF_Config"}
-                  />
-
-            <NepiIFSaveData
-                    namespace={appNamespace + "/save_data"}
-                    title={"Nepi_IF_SaveData"}
-                  />
-      </div>
+      </Section>
       )
+
     }
   }
 

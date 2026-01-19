@@ -325,9 +325,9 @@ class NepiImageViewerApp(object):
 
   def publish_status(self):
     topics = copy.deepcopy(self.selected_topics)
-    for i, topic in enumerate(topics):
-       if nepi_sdk.check_for_topic(topic) == False:
-          topics[i] = 'None'
+    # for i, topic in enumerate(topics):
+    #    if nepi_sdk.check_for_topic(topic) == False:
+    #       topics[i] = 'None'
     status_msg = NepiAppImageViewerStatus()     
     status_msg.topics = topics
     status_msg.num_windows = self.num_windows

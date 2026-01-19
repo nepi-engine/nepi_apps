@@ -10,7 +10,6 @@ import time
 import sys
 import numpy as np
 import cv2
-import open3d as o3d
 import random
 
 
@@ -645,13 +644,12 @@ class NepiFilePubVidApp(object):
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
                     if encoding != 'mono8' and img_shape[2] == 1:
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
-                    frame_3d = 'sensor_frame'
+                    navpose_frame = 'sensor_frame'
                     if self.image_if is not None:
                       self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                                      frame_3d = frame_3d,
+                                                      navpose_frame = navpose_frame,
                                                       width_deg = self.width_deg,
                                                       height_deg = self.height_deg,
-                                                      device_mount_description = 'unknown',
                                                       pub_twice = self.paused)
                                                         
     nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
