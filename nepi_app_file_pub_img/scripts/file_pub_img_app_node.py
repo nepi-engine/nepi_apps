@@ -572,11 +572,11 @@ class NepiFilePubImgApp(object):
                       data_source_description = 'file',
                       data_ref_description = 'source',
                       perspective = 'pov',
-                      needs_update_callback = self.img_needs_update,
                       log_name = data_product,
                       msg_if = self.msg_if
                       )
           nepi_sdk.sleep(1)
+          self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
         self.current_ind = 0
         self.running = True
         self.publish_status()
@@ -677,11 +677,9 @@ class NepiFilePubImgApp(object):
             cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
           if encoding != 'mono8' and img_shape[2] == 1:
             cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
-          navpose_frame = 'sensor_frame'
           #self.msg_if.pub_info("Publishing")
           if self.image_if is not None:
             self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                            navpose_frame = navpose_frame,
                                             width_deg = self.width_deg,
                                             height_deg = self.height_deg,
                                             pub_twice = self.paused)
