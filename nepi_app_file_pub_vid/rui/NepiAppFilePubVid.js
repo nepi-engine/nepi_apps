@@ -35,8 +35,8 @@ class FilePubVidApp extends Component {
 		
       appName: 'app_file_pub_vid',
 	    appNamespace: null,
-      imageTopic: 'images',
-      imageText: 'file_pub_vid/images',
+      image_topic: 'images',
+      image_text: 'file_pub_vid/images',
 
       viewableFolders: false,
 
@@ -361,8 +361,8 @@ class FilePubVidApp extends Component {
       <Column>
 
           <ImageViewer
-            imageTopic={appImageTopic}
-            title={this.state.imageText}
+            image_topic={appImageTopic}
+            title={this.state.image_text}
             hideQualitySelector={false}
           />
 

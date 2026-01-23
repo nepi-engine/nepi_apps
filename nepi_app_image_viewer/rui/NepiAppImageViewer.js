@@ -164,8 +164,8 @@ class ImageViewerApp extends Component {
                           <div id="imageviewers">
                             <ImageViewersSelector
                               id="imageviewers"
-                              imageTopics={topics}
-                              image_titles={topics_text}
+                              image_topics={topics}
+                              titles={topics_text}
                               show_save_options={true}
                               show_image_options={true}
                               num_windows_updated_namespace={num_windows_namespace}

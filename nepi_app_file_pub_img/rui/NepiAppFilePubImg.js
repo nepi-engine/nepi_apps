@@ -35,8 +35,8 @@ class FilePubImgApp extends Component {
 		
       appName: 'app_file_pub_img',
 	    appNamespace: null,
-      imageTopic: 'images',
-      imageText: 'file_pub_img/images',
+      image_topic: 'images',
+      image_text: 'file_pub_img/images',
 
       viewableFolders: false,
 
@@ -418,8 +418,8 @@ class FilePubImgApp extends Component {
 
 
                               <ImageViewer
-                                imageTopic={appImageTopic}
-                                title={this.state.imageText}
+                                image_topic={appImageTopic}
+                                title={this.state.image_text}
                                 hideQualitySelector={false}
                               />
 
