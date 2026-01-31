@@ -285,6 +285,21 @@ class NepiFilePubImgApp(object):
                     subs_dict = self.SUBS_DICT
     )
 
+  
+    image_ns = self.node_namespace
+    data_product = 'color_image'
+    self.image_ns = os.path.join(image_ns,data_product)
+    self.image_if = ColorImageIF(namespace = image_ns, 
+                data_product_name = data_product, 
+                data_source_description = 'file',
+                data_ref_description = 'source',
+                perspective = 'pov',
+                log_name = data_product,
+                msg_if = self.msg_if
+                )
+    ready = self.image_if.wait_for_ready()
+    #self.image_if.unregister_pubs()
+    self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
 
     ##############################
     self.initCb(do_updates = True)
@@ -562,21 +577,9 @@ class NepiFilePubImgApp(object):
         #self.msg_if.pub_warn("File Pub List: " + str(self.file_list))
         #self.msg_if.pub_warn("File Pub Count: " + str(self.num_files))
       if self.num_files > 0:
-        if self.image_if is None:
-          self.msg_if.pub_warn("Registering Image IF")
-          image_ns = self.node_namespace
-          data_product = 'color_image'
-          self.image_ns = os.path.join(image_ns,data_product)
-          self.image_if = ColorImageIF(namespace = image_ns, 
-                      data_product_name = data_product, 
-                      data_source_description = 'file',
-                      data_ref_description = 'source',
-                      perspective = 'pov',
-                      log_name = data_product,
-                      msg_if = self.msg_if
-                      )
-          nepi_sdk.sleep(1)
-          self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
+        # if self.image_if is None:
+        #   self.msg_if.pub_warn("Registering Image IF pubs")
+        #   self.image_if.register_pubs()
         self.current_ind = 0
         self.running = True
         self.publish_status()
@@ -595,11 +598,9 @@ class NepiFilePubImgApp(object):
     self.running = False
     self.publish_status()
     self.current_file = "None"
-    if self.image_if is not None:
-      self.msg_if.pub_warn("Unregistering Image IF")
-      self.image_if.unregister()
-      nepi_sdk.sleep(1)
-      self.image_if = None
+    # if self.image_if is not None:
+    #   self.msg_if.pub_warn("Unregistering Image IF pubs")
+    #   self.image_if.unregister_pubs()
     
     if self.node_if is not None:
       self.node_if.set_param('running',False)

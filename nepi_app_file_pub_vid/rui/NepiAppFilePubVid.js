@@ -355,6 +355,7 @@ class FilePubVidApp extends Component {
     const pubRunning = this.state.pub_running
     const appImageTopic = pubRunning === true ? this.state.appNamespace + "/color_image" : null
     const viewableFolders = (this.state.viewableFolders || pubRunning === false)
+    const file_count = this.state.file_count
     return (
 
     <Columns>
@@ -394,7 +395,9 @@ class FilePubVidApp extends Component {
         </Column>
         <Column>
 
-        {this.renderPubControls()}
+            { (file_count > 0) ?
+              this.renderPubControls()
+            : null }
 
         </Column>
         </Columns>
