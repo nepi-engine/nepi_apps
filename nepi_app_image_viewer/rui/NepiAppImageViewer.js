@@ -49,8 +49,6 @@ class ImageViewerApp extends Component {
     this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
 
-    this.renderImageControls = this.renderImageControls.bind(this)
-    this.renderImageWindows = this.renderImageWindows.bind(this)
     this.renderImageViewers = this.renderImageViewers.bind(this)
     
     this.statusListener = this.statusListener.bind(this)
