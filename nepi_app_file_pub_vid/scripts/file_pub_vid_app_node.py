@@ -274,7 +274,7 @@ class NepiFilePubVidApp(object):
                 msg_if = self.msg_if
                 )
     ready = self.image_if.wait_for_ready()
-    #self.image_if.unregister_pubs()
+    self.image_if.unregister_pubs()
     self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
 
     ##############################
@@ -534,8 +534,8 @@ class NepiFilePubVidApp(object):
       if self.num_files > 0:
         self.running = True
         self.publish_status()
-        # if self.image_if is None:
-        #   self.image_if.register_pubs()
+        if self.image_if is None:
+          self.image_if.register_pubs()
         self.current_ind = 0
         
         self.msg_if.pub_warn("Calling publish callback with running enabled")
@@ -559,9 +559,9 @@ class NepiFilePubVidApp(object):
     running = False
     self.running = False
     self.publish_status()
-    # if self.image_if is not None:
-    #   self.msg_if.pub_warn("Unregistering Image IF")
-    #   self.image_if.unregister_pubs()
+    if self.image_if is not None:
+      self.msg_if.pub_warn("Unregistering Image IF")
+      self.image_if.unregister_pubs()
 
     if self.node_if is not None:
       self.node_if.set_param('running',False)
