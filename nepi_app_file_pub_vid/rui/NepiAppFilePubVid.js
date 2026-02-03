@@ -184,12 +184,6 @@ class FilePubVidApp extends Component {
         <div hidden={!this.state.connected}>
 
 
-            <Label title={"Current Folder"} >
-          </Label>
-          <pre style={{ height: "25px", overflowY: "auto" }}>
-            {this.state.current_folder}
-          </pre>
-
             <Label title={"Video Count"}>
             <Input disabled value={this.state.file_count} />
             </Label>
@@ -241,7 +235,7 @@ class FilePubVidApp extends Component {
 
                       <div hidden={this.state.paused === false}>
                                 <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_backward")}>{"Back"}</Button>
+                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_forward")}>{"Forward"}</Button>
                                 </ButtonMenu>
 
                         </div>
@@ -358,55 +352,57 @@ class FilePubVidApp extends Component {
     const file_count = this.state.file_count
     return (
 
-    <Columns>
-      <Column>
 
-          <ImageViewer
-            image_topic={appImageTopic}
-            title={this.state.image_text}
-            hideQualitySelector={false}
-          />
+            <div style={{ display: 'flex' }}>
+              <div style={{ width: '70%' }}>
 
 
-    </Column>
-    <Column>
+                  <ImageViewer
+                    image_topic={appImageTopic}
+                    title={this.state.image_text}
+                    hideQualitySelector={false}
+                  />
 
 
-        <Columns>
-        <Column>
+              </div>
+
+              <div style={{ width: '3%' }}>
+                {}
+              </div>
+
+              <div style={{ width: '27%' }}>
 
 
-            <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
-            {"Select Folder"}
-          </label>
+                      <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+                      {"Select Folder"}
+                    </label>
 
-            <div onClick={this.toggleViewableFolders} style={{backgroundColor: Styles.vars.colors.grey0}}>
-              <Select style={{width: "10px"}}/>
+                      <div onClick={this.toggleViewableFolders} style={{backgroundColor: Styles.vars.colors.grey0}}>
+                        <Select style={{width: "10px"}}/>
+                      </div>
+                      <div hidden={viewableFolders === false}>
+                      {folderOptions.map((folder) =>
+                      <div onClick={this.onChangeFolderSelection}>
+                        <body value = {folder} style={{color: Styles.vars.colors.black}}>{folder}</body>
+                      </div>
+                      )}
+                      </div>
+              
+
+                          <Label title={"Current Folder"} >
+                        </Label>
+                        <pre style={{ height: "25px", overflowY: "auto" }}>
+                          {this.state.current_folder}
+                        </pre>
+
+                      { (file_count > 0) ?
+                        this.renderPubControls()
+                      : null }
+
+
+              </div>
             </div>
-            <div hidden={viewableFolders === false}>
-            {folderOptions.map((folder) =>
-            <div onClick={this.onChangeFolderSelection}>
-              <body value = {folder} style={{color: Styles.vars.colors.black}}>{folder}</body>
-            </div>
-            )}
-            </div>
-    
 
-        </Column>
-        <Column>
-
-            { (file_count > 0) ?
-              this.renderPubControls()
-            : null }
-
-        </Column>
-        </Columns>
-
-
-
-
-  </Column>
-    </Columns>
 
     )
   }

@@ -195,13 +195,6 @@ class FilePubImgApp extends Component {
         <div hidden={!this.state.connected}>
 
 
-            <Label title={"Current Folder"} >
-          </Label>
-          <pre style={{ height: "25px", overflowY: "auto" }}>
-            {this.state.current_folder}
-          </pre>
-
-
             <Label title={"Image Count"}>
             <Input disabled value={this.state.file_count} />
             </Label>
@@ -447,7 +440,12 @@ class FilePubImgApp extends Component {
                                   </div>
                                   )}
                                   </div>
-
+                                  
+                                  <Label title={"Current Folder"} >
+                                  </Label>
+                                  <pre style={{ height: "25px", overflowY: "auto" }}>
+                                    {this.state.current_folder}
+                                  </pre>
 
                                   { (file_count > 0) ?
                                     this.renderPubControls()

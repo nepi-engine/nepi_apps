@@ -308,8 +308,11 @@ class NepiFilePubImgApp(object):
 
     ##############################
     # Start updater process
+
+    
     nepi_sdk.start_timer_process(self.UPDATER_DELAY_SEC, self.updaterCb)
     nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
+    nepi_sdk.start_timer_process(1.0, self.statusPublishCb)
 
 
 
@@ -701,7 +704,8 @@ class NepiFilePubImgApp(object):
     #self.msg_if.pub_info("Delay: " + str(delay)) 
     nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
 
-
+  def statusPublishCb(self,timer):
+      self.publish_status()
 
   def publish_img(self):
       if self.cv2_img is not None:

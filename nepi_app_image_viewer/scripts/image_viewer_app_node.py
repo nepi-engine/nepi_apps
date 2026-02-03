@@ -205,11 +205,9 @@ class NepiImageViewerApp(object):
 
 
 
-    # Publish Status
-    self.publish_status()
 
     time.sleep(1)
-    nepi_sdk.start_timer_process(0.5, self.statusPublishCb)
+    nepi_sdk.start_timer_process(1.0, self.statusPublishCb)
     # Give publishers time to setup
     time.sleep(1)
 

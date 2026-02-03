@@ -30,7 +30,6 @@ from sensor_msgs.msg import Image
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.data_if import ImageIF
 from nepi_api.data_if import ColorImageIF
 
 
@@ -290,7 +289,7 @@ class NepiFilePubVidApp(object):
 
     # Start updater process
     nepi_sdk.start_timer_process(self.UPDATER_DELAY_SEC, self.updaterCb)
-
+    nepi_sdk.start_timer_process(1.0, self.statusPublishCb)
 
     ##############################
     ## Initiation Complete
@@ -339,42 +338,6 @@ class NepiFilePubVidApp(object):
       if do_updates == True:
         pass
       self.initCb(do_updates = do_updates)
-
-
-  ###################
-  ## Status Publisher
-  def publish_status(self):
-    status_msg = FilePubVidStatus()
-
-    status_msg.home_folder = self.HOME_FOLDER
-    current_folder = self.current_folder
-    status_msg.current_folder = current_folder
-    if current_folder == self.HOME_FOLDER:
-      selected_folder = 'Home'
-    else:
-      selected_folder = os.path.basename(current_folder)
-    status_msg.selected_folder = selected_folder
-    status_msg.current_folders = self.current_folders
-    status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
-    status_msg.file_count = self.file_count
-    status_msg.current_file =  self.current_file
-    status_msg.current_fps = self.current_fps
-
-    status_msg.paused = self.paused
-
-    status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
-    
-    status_msg.set_size = self.size
-    status_msg.encoding_options_list = self.IMG_PUB_ENCODING_OPTIONS
-    status_msg.set_encoding = self.encoding
-    status_msg.set_random = self.random
-    status_msg.set_overlay = self.overlay
-
-    status_msg.running = self.running
-
-    #self.msg_if.pub_warn("Pub Status Msg: " + str(status_msg))
-    if self.node_if is not None:
-      self.node_if.publish_pub('status_pub', status_msg)
 
 
   #############################
@@ -668,9 +631,10 @@ class NepiFilePubVidApp(object):
                     self.publish_status()
 
 
-    delay = 1
-    #self.msg_if.pub_info("Delay: " + str(delay)) 
-    nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
+    if running == True:
+      delay = 1
+      #self.msg_if.pub_info("Delay: " + str(delay)) 
+      nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
 
 
 
@@ -686,6 +650,45 @@ class NepiFilePubVidApp(object):
                                         pub_twice = self.paused)
         self.cv2_lock.release()
 
+
+  ###################
+  ## Status Publisher
+
+  def statusPublishCb(self,timer):
+      self.publish_status()
+
+  def publish_status(self):
+    status_msg = FilePubVidStatus()
+
+    status_msg.home_folder = self.HOME_FOLDER
+    current_folder = self.current_folder
+    status_msg.current_folder = current_folder
+    if current_folder == self.HOME_FOLDER:
+      selected_folder = 'Home'
+    else:
+      selected_folder = os.path.basename(current_folder)
+    status_msg.selected_folder = selected_folder
+    status_msg.current_folders = self.current_folders
+    status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
+    status_msg.file_count = self.file_count
+    status_msg.current_file =  self.current_file
+    status_msg.current_fps = self.current_fps
+
+    status_msg.paused = self.paused
+
+    status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
+    
+    status_msg.set_size = self.size
+    status_msg.encoding_options_list = self.IMG_PUB_ENCODING_OPTIONS
+    status_msg.set_encoding = self.encoding
+    status_msg.set_random = self.random
+    status_msg.set_overlay = self.overlay
+
+    status_msg.running = self.running
+
+    #self.msg_if.pub_warn("Pub Status Msg: " + str(status_msg))
+    if self.node_if is not None:
+      self.node_if.publish_pub('status_pub', status_msg)
 
 
 
