@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import cv2
 import random
+import copy
 
 
 
@@ -375,51 +376,53 @@ class NepiFilePubVidApp(object):
   #############################
   ## APP callbacks
 
-  def updaterCb(self,timer):
-    update_status = False
-    # Get settings from param server
-    current_folder = self.current_folder
-    #self.msg_if.pub_warn("Current Folder: " + str(current_folder))
-    #self.msg_if.pub_warn("Last Folder: " + str(self.last_folder))
-    # Update folder info
-    if current_folder != self.last_folder:
+  def updateFolderInfo(self, folder):
+    if folder != self.last_folder:
       self.stopPub()
-      update_status = True
-      if os.path.exists(current_folder):
+      if os.path.exists(folder):
+        self.current_folder = folder
         #self.msg_if.pub_warn("Current Folder Exists")
-        current_paths = nepi_utils.get_folder_list(current_folder)
+        current_paths = nepi_utils.get_folder_list(folder)
         current_folders = []
         for path in current_paths:
           folder = os.path.basename(path)
-          if folder[0] != "." and folder != "line_data":
-            current_folders.append(folder)
+          current_folders.append(folder)
         self.current_folders = sorted(current_folders)
+        self.publish_status()
         #self.msg_if.pub_warn("Folders: " + str(self.current_folders))
         num_files = 0
         for f_type in self.SUPPORTED_FILE_TYPES:
-          num_files = num_files + nepi_utils.get_file_count(current_folder,ext_str=f_type)
+          num_files = num_files + nepi_utils.get_file_count(folder,ext_str=f_type)
         self.file_count =  num_files
-      self.last_folder = current_folder
+        self.publish_status()
+    self.last_folder = copy.deepcopy(self.current_folder)
+
+  def updaterCb(self,timer):
+    update_status = False
+    # Get settings from param server
+    current_folder = copy.deepcopy(self.current_folder)
+    #self.msg_if.pub_warn("Current Folder: " + str(current_folder))
+    #self.msg_if.pub_warn("Last Folder: " + str(self.last_folder))
+    # Update folder info
+    self.updateFolderInfo(current_folder)
     # Start publishing if needed
     restart = self.restart
     if restart == True:
       self.startPub()
       update_status = True
-    restart = False
+    self.restart = False
     # Publish status if needed
     if update_status == True:
       self.publish_status()
 
   def selectFolderCb(self,msg):
     current_folder = self.current_folder
-    new_folder = msg.data
-    new_path = os.path.join(current_folder,new_folder)
-    if os.path.exists(new_path):
-      self.last_folder = current_folder
-      self.current_folder = new_path
-      self.publish_status()
+    new_folder_name = msg.data
+    new_folder = os.path.join(current_folder,new_folder_name)
+    self.updateFolderInfo(new_folder)
+    if os.path.exists(new_folder):
       if self.node_if is not None:
-        self.node_if.set_param('current_folder',new_path)
+        self.node_if.set_param('current_folder',new_folder)
     self.publish_status()
 
 
@@ -428,18 +431,17 @@ class NepiFilePubVidApp(object):
     self.publish_status()
     if self.node_if is not None:
       self.node_if.set_param('current_folder',self.HOME_FOLDER)
+    
 
   def backFolderCb(self,msg):
-    current_folder = self.current_folder
+    current_folder = self.node_if.get_param('current_folder')
     if current_folder != self.HOME_FOLDER:
       new_folder = os.path.dirname(current_folder )
+      self.updateFolderInfo(new_folder)
       if os.path.exists(new_folder):
-        self.last_folder = current_folder
-        self.current_folder = new_folder
-        self.publish_status()
         if self.node_if is not None:
           self.node_if.set_param('current_folder',new_folder)
-    self.publish_status()
+      self.publish_status()
 
 
   def pausePubCb(self,msg):
@@ -520,7 +522,7 @@ class NepiFilePubVidApp(object):
     self.msg_if.pub_warn("Start Pub called")
       
     current_folder = self.current_folder
-    self.msg_if.pub_warn("OK to run in folder: " + str(current_folder))
+    #self.msg_if.pub_warn("OK to run in folder: " + str(current_folder))
     # Now start publishing images
     self.file_list = []
     self.num_files = 0
@@ -534,7 +536,8 @@ class NepiFilePubVidApp(object):
       if self.num_files > 0:
         self.running = True
         self.publish_status()
-        if self.image_if is None:
+        if self.image_if is not None:
+          self.msg_if.pub_warn("Registering Image IF pubs")
           self.image_if.register_pubs()
         self.current_ind = 0
         
@@ -560,7 +563,7 @@ class NepiFilePubVidApp(object):
     self.running = False
     self.publish_status()
     if self.image_if is not None:
-      self.msg_if.pub_warn("Unregistering Image IF")
+      #self.msg_if.pub_warn("Unregistering Image Pubs")
       self.image_if.unregister_pubs()
 
     if self.node_if is not None:
