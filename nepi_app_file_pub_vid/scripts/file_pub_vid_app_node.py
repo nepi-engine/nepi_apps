@@ -12,6 +12,7 @@ import numpy as np
 import cv2
 import random
 import copy
+import threading
 
 
 
@@ -91,6 +92,9 @@ class NepiFilePubVidApp(object):
   restart = False
 
   update_img = False
+
+  cv2_img = None
+  cv2_lock = threading.Lock()
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_file_pub_vid" # Can be overwitten by luanch command
@@ -276,7 +280,7 @@ class NepiFilePubVidApp(object):
                 )
     ready = self.image_if.wait_for_ready()
     self.image_if.unregister_pubs()
-    self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
+    self.image_if.set_image_callback('needs_update_callback', self.publish_img)
 
     ##############################
     self.initCb(do_updates = True)
@@ -558,9 +562,10 @@ class NepiFilePubVidApp(object):
     self.stopPub()
 
   def stopPub(self):
-    running = self.running
-    running = False
     self.running = False
+    self.cv2_lock.acquire()
+    self.cv2_img = None
+    self.cv2_lock.release()
     self.publish_status()
     if self.image_if is not None:
       #self.msg_if.pub_warn("Unregistering Image Pubs")
@@ -650,15 +655,35 @@ class NepiFilePubVidApp(object):
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
                     if encoding != 'mono8' and img_shape[2] == 1:
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
-                    if self.image_if is not None:
-                      self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                                      width_deg = self.width_deg,
-                                                      height_deg = self.height_deg,
-                                                      pub_twice = self.paused)
+                    self.cv2_lock.acquire()
+                    self.cv2_img = cv2_img
+                    self.cv2_lock.release()
+                    self.publish_img()
+                    self.publish_status()
+
                                                         
     nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
 
 
+
+    #self.msg_if.pub_info("Delay: " + str(delay)) 
+    nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
+
+
+
+  def publish_img(self):
+      
+      if self.cv2_img is not None:
+        encoding = self.encoding
+
+        if self.image_if is not None:
+          self.cv2_lock.acquire()
+          self.image_if.publish_cv2_img(self.cv2_img, encoding = encoding,
+                                          width_deg = self.width_deg,
+                                          height_deg = self.height_deg,
+                                          pub_twice = self.paused)
+          self.cv2_lock.release()
+        #self.msg_if.pub_info("Published")
 
 
 

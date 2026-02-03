@@ -13,6 +13,7 @@ import cv2
 import open3d as o3d
 import random
 import copy
+import threading
 
 
 
@@ -91,6 +92,7 @@ class NepiFilePubImgApp(object):
 
   file2open = None
   cv2_img = None
+  cv2_lock = threading.Lock()
 
 
   #######################
@@ -299,7 +301,7 @@ class NepiFilePubImgApp(object):
                 )
     ready = self.image_if.wait_for_ready()
     self.image_if.unregister_pubs()
-    self.image_if.set_image_callback('needs_update_callback', self.img_needs_update)
+    self.image_if.set_image_callback('needs_update_callback', self.publish_img)
 
     ##############################
     self.initCb(do_updates = True)
@@ -597,6 +599,9 @@ class NepiFilePubImgApp(object):
 
   def stopPub(self):
     self.running = False
+    self.cv2_lock.acquire()
+    self.cv2_img = None
+    self.cv2_lock.release()
     self.publish_status()
     self.current_file = "None"
     if self.image_if is not None:
@@ -647,10 +652,9 @@ class NepiFilePubImgApp(object):
         self.current_ind = current_ind
         #self.msg_if.pub_info("Opening File: " + file2open)
         if file2open != self.file2open:
-          self.cv2_img = cv2.imread(file2open)
+          cv2_img = cv2.imread(file2open)
           self.file2open = file2open
         #self.msg_if.pub_info("pub file: " + str(file2open))
-        cv2_img =copy.deepcopy(self.cv2_img)
         if cv2_img is not None:
           if self.size != 'Original' and self.width > 100 and self.height > 100:
             cv2_img = cv2.resize(cv2_img,(self.width,self.height))
@@ -673,21 +677,19 @@ class NepiFilePubImgApp(object):
                 fontColor,
                 thickness,
                 lineType)
-
-          # Publish new image to ros        
           img_shape = cv2_img.shape     
           if encoding == 'mono8' and img_shape[2] == 3:
             cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
           if encoding != 'mono8' and img_shape[2] == 1:
             cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
-          
-          if self.image_if is not None:
-            self.image_if.publish_cv2_img(cv2_img, encoding = encoding,
-                                            width_deg = self.width_deg,
-                                            height_deg = self.height_deg,
-                                            pub_twice = self.paused)
-          #self.msg_if.pub_info("Published")
+          self.cv2_lock.acquire()
+          self.cv2_img = cv2_img
+          self.cv2_lock.release()
+
+          self.publish_img()
           self.publish_status()
+
+
     delay = 0.1
     running = self.running
     if running == True and self.paused == False:
@@ -701,7 +703,18 @@ class NepiFilePubImgApp(object):
 
 
 
+  def publish_img(self):
+      if self.cv2_img is not None:
+        encoding = self.encoding
 
+        if self.image_if is not None:
+          self.cv2_lock.acquire()
+          self.image_if.publish_cv2_img(self.cv2_img, encoding = encoding,
+                                          width_deg = self.width_deg,
+                                          height_deg = self.height_deg,
+                                          pub_twice = self.paused)
+          self.cv2_lock.release()
+        #self.msg_if.pub_info("Published")
 
 
   
