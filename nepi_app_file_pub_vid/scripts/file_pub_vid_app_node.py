@@ -280,7 +280,7 @@ class NepiFilePubVidApp(object):
                 )
     ready = self.image_if.wait_for_ready()
     self.image_if.unregister_pubs()
-    self.image_if.set_image_callback('needs_update_callback', self.publish_img)
+    
 
     ##############################
     self.initCb(do_updates = True)
@@ -453,6 +453,10 @@ class NepiFilePubVidApp(object):
     self.paused = msg.data
     self.oneshot_offset = 0
     self.update_img = True
+    if self.paused == True and self.image_if is not None:
+      self.image_if.set_image_callback('needs_update_callback', self.publish_img)
+    elif self.image_if is not None:
+      self.image_if.set_image_callback('needs_update_callback', None)
     self.publish_status()
 
   def stepForwardPubCb(self,msg):
@@ -627,6 +631,7 @@ class NepiFilePubVidApp(object):
                   # Publish video at native fps
                   success,cv2_img = self.vidcap.read()
                   if success == False:
+                    self.msg_if.pub_warn("Failed to Get Video Frame") 
                     self.vidcap.release()
                     time.sleep(1)
                     self.vidcap = None
@@ -655,35 +660,32 @@ class NepiFilePubVidApp(object):
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2GRAY)
                     if encoding != 'mono8' and img_shape[2] == 1:
                       cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_GRAY2BGR)
+                    
                     self.cv2_lock.acquire()
                     self.cv2_img = cv2_img
                     self.cv2_lock.release()
                     self.publish_img()
                     self.publish_status()
 
-                                                        
-    nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
 
-
-
+    delay = 1
     #self.msg_if.pub_info("Delay: " + str(delay)) 
     nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
 
 
 
   def publish_img(self):
-      
-      if self.cv2_img is not None:
-        encoding = self.encoding
+    if self.cv2_img is not None:
+      encoding = self.encoding
 
-        if self.image_if is not None:
-          self.cv2_lock.acquire()
-          self.image_if.publish_cv2_img(self.cv2_img, encoding = encoding,
-                                          width_deg = self.width_deg,
-                                          height_deg = self.height_deg,
-                                          pub_twice = self.paused)
-          self.cv2_lock.release()
-        #self.msg_if.pub_info("Published")
+      if self.image_if is not None:
+        self.cv2_lock.acquire()
+        self.image_if.publish_cv2_img(self.cv2_img, encoding = encoding,
+                                        width_deg = self.width_deg,
+                                        height_deg = self.height_deg,
+                                        pub_twice = self.paused)
+        self.cv2_lock.release()
+
 
 
 
