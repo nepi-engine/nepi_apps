@@ -57,7 +57,11 @@ class NepiFilePubVidApp(object):
   
   node_if = None
   
-  paused = False
+  if os.path.exists(HOME_FOLDER + '/sample_data'):
+    current_folder = HOME_FOLDER + '/sample_data'
+  else:
+    current_folder = HOME_FOLDER
+
   last_folder = ""
   current_folders = []
   current_file = 'None'
@@ -68,6 +72,7 @@ class NepiFilePubVidApp(object):
   file_count = 0
   img_pub = None
 
+  paused = False
   oneshot = False
 
   image_if = None
@@ -81,7 +86,6 @@ class NepiFilePubVidApp(object):
   width_deg = 100
   height_deg = 70 
 
-  current_folder = HOME_FOLDER
   overlay = False
   size = FACTORY_IMG_SIZE
   encoding = FACTORY_IMG_ENCODING_OPTION

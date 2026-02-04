@@ -52,7 +52,7 @@ class NepiFilePubImgApp(object):
   MIN_SIZE = 240
   MAX_SIZE = 3700
   STANDARD_IMAGE_SIZES = ['Original','240 x 320', '480 x 640', '630 x 900','720 x 1080','955 x 600','1080 x 1440','1024 x 768 ','1980 x 2520','2048 x 1536','2580 x 2048','3648 x 2736']
-  FACTORY_IMG_SIZE = 'Original'
+  FACTORY_IMG_SIZE = '630 x 900'
   IMG_PUB_ENCODING_OPTIONS = ["bgr8","rgb8","mono8"]
   FACTORY_IMG_ENCODING_OPTION = "bgr8" 
 
@@ -60,17 +60,22 @@ class NepiFilePubImgApp(object):
   
   node_if = None
   
-  paused = False
+  if os.path.exists(HOME_FOLDER + '/sample_data'):
+    current_folder = HOME_FOLDER + '/sample_data'
+  else:
+    current_folder = HOME_FOLDER
+
   last_folder = ""
   current_folders = []
   current_file = 'None'
   current_ind = 0
   last_folder = ""
-
   file_count = 0
+
 
   image_if = None
 
+  paused = False
   oneshot_offset = 1
   
   width = 0
@@ -79,7 +84,7 @@ class NepiFilePubImgApp(object):
   width_deg = 100
   height_deg = 70
 
-  current_folder = HOME_FOLDER
+
   size = FACTORY_IMG_SIZE
   encoding = FACTORY_IMG_ENCODING_OPTION
   random = False
@@ -336,6 +341,7 @@ class NepiFilePubImgApp(object):
         current_folder = self.HOME_FOLDER
       self.current_folder = current_folder
       self.size = self.node_if.get_param('size')
+      self.setSize(self.size)
       self.encoding = self.node_if.get_param('encoding')
       self.random = self.node_if.get_param('random')
       self.overlay = self.node_if.get_param('overlay')
@@ -453,7 +459,11 @@ class NepiFilePubImgApp(object):
   ## Image callbacks
 
   def setSizeCb(self,msg):
-    new_size = msg.data
+    size_str = msg.data
+    self.setSize(size_str)
+  
+  def setSize(self,size_str):
+    new_size = size_str
     success = False
     if new_size == 'Original':
       self.size = new_size
