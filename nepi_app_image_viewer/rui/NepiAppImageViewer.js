@@ -22,7 +22,7 @@ import ImageViewersSelector from "./NepiSelectorImageViewers"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 import NepiIFConfig from "./Nepi_IF_Config"
 
-import {createShortValuesFromNamespaces, onChangeSwitchStateValue} from "./Utilities"
+import {createMenuFirstLastNames, onChangeSwitchStateValue} from "./Utilities"
 
 @inject("ros")
 @observer
@@ -155,15 +155,22 @@ class ImageViewerApp extends Component {
     const num_windows = this.state.num_windows
 
     //Unused const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
-    const topics_text = createShortValuesFromNamespaces(topics)
+    const topics_text = createMenuFirstLastNames(topics)
     const image_filters = ['/all/']
     const appNamespace = this.getAppNamespace()
     const num_windows_namespace = appNamespace + '/set_num_windows'
-    const select_updated_namespaces = [
+    const select_updated_topics = [
         appNamespace + '/set_topic_1',
         appNamespace + '/set_topic_2',
         appNamespace + '/set_topic_3',
         appNamespace + '/set_topic_4'
+    ]
+
+    const mouse_event_topics = [
+        appNamespace + '/set_click_pixel',
+        appNamespace + '/set_click_pixel',
+        appNamespace + '/set_click_pixel',
+        appNamespace + '/set_click_pixel'
     ]
 
       return (
@@ -180,7 +187,8 @@ class ImageViewerApp extends Component {
                               show_save_controls={true}
                               show_image_options={true}
                               num_windows_updated_namespace={num_windows_namespace}
-                              select_updated_namespaces={select_updated_namespaces}
+                              select_updated_topics={select_updated_topics}
+                              mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
                               make_section={false}
                             />
@@ -204,7 +212,6 @@ class ImageViewerApp extends Component {
                   <NepiIFSaveData
                     saveNamespace={allSaveNamespace}
                     make_section={false}
-                    show_save_controls={false}
                     show_all_options={true}
                     show_topic_selector={true}
                   />
@@ -241,7 +248,7 @@ class ImageViewerApp extends Component {
         <Columns>
         <Column>
               {this.renderImageViewers()}
-                {this.renderSaveData()}
+                {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 
 
@@ -255,7 +262,7 @@ class ImageViewerApp extends Component {
       <Section>
 
               {this.renderImageViewers()}
-                {this.renderSaveData()}
+                {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 
       </Section>
