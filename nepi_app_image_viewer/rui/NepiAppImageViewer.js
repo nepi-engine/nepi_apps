@@ -19,8 +19,8 @@ import Styles from "./Styles"
 import Toggle from "react-toggle"
 
 import ImageViewersSelector from "./NepiSelectorImageViewers"
-import NepiIFConfig from "./Nepi_IF_Config"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
+import NepiIFConfig from "./Nepi_IF_Config"
 
 import {createShortValuesFromNamespaces, onChangeSwitchStateValue} from "./Utilities"
 
@@ -47,9 +47,13 @@ class ImageViewerApp extends Component {
     }
 
     this.getBaseNamespace = this.getBaseNamespace.bind(this)
+    this.getAllSaveNamespace = this.getAllSaveNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
 
     this.renderImageViewers = this.renderImageViewers.bind(this)
+    this.renderSaveData = this.renderSaveData.bind(this)
+    this.renderConfig = this.renderConfig.bind(this)
+
     
     this.statusListener = this.statusListener.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
@@ -64,6 +68,15 @@ class ImageViewerApp extends Component {
       baseNamespace = "/" + namespacePrefix + "/" + deviceId 
     }
     return baseNamespace
+  }
+
+    getAllSaveNamespace(){
+    const { namespacePrefix, deviceId} = this.props.ros
+    var allNamespace = null
+    if (namespacePrefix !== null && deviceId !== null){
+      allNamespace = "/" + namespacePrefix + "/" + deviceId + '/save_data'
+    }
+    return allNamespace
   }
 
 
@@ -169,7 +182,7 @@ class ImageViewerApp extends Component {
                               num_windows_updated_namespace={num_windows_namespace}
                               select_updated_namespaces={select_updated_namespaces}
                               image_filters={image_filters}
-                              make_section={true}
+                              make_section={false}
                             />
                           </div>        
  
@@ -178,15 +191,59 @@ class ImageViewerApp extends Component {
       )
   }
 
+
+
+  renderSaveData(){
+      const allSaveNamespace = this.getAllSaveNamespace()
+      return (
+    
+      <React.Fragment>
+
+                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+                  <NepiIFSaveData
+                    saveNamespace={allSaveNamespace}
+                    make_section={false}
+                    show_save_controls={false}
+                    show_all_options={true}
+                    show_topic_selector={true}
+                  />
+ 
+      </React.Fragment>
+
+      )
+  }
+
+  renderConfig(){
+      const appNamespace = this.getAppNamespace()
+      return (
+    
+      <React.Fragment>
+
+             <NepiIFConfig
+                  namespace={appNamespace}
+                  title={"Nepi_IF_Config"}
+              />
+ 
+      </React.Fragment>
+
+      )
+  }
+
+
+
   render() {
     const make_section = (this.props.make_section !== undefined)? this.props.make_section : true
-
+    
 
     if (make_section === false){
       return (
         <Columns>
         <Column>
               {this.renderImageViewers()}
+                {this.renderSaveData()}
+                  {this.renderConfig()}
+
 
         </Column>
         </Columns>
@@ -198,7 +255,8 @@ class ImageViewerApp extends Component {
       <Section>
 
               {this.renderImageViewers()}
-
+                {this.renderSaveData()}
+                  {this.renderConfig()}
 
       </Section>
       )
