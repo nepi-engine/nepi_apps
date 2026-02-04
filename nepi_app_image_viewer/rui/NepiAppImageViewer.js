@@ -158,7 +158,7 @@ class ImageViewerApp extends Component {
     const topics_text = createMenuFirstLastNames(topics)
     const image_filters = ['/all/']
     const appNamespace = this.getAppNamespace()
-    const num_windows_namespace = appNamespace + '/set_num_windows'
+    const num_windows_updated_topic = appNamespace + '/set_num_windows'
     const select_updated_topics = [
         appNamespace + '/set_topic_1',
         appNamespace + '/set_topic_2',
@@ -186,7 +186,7 @@ class ImageViewerApp extends Component {
                               titles={topics_text}
                               show_save_controls={true}
                               show_image_options={true}
-                              num_windows_updated_namespace={num_windows_namespace}
+                              num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
