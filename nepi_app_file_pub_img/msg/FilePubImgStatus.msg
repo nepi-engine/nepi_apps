@@ -16,7 +16,7 @@ string set_encoding
 
 bool set_random
 bool set_overlay
-float32[] min_max_delay
-float32 set_delay
+float32[] min_max_rate
+float32 set_rate
 bool running
 

@@ -35,6 +35,8 @@ class FilePubImgApp extends Component {
 		
       appName: 'app_file_pub_img',
 	    appNamespace: null,
+      status_msg: null,
+
       image_topic: 'images',
       image_text: 'file_pub_img/images',
 
@@ -59,8 +61,8 @@ class FilePubImgApp extends Component {
 
       set_random: false,
       set_overlay: false,
-      min_max_delay: 1,
-      set_delay: 1,
+      min_max_rate: [0.1,20],
+      set_rate: 1,
       pub_running: false,
 
       statusListener: null,
@@ -93,6 +95,7 @@ class FilePubImgApp extends Component {
   // Callback for handling ROS Status messages
   statusListener(message) {
     this.setState({
+      status_msg: message,
       home_folder: message.home_folder ,
       current_folders: message.current_folders ,
       selected_folder: message.selected_folder,
@@ -109,11 +112,13 @@ class FilePubImgApp extends Component {
 
       set_random: message.set_random ,
       set_overlay: message.set_overlay ,
-      min_max_delay: message.min_max_delay ,
+      min_max_rate: message.min_max_rate ,
 
       pub_running: message.running
 
   })
+
+
 
   var current_folder = 'None'
   if (message.current_folder === message.home_folder ){
@@ -128,10 +133,11 @@ class FilePubImgApp extends Component {
       connected: true
     })
 
-  const set_delay = this.state.set_delay
-  if (set_delay !== message.set_delay){
+  const needs_update = (this.state.status_msg != null) ? (this.state.status_msg.set_rate !== message.set_rate) : false
+
+  if (needs_update === true){
   this.setState({
-      set_delay: message.set_delay
+      set_rate: message.set_rate
     })
 
   }
@@ -237,11 +243,11 @@ class FilePubImgApp extends Component {
 
                       <div hidden={this.state.paused === true}>
 
-                            <Label title={"Set Delay (Seconds)"}>
-                              <Input id="set_delay" 
-                                value={this.state.set_delay} 
-                                onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_delay")} 
-                                onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_delay")} />
+                            <Label title={"Set Rate (Hz)"}>
+                              <Input id="set_rate" 
+                                value={this.state.set_rate} 
+                                onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_rate")} 
+                                onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_rate")} />
                             </Label>
 
 

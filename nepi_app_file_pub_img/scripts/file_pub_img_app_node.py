@@ -46,9 +46,9 @@ class NepiFilePubImgApp(object):
   SUPPORTED_FILE_TYPES = ['png','PNG','jpg','jpeg','JPG']
 
   #Set Initial Values
-  MIN_DELAY = 0.05
-  MAX_DELAY = 5.0
-  FACTORY_IMG_PUB_DELAY = 1.0
+  MIN_RATE = 0.1
+  MAX_RATE = 20
+  FACTORY_IMG_PUB_RATE = 1.0
   MIN_SIZE = 240
   MAX_SIZE = 3700
   STANDARD_IMAGE_SIZES = ['Original','240 x 320', '480 x 640', '630 x 900','720 x 1080','955 x 600','1080 x 1440','1024 x 768 ','1980 x 2520','2048 x 1536','2580 x 2048','3648 x 2736']
@@ -84,7 +84,7 @@ class NepiFilePubImgApp(object):
   encoding = FACTORY_IMG_ENCODING_OPTION
   random = False
   overlay = False
-  delay = FACTORY_IMG_PUB_DELAY
+  rate = FACTORY_IMG_PUB_RATE
   running = False
 
   restart = False
@@ -149,9 +149,9 @@ class NepiFilePubImgApp(object):
             'namespace': self.node_namespace,
             'factory_val': False
         },
-        'delay': {
+        'rate': {
             'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_PUB_DELAY
+            'factory_val': self.FACTORY_IMG_PUB_RATE
         },
         'running': {
             'namespace': self.node_namespace,
@@ -212,12 +212,12 @@ class NepiFilePubImgApp(object):
             'callback': self.setEncodingCb, 
             'callback_args': ()
         },
-        'set_delay': {
+        'set_rate': {
             'namespace': self.node_namespace,
-            'topic': 'set_delay',
+            'topic': 'set_rate',
             'msg': Float32,
             'qsize': None,
-            'callback': self.setDelayCb, 
+            'callback': self.setRateCb, 
             'callback_args': ()
         },
         'set_random': {
@@ -339,7 +339,7 @@ class NepiFilePubImgApp(object):
       self.encoding = self.node_if.get_param('encoding')
       self.random = self.node_if.get_param('random')
       self.overlay = self.node_if.get_param('overlay')
-      self.delay = self.node_if.get_param('delay')
+      self.rate = self.node_if.get_param('rate')
       self.restart = self.node_if.get_param('running')
     if do_updates == True:
       pass
@@ -391,8 +391,8 @@ class NepiFilePubImgApp(object):
     status_msg.file_count = self.file_count
     status_msg.set_random = self.random 
     status_msg.set_overlay = self.overlay 
-    status_msg.min_max_delay = [self.MIN_DELAY, self.MAX_DELAY]
-    status_msg.set_delay = self.delay 
+    status_msg.min_max_rate = [self.MIN_RATE, self.MAX_RATE]
+    status_msg.set_rate = self.rate 
     status_msg.running = self.running
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub', status_msg)
@@ -505,17 +505,17 @@ class NepiFilePubImgApp(object):
       if self.node_if is not None:
         self.node_if.set_param('overlay',overlay)
 
-  def setDelayCb(self,msg):
+  def setRateCb(self,msg):
     ##self.msg_if.pub_info(msg)
-    delay = msg.data
-    if delay < self.MIN_DELAY:
-      delay = self.MIN_DELAY
-    if delay > self.MAX_DELAY:
-      delay = self.MAX_DELAY
-    self.delay = delay
+    rate = msg.data
+    if rate < self.MIN_RATE:
+      rate = self.MIN_RATE
+    if rate > self.MAX_RATE:
+      rate = self.MAX_RATE
+    self.rate = rate
     self.publish_status()
     if self.node_if is not None:
-      self.node_if.set_param('delay',delay)
+      self.node_if.set_param('rate',rate)
 
 
   def updateFolderInfo(self, folder):
@@ -696,9 +696,7 @@ class NepiFilePubImgApp(object):
     delay = 0.1
     running = self.running
     if running == True and self.paused == False:
-        delay = self.delay
-        if self.delay > 0.001:
-          delay == self.delay
+        delay = 1.0 / self.rate
     
 
     #self.msg_if.pub_info("Delay: " + str(delay)) 
