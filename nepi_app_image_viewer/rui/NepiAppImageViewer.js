@@ -164,7 +164,7 @@ class ImageViewerApp extends Component {
                               id="imageviewers"
                               image_topics={topics}
                               titles={topics_text}
-                              show_save_options={true}
+                              show_save_controls={true}
                               show_image_options={true}
                               num_windows_updated_namespace={num_windows_namespace}
                               select_updated_namespaces={select_updated_namespaces}
