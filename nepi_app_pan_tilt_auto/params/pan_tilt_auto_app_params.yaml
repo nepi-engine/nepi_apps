@@ -1,0 +1,17 @@
+APP_DICT:
+  description: Application PT Auto
+  pkg_name: nepi_app_pan_tilt_auto
+  group_name: AUTOMATION
+  config_file: pan_tilt_auto_app_params.yaml
+  app_file: pan_tilt_auto_app_node.py
+  node_name: app_pan_tilt_auto
+  license_type: numurus_software_license
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
+RUI_DICT:
+  rui_menu_name: Pan Tilt Auto
+  rui_files:
+  - NepiAppPTAuto.js
+  - NepiAppPTAuto-Controls.js
+  - NepiAppPTAuto-ImageViewer.js
+  rui_main_file: NepiAppPTAuto.js
+  rui_main_class: NepiAppPTAuto
