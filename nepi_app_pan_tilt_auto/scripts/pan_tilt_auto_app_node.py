@@ -954,7 +954,7 @@ class NepiPanTiltAutoApp(object):
   def clickPositionCB(self,msg):
       self.click_position = [0,0]
       click_pan_enabled = self.getPanClickEnabled()
-      click_tilt_enabled = self.getTiltClickEnabled
+      click_tilt_enabled = self.getTiltClickEnabled()
       if msg.click_event == True:
         pixel = [msg.click_pixel.x, msg.click_pixel.y ]
         status_msg = msg.image_status_msg
