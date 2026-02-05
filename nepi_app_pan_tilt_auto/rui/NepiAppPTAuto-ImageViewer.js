@@ -342,7 +342,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     }
 
     const imageviewersElement = document.getElementById("imageviewers")
-    const tiltSliderHeight = (imageviewersElement)? Math.floor(imageviewersElement.offsetHeight * 0.8) : 1
+    const tiltSliderHeight = (imageviewersElement)? Math.floor(imageviewersElement.offsetHeight * 0.85) : 1
     const show_pt_controls = (tiltSliderHeight === 1) ? false : (has_abs_pos === true)
 
 
