@@ -486,6 +486,7 @@ class NepiFilePubImgApp(object):
             self.node_if.set_param('size',new_size)
           self.width = w
           self.height = h
+          self.msg_if.pub_warn( "Received width,height to: " + str([self.width,self.height]) )
         else:
           self.msg_if.pub_warn( "Received size out of range: " + new_size )
     self.publish_status()
@@ -672,7 +673,7 @@ class NepiFilePubImgApp(object):
           if self.size != 'Original' and self.width > 100 and self.height > 100:
             cv2_img = cv2.resize(cv2_img,(self.width,self.height))
           else:
-            [self.width,self.height] = cv2_img.shape[0:2]
+            [self.height,self.width] = cv2_img.shape[0:2]
 
           # Overlay Label
           if overlay == True:
