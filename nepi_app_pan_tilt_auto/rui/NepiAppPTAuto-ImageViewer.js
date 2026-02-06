@@ -358,7 +358,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
 
               <div hidden={show_pt_controls === false}>
-
+                  <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
                   <SliderAdjustment
                     title={"Pan"}
                     msgType={"std_msgs/Float32"}
@@ -408,7 +408,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                   
                 </ButtonMenu>
 
-                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+               
 
              </div>
 
