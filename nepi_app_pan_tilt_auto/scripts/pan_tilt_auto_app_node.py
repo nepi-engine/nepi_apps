@@ -525,7 +525,8 @@ class NepiPanTiltAutoApp(object):
       self.scan_pan_max = self.node_if.get_param('max_auto_pan_deg')
       self.scan_tilt_min = self.node_if.get_param('min_auto_tilt_deg')
       self.scan_tilt_max = self.node_if.get_param('max_auto_tilt_deg')
-
+      self.num_windows = self.node_if.get_param('num_windows')
+      self.selected_image_topics = self.node_if.get_param('selected_image_topics')
 
     if do_updates == True:
       pass
