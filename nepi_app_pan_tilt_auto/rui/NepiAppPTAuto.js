@@ -15,7 +15,7 @@ import { Columns, Column } from "./Columns"
 import Select, { Option } from "./Select"
 import Label from "./Label"
 //import Input from "./Input"
-//import Styles from "./Styles"
+import Styles from "./Styles"
 //import Button, { ButtonMenu } from "./Button"
 //import {setElementStyleModified, clearElementStyleModified, onUpdateSetStateValue} from "./Utilities"
 //import {createShortValuesFromNamespaces} from "./Utilities"
@@ -210,21 +210,55 @@ class NepiAppPTAuto extends Component {
 
     const appNamespace = this.getAppNamespace()
     const selected_topic = this.state.selected_topic
-
+    const ptConnected = this.state.connected
+    const ptMenuItems = this.createPtMenuOptions()
     return (
+
+
+
+
+      
       <React.Fragment>
+
+          { (ptConnected === true) ? 
+
             <NepiAppPTAutoControls
                 namespace={appNamespace}
                 make_section={true}
 
                 title={"Auto Controls"}
             />
-            <NepiDevicePTXControls
-                namespace={selected_topic}
-                make_section={true}
+          : null }
 
-                title={"Pan Tilt Controls"}
-            />
+          <Section>
+              <Label title={"Device"}>
+                  <Select
+                    onChange={this.onPtDeviceSelected}
+                    value={selected_topic}
+                  >
+                    {ptMenuItems}
+                  </Select>
+                </Label>
+
+            { (ptConnected === true) ? 
+               <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+            : null }
+
+          { (ptConnected === true) ? 
+
+                <NepiDevicePTXControls
+                    namespace={selected_topic}
+                    make_section={false}
+
+                    title={"Pan Tilt Controls"}
+                />
+
+            : null }
+          </Section>
+
+
+
+
           </React.Fragment>
         )
   }
@@ -238,7 +272,6 @@ class NepiAppPTAuto extends Component {
     const image_topics = this.state.image_topics
     const clicking_enabled = (this.state.status_msg != null) ? (this.state.status_msg.click_pan_enabled === true || this.state.status_msg.click_tilt_enabled === true) : false
     const namespace = this.getAppNamespace()
-    const ptMenuItems = this.createPtMenuOptions()
     const mouse_event_topic = (clicking_enabled === true) ? namespace + '/set_click_position' : null
 
     return (
@@ -264,25 +297,11 @@ class NepiAppPTAuto extends Component {
           </Column>
           <Column>
 
-          <Section>
-              <Label title={"Device"}>
-                  <Select
-                    onChange={this.onPtDeviceSelected}
-                    value={selected_topic}
-                  >
-                    {ptMenuItems}
-                  </Select>
-                </Label>
-      
-            {/* <Label title={"Device Connected"}>
-              <BooleanIndicator value={(this.state.connected !== null)? this.state.connected : false} />
-            </Label> */}
-          </Section>
 
 
 
 
-            { (ptConnected === true) ? this.renderControls() : null }
+            { this.renderControls()}
 
 
             { (ptConnected === true) ?
