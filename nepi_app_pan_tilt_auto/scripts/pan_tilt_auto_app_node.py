@@ -963,7 +963,8 @@ class NepiPanTiltAutoApp(object):
         image_height = status_msg.height_px
         image_fov_horz = status_msg.width_deg
         image_fov_vert = status_msg.height_deg
-        if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10:
+        image_zoom_ratio = status_msg.zoom_ratio
+        if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
             object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
             object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
             vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
