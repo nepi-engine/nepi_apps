@@ -276,29 +276,35 @@ class NepiAppPTAuto extends Component {
 
     return (
       <React.Fragment>
-        <Columns>
-          <Column equalWidth = {false} >
-
-        { (ptConnected === true) ?
-            <Section>
-              <div id="ptAutoImageViewer">
-                      <NepiPTAutoImageViewer
-                        id="ptAutoImageViewer"
-                        show_image_options={false}
-                        namespace={namespace}
-                        mouse_event_topic={mouse_event_topic}
-                        num_windows={num_windows}
-                        image_topics={image_topics}
-                      />
-                    </div>
-              </Section>
-          : null }
-
-          </Column>
-          <Column>
 
 
 
+      <div style={{ display: 'flex' }}>
+
+            <div style={{ width: '68%' }}>
+
+                { (ptConnected === true) ?
+                    <Section>
+                      <div id="ptAutoImageViewer">
+                              <NepiPTAutoImageViewer
+                                id="ptAutoImageViewer"
+                                show_image_options={false}
+                                namespace={namespace}
+                                mouse_event_topic={mouse_event_topic}
+                                num_windows={num_windows}
+                                image_topics={image_topics}
+                              />
+                            </div>
+                      </Section>
+                  : null }
+
+            </div>
+
+            <div style={{ width: '2%' }} centered={"true"} >
+                  {}
+            </div>
+
+            <div style={{ width: '30%' }}>
 
 
             { this.renderControls()}
@@ -312,8 +318,11 @@ class NepiAppPTAuto extends Component {
             : null }
 
 
-          </Column>
-        </Columns>
+            </div>
+
+      </div>
+
+
       </React.Fragment>
     )
   }
