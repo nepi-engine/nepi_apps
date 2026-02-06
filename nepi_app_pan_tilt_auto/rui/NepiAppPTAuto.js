@@ -158,20 +158,28 @@ class NepiAppPTAuto extends Component {
 
   // Function for creating topic options for Select input
   createPtMenuOptions() {
+    const {sendStringMsg} = this.props.ros
+    const namespace = this.getAppNamespace()
     const topics = this.state.available_topics
+    const sel_topic = this.state.selected_topic
     var items = []
     var i
     //var unique_names = createShortUniqueValues(topics)
     var device_name = ""
 
-    if (topics.length === 0){
-        items.push(<Option value={"None Availble"}>{"None"}</Option>)
-    }
-    else {
+
+    items.push(<Option value={"None Availble"}>{"None"}</Option>)
+
+    if (topics.length > 0){
       for (i = 0; i < topics.length; i++) {
         device_name = topics[i].split('/ptx')[0].split('/').pop()
         items.push(<Option value={topics[i]}>{device_name}</Option>)
       }
+    }
+    if (sel_topic === 'None' && topics.length > 0){
+          this.setState({selected_topic: topics[0]})
+          const selectNamespace = namespace + "/select_pt_device"
+          sendStringMsg(selectNamespace,topics[0])
     }
     return items
   }

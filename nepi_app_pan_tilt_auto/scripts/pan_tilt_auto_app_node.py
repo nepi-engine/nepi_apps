@@ -137,7 +137,7 @@ class NepiPanTiltAutoApp(object):
   status_msg = PanTiltAutoAppStatus() 
 
   available_topics = []
-  selected_topic = ""
+  selected_topic = "None"
   connected_topic = None
   connected = False
   pt_status_msg = DevicePTXStatus()
@@ -1036,7 +1036,9 @@ class NepiPanTiltAutoApp(object):
     if self.connected_topic is not None:
       if self.connected_topic not in self.available_topics:
         success = self.unsubscribe_topic()
-        needs_publish = True
+    if selected_topic == 'None' and len(self.available_topics) > 0:
+        self.selected_topic = self.available_topics[0]
+    needs_publish = True
 
     if self.selected_topic in self.available_topics and self.connected_topic != selected_topic:
       success = self.subscribe_topic(self.selected_topic)

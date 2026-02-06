@@ -252,8 +252,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                             show_topic_selector={true}
                           />
         
-                    <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
+                  <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
               </React.Fragment>
 
           )
@@ -353,7 +352,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
              
 
-
+              {this.renderSaveData()}
 
           {this.renderImageViewers()}
 
@@ -409,11 +408,11 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                   
                 </ButtonMenu>
 
-
+                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
              </div>
 
-              {this.renderSaveData()}
+
 
               {this.renderConfig()}
           </Column>
