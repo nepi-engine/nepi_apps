@@ -136,8 +136,8 @@ class NepiPanTiltAutoApp(object):
   process_needs_update = False
   status_msg = PanTiltAutoAppStatus() 
 
-  available_topics = []
-  selected_topic = "None"
+  available_pan_tilts = []
+  selected_pan_tilt = "None"
   connected_topic = None
   connected = False
   pt_status_msg = DevicePTXStatus()
@@ -181,13 +181,11 @@ class NepiPanTiltAutoApp(object):
   #################
   ### Image Viewer
   #################
-  FACTORY_SELECTED_TOPICS = ["None","None","None","None"]
+  FACTORY_SELECTED_PAN_TILTS = ["None","None","None","None"]
 
   update_image_subs_interval_sec = float(1)/UPDATE_IMAGE_SUBS_RATE_HZ
 
-  data_products = ["image1","image2","image3","image4"]
-  img_subs_dict = dict()
-
+  single_image_topic = "None"
   selected_image_topics = ["None","None","None","None"]
   num_windows = 1
   #######################
@@ -238,9 +236,9 @@ class NepiPanTiltAutoApp(object):
 
     # Params Config Dict ####################
     self.PARAMS_DICT = {
-        'selected_topic': {
+        'selected_pan_tilt': {
             'namespace': self.node_namespace,
-            'factory_val': self.selected_topic
+            'factory_val': self.selected_pan_tilt
         },
         'auto_pan_enabled': {
             'namespace': self.node_namespace,
@@ -298,6 +296,10 @@ class NepiPanTiltAutoApp(object):
         #####################
         ###Image Viewer
         #####################
+        'single_image_topic': {
+            'namespace': self.node_namespace,
+            'factory_val': self.single_image_topic
+        },
         'selected_image_topics': {
             'namespace': self.node_namespace,
             'factory_val': self.selected_image_topics
@@ -403,6 +405,11 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setTiltClickHandler, 
             'callback_args': ()
         },
+
+
+        ######################
+        ###Image Viewer
+        ######################
         'set_click_position': {
             'namespace': self.node_namespace,
             'topic': 'set_click_position',
@@ -411,10 +418,6 @@ class NepiPanTiltAutoApp(object):
             'callback': self.clickPositionCB, 
             'callback_args': ()
         },
-
-        ######################
-        ###Image Viewer
-        ######################
         'set_topic_1': {
             'namespace': self.node_namespace,
             'topic': 'set_topic_1',
@@ -520,13 +523,14 @@ class NepiPanTiltAutoApp(object):
   def initCb(self,do_updates = False):
     if self.node_if is not None:
 
-      self.selected_topic = self.node_if.get_param('selected_topic')
+      self.selected_pan_tilt = self.node_if.get_param('selected_pan_tilt')
       self.scan_pan_min = self.node_if.get_param('min_auto_pan_deg')
       self.scan_pan_max = self.node_if.get_param('max_auto_pan_deg')
       self.scan_tilt_min = self.node_if.get_param('min_auto_tilt_deg')
       self.scan_tilt_max = self.node_if.get_param('max_auto_tilt_deg')
       self.num_windows = self.node_if.get_param('num_windows')
       self.selected_image_topics = self.node_if.get_param('selected_image_topics')
+      self.single_image_topic = self.node_if.get_param('single_image_topic')
 
     if do_updates == True:
       pass
@@ -956,55 +960,63 @@ class NepiPanTiltAutoApp(object):
       self.click_position = [0,0]
       click_pan_enabled = self.getPanClickEnabled()
       click_tilt_enabled = self.getTiltClickEnabled()
+      image_index = msg.image_index
       if msg.click_event == True:
-        pixel = [msg.click_pixel.x, msg.click_pixel.y ]
-        status_msg = msg.image_status_msg
-        image_width = status_msg.width_px
-        image_height = status_msg.height_px
-        image_fov_horz = status_msg.width_deg
-        image_fov_vert = status_msg.height_deg
-        image_zoom_ratio = status_msg.zoom_ratio
-        if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
-            object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
-            object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
-            vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
-            horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
-            self.click_position = [horz_angle_deg,vert_angle_deg]
+        if self.num_windows > 1:
+            self.single_image_topic = msg.image_topic
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('single_image_topic', msg.image_topic)
+                self.node_if.save_config()            
+        else:
+            pixel = [msg.click_pixel.x, msg.click_pixel.y ]
+            status_msg = msg.image_status_msg
+            image_width = status_msg.width_px
+            image_height = status_msg.height_px
+            image_fov_horz = status_msg.width_deg
+            image_fov_vert = status_msg.height_deg
+            image_zoom_ratio = status_msg.zoom_ratio
+            if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
+                object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
+                object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
+                vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
+                horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
+                self.click_position = [horz_angle_deg,vert_angle_deg]
 
-        if click_pan_enabled == True:
-          if self.current_position == None:
-            pass
-          else:
-            pan_cur = self.current_position[0]
-            pan_to_goal = self.click_position[0] + pan_cur
-            self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#, log_name_list = self.log_name_list)
-            self.pt_connect_if.goto_to_pan_position(pan_to_goal)
-        else: 
-            self.msg_if.pub_warn("Pan Click Enabled is False")#, log_name_list = self.log_name_list)
+            if click_pan_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    pan_cur = self.current_position[0]
+                    pan_to_goal = self.click_position[0] + pan_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#, log_name_list = self.log_name_list)
+                    self.pt_connect_if.goto_to_pan_position(pan_to_goal)
+            else: 
+                self.msg_if.pub_warn("Pan Click Enabled is False")#, log_name_list = self.log_name_list)
 
 
 
-        if click_tilt_enabled == True:
-          if self.current_position == None:
-            pass
-          else:
-            tilt_cur = self.current_position[1]
-            tilt_to_goal = self.click_position[1] + tilt_cur
-            self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#, log_name_list = self.log_name_list)
+            if click_tilt_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    tilt_cur = self.current_position[1]
+                    tilt_to_goal = self.click_position[1] + tilt_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#, log_name_list = self.log_name_list)
 
-            self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
-        else: 
-            self.msg_if.pub_warn("Tilt Click Enabled is False")#, log_name_list = self.log_name_list)
+                    self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
+            else: 
+                self.msg_if.pub_warn("Tilt Click Enabled is False")#, log_name_list = self.log_name_list)
 
 
   def selectTopicCb(self,msg):
-    selected_topic = msg.data
-    if selected_topic in self.available_topics:
-      self.selected_topic = selected_topic
+    selected_pan_tilt = msg.data
+    if selected_pan_tilt in self.available_pan_tilts:
+      self.selected_pan_tilt = selected_pan_tilt
       self.publish_status()
       if self.node_if is not None:
-        self.msg_if.pub_warn("selected_topic: " + str(selected_topic))
-        self.node_if.set_param('selected_topic', selected_topic)
+        self.msg_if.pub_warn("selected_pan_tilt: " + str(selected_pan_tilt))
+        self.node_if.set_param('selected_pan_tilt', selected_pan_tilt)
     
 
   def updaterCb(self,timer):
@@ -1019,31 +1031,31 @@ class NepiPanTiltAutoApp(object):
     self.tilt_deg = self.current_position[1]
     self.error_tilt_deg = self.tilt_goal_deg - self.tilt_deg
     """
-    selected_topic = copy.deepcopy(self.selected_topic)
-    last_available = copy.deepcopy(self.available_topics)
+    selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
+    last_available = copy.deepcopy(self.available_pan_tilts)
     needs_publish = False
 
     
     ##############
     topics = nepi_sdk.find_topics_by_msg('DevicePTXStatus')
-    available_topics = []
+    available_pan_tilts = []
     for topic in topics:
-      available_topics.append(topic.replace('/status',''))
-    if available_topics != last_available:
-      self.available_topics = available_topics
+      available_pan_tilts.append(topic.replace('/status',''))
+    if available_pan_tilts != last_available:
+      self.available_pan_tilts = available_pan_tilts
       needs_publish = True
 
 
     ####################
     if self.connected_topic is not None:
-      if self.connected_topic not in self.available_topics:
+      if self.connected_topic not in self.available_pan_tilts:
         success = self.unsubscribe_topic()
-    if selected_topic == 'None' and len(self.available_topics) > 0:
-        self.selected_topic = self.available_topics[0]
+    if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
+        self.selected_pan_tilt = self.available_pan_tilts[0]
     needs_publish = True
 
-    if self.selected_topic in self.available_topics and self.connected_topic != selected_topic:
-      success = self.subscribe_topic(self.selected_topic)
+    if self.selected_pan_tilt in self.available_pan_tilts and self.connected_topic != selected_pan_tilt:
+      success = self.subscribe_topic(self.selected_pan_tilt)
 
     elif self.pt_connect_if is not None:
        self.connected = self.pt_connect_if.check_connection()
@@ -1159,6 +1171,12 @@ class NepiPanTiltAutoApp(object):
     self.msg_if.pub_info(str(msg))
     img_index = 0
     img_topic = msg.data
+    if self.num_windows == 1:
+        self.single_image_topic = msg.image_topic
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('single_image_topic', msg.image_topic)
+            self.node_if.save_config()       
     if img_index < len(self.selected_image_topics):
       self.selected_image_topics[img_index] = img_topic
       self.publish_status()
@@ -1234,11 +1252,11 @@ class NepiPanTiltAutoApp(object):
     self.publish_status()
 
   def publish_status(self):
-    self.status_msg.available_topics = self.available_topics
-    selected_topic = 'None'
-    if self.selected_topic in self.available_topics:
-       selected_topic = self.selected_topic
-    self.status_msg.selected_topic = selected_topic
+    self.status_msg.available_pan_tilts = self.available_pan_tilts
+    selected_pan_tilt = 'None'
+    if self.selected_pan_tilt in self.available_pan_tilts:
+       selected_pan_tilt = self.selected_pan_tilt
+    self.status_msg.selected_pan_tilt = selected_pan_tilt
 
     connected_topic = self.connected_topic
     if connected_topic is None:
@@ -1295,8 +1313,11 @@ class NepiPanTiltAutoApp(object):
     # for i, topic in enumerate(topics):
     #    if nepi_sdk.check_for_topic(topic) == False:
     #       topics[i] = 'None'
-    self.status_msg.image_topics = image_topics
     self.status_msg.num_windows = self.num_windows
+    if self.num_windows == 1:
+        image_topics[0] = self.single_image_topic
+    self.status_msg.image_topics = image_topics
+
     ############
 
 

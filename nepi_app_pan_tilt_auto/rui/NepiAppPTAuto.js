@@ -54,8 +54,8 @@ class NepiAppPTAuto extends Component {
       appNamespace: null,
       status_msg: null,
 
-      available_topics: [],
-      selected_topic: null,
+      available_pan_tilts: [],
+      selected_pan_tilt: null,
       connected: false,
       connected_topic: null,
 
@@ -99,8 +99,8 @@ class NepiAppPTAuto extends Component {
   statusListener(message) {
     this.setState({
       status_msg: message,
-      available_topics: message.available_topics,
-      selected_topic: message.selected_topic,
+      available_pan_tilts: message.available_pan_tilts,
+      selected_pan_tilt: message.selected_pan_tilt,
       connected: message.connected,
       image_topics: message.image_topics,
       num_windows: message.num_windows
@@ -160,8 +160,8 @@ class NepiAppPTAuto extends Component {
   createPtMenuOptions() {
     const {sendStringMsg} = this.props.ros
     const namespace = this.getAppNamespace()
-    const topics = this.state.available_topics
-    const sel_topic = this.state.selected_topic
+    const topics = this.state.available_pan_tilts
+    const sel_topic = this.state.selected_pan_tilt
     var items = []
     var i
     //var unique_names = createShortUniqueValues(topics)
@@ -177,7 +177,7 @@ class NepiAppPTAuto extends Component {
       }
     }
     if (sel_topic === 'None' && topics.length > 0){
-          this.setState({selected_topic: topics[0]})
+          this.setState({selected_pan_tilt: topics[0]})
           const selectNamespace = namespace + "/select_pt_device"
           sendStringMsg(selectNamespace,topics[0])
     }
@@ -199,7 +199,7 @@ class NepiAppPTAuto extends Component {
     const item = event.target.value
     //var item_ind = this.ordered_items_list.index(item)
     //if (item_ind != -1){
-    this.setState({selected_topic: item})
+    this.setState({selected_pan_tilt: item})
     const selectNamespace = namespace + "/select_pt_device"
     sendStringMsg(selectNamespace,item)
    // }
@@ -209,7 +209,7 @@ class NepiAppPTAuto extends Component {
   renderControls() {
 
     const appNamespace = this.getAppNamespace()
-    const selected_topic = this.state.selected_topic
+    const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const ptMenuItems = this.createPtMenuOptions()
     return (
@@ -234,7 +234,7 @@ class NepiAppPTAuto extends Component {
               <Label title={"Device"}>
                   <Select
                     onChange={this.onPtDeviceSelected}
-                    value={selected_topic}
+                    value={selected_pan_tilt}
                   >
                     {ptMenuItems}
                   </Select>
@@ -247,7 +247,7 @@ class NepiAppPTAuto extends Component {
           { (ptConnected === true) ? 
 
                 <NepiDevicePTXControls
-                    namespace={selected_topic}
+                    namespace={selected_pan_tilt}
                     make_section={false}
 
                     title={"Pan Tilt Controls"}
@@ -266,7 +266,7 @@ class NepiAppPTAuto extends Component {
 
     
   render() {
-    const selected_topic = this.state.selected_topic
+    const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const num_windows = this.state.num_windows
     const image_topics = this.state.image_topics

@@ -56,7 +56,7 @@ class NepiAppPTAutoControls extends Component {
       status_msg: null,  
    
 
-      selected_topic: 'None',
+      selected_pan_tilt: 'None',
 
 
       scanPanMin: -60,
@@ -118,7 +118,7 @@ class NepiAppPTAutoControls extends Component {
     const last_status_msg = this.state.status_msg
     this.setState({
       status_msg: message,
-      selected_topic: message.selected_topic,
+      selected_pan_tilt: message.selected_pan_tilt,
 
       autoPanEnabled: message.auto_pan_enabled,
       autoTiltEnabled: message.auto_tilt_enabled,
@@ -306,7 +306,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             track_source_connected,
             speed_pan_dps, speed_tilt_dps, click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
 
-    const ptx_caps = ptxDevices[selected_topic]
+    const ptx_caps = ptxDevices[selected_pan_tilt]
     const has_abs_pos = ptx_caps && (ptx_caps.has_absolute_positioning)
     //Unused const has_timed_pos = ptx_caps && (ptx_caps.has_timed_positioning)
     //Unused const has_sep_pan_tilt = ptx_caps && (ptx_caps.has_seperate_pan_tilt_control)
@@ -327,17 +327,17 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const namespace = this.getAppNamespace()
 
     const status_msg = this.state.status_msg
-    const selected_topic = this.state.selected_topic
+    const selected_pan_tilt = this.state.selected_pan_tilt
     const topics = Object.keys(ptxDevices)
     const connected_topic = []
     var i
     for (i = 0; i <topics.length; i++) {
-    if (topics[i].includes(selected_topic)){
+    if (topics[i].includes(selected_pan_tilt)){
       connected_topic.push(topics[i])
     }
   }
     
-    const pt_connected = (connected_topic.indexOf(selected_topic) !== -1)
+    const pt_connected = (connected_topic.indexOf(selected_pan_tilt) !== -1)
     //console.log('pt_connected: ' + pt_connected)
     if (status_msg == null || pt_connected === false || namespace == null){
       return(

@@ -3,8 +3,8 @@
 ## Reverse axis conversions are handled by the TMP IF class
 
 
-string[] available_topics
-string selected_topic
+string[] available_pan_tilts
+string selected_pan_tilt
 bool connected
 string connected_topic
 
