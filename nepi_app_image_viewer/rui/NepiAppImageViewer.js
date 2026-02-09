@@ -37,7 +37,7 @@ class ImageViewerApp extends Component {
       appName: "app_image_viewer",
       appNamespace: null,
 
-      topics: ['None','None','None','None'],
+      selected_image_topics: ['None','None','None','None'],
       num_windows: 1,
       statusListener: null,
       connected: false,
@@ -92,7 +92,7 @@ class ImageViewerApp extends Component {
   // Callback for handling ROS Status messages
   statusListener(message) {
     this.setState({
-      topics: message.topics,
+      selected_image_topics: message.selected_image_topics,
       num_windows: message.num_windows
   })
     this.setState({
@@ -151,11 +151,11 @@ class ImageViewerApp extends Component {
       this.setState({needs_update: false})
     }
     const {sendIntMsg} = this.props.ros
-    const topics = this.state.topics
+    const selected_image_topics = this.state.selected_image_topics
     const num_windows = this.state.num_windows
 
     //Unused const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
-    const topics_text = createMenuFirstLastNames(topics)
+    const topics_text = createMenuFirstLastNames(selected_image_topics)
     const image_filters = ['/all/']
     const appNamespace = this.getAppNamespace()
     const num_windows_updated_topic = appNamespace + '/set_num_windows'
@@ -182,7 +182,7 @@ class ImageViewerApp extends Component {
                           <div id="imageviewers">
                             <ImageViewersSelector
                               id="imageviewers"
-                              image_topics={topics}
+                              image_topics={selected_image_topics}
                               titles={topics_text}
                               show_save_controls={true}
                               show_image_options={true}

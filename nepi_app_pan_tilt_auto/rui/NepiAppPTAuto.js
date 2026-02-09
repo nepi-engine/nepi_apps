@@ -59,7 +59,7 @@ class NepiAppPTAuto extends Component {
       connected: false,
       connected_topic: null,
 
-      image_topics: ['None','None','None','None'],
+      selected_image_topics: ['None','None','None','None'],
       num_windows: 1,
 
       statusListener: null,
@@ -102,7 +102,7 @@ class NepiAppPTAuto extends Component {
       available_pan_tilts: message.available_pan_tilts,
       selected_pan_tilt: message.selected_pan_tilt,
       connected: message.connected,
-      image_topics: message.image_topics,
+      selected_image_topics: message.selected_image_topics,
       num_windows: message.num_windows
     })
   }
@@ -269,7 +269,7 @@ class NepiAppPTAuto extends Component {
     const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const num_windows = this.state.num_windows
-    const image_topics = this.state.image_topics
+    const selected_image_topics = this.state.selected_image_topics
     const clicking_enabled = (this.state.status_msg != null) ? (this.state.status_msg.click_pan_enabled === true || this.state.status_msg.click_tilt_enabled === true) : false
     const namespace = this.getAppNamespace()
     const mouse_event_topic = (clicking_enabled === true) ? namespace + '/set_click_position' : null
@@ -292,7 +292,7 @@ class NepiAppPTAuto extends Component {
                                 namespace={namespace}
                                 mouse_event_topic={mouse_event_topic}
                                 num_windows={num_windows}
-                                image_topics={image_topics}
+                                image_topics={selected_image_topics}
                               />
                             </div>
                       </Section>

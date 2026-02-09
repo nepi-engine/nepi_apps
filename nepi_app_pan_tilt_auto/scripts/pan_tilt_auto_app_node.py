@@ -1127,7 +1127,7 @@ class NepiPanTiltAutoApp(object):
             nepi_sdk.sleep(1)
         self.track_source_connected = False
         #self.msg_if.pub_warn("set_track_source connected False")
-        self.msg_if.pub_warn("track_namespace: " + str(nepi_sdk.find_topic(track_namespace)))
+        #self.msg_if.pub_warn("track_namespace: " + str(nepi_sdk.find_topic(track_namespace)))
 
         if nepi_sdk.find_topic(track_namespace) != "": 
 
@@ -1310,9 +1310,6 @@ class NepiPanTiltAutoApp(object):
     ###Image Viewer
     ###############
     image_topics = copy.deepcopy(self.selected_image_topics)
-    # for i, topic in enumerate(topics):
-    #    if nepi_sdk.check_for_topic(topic) == False:
-    #       topics[i] = 'None'
     self.status_msg.num_windows = self.num_windows
     if self.num_windows == 1:
         image_topics[0] = self.single_image_topic

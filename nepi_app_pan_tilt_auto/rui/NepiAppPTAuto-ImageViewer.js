@@ -58,8 +58,8 @@ class NepiAppPTAutoImageViewer extends Component {
       appNamespace: null,
       status_msg: null, 
 
-      available_topics: [],
-      selected_topic: null,
+      available_pan_tilts: [],
+      selected_pan_tilt: null,
       connected: false,
       connected_topic: null,
 
@@ -119,13 +119,13 @@ class NepiAppPTAutoImageViewer extends Component {
 
   // Callback for handling ROS Status3DX messages
   statusListener(message) {
-    if ((this.state.selected_topic != message.selected_topic) && (message.selected_topic !== '' && message.selected_topic !== 'None')) {
-      this.updateStatusPtListener(message.selected_topic)
+    if ((this.state.selected_pan_tilt != message.selected_pan_tilt) && (message.selected_pan_tilt !== '' && message.selected_pan_tilt !== 'None')) {
+      this.updateStatusPtListener(message.selected_pan_tilt)
     }
     this.setState({
       status_msg: message,
-      available_topics: message.available_topics,
-      selected_topic: message.selected_topic,
+      available_pan_tilts: message.available_pan_tilts,
+      selected_pan_tilt: message.selected_pan_tilt,
       connected: message.connected,
       image_topics: message.image_topics,
       num_windows: message.num_windows
@@ -333,7 +333,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     var has_abs_pos = false
     var has_timed_pos = false
 
-    const ptNamespace = this.state.selected_topic
+    const ptNamespace = this.state.selected_pan_tilt
     if (ptxDevicesList.indexOf(ptNamespace) !== -1){
       const ptx_caps = ptxDevices[ptNamespace]
       has_abs_pos = ptx_caps && (ptx_caps.has_absolute_positioning === true)
@@ -358,7 +358,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
 
               <div hidden={show_pt_controls === false}>
-                  <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
                   <SliderAdjustment
                     title={"Pan"}
                     msgType={"std_msgs/Float32"}

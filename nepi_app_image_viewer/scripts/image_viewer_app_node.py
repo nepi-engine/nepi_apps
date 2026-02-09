@@ -54,11 +54,11 @@ class NepiImageViewerApp(object):
 
   data_products = ["image1","image2","image3","image4"]
   img_subs_dict = dict()
-
-  selected_topics = ["None","None","None","None"]
+  single_image_topic = "None"
+  selected_image_topics = ["None","None","None","None"]
   num_windows = 1
 
-  #selected_topics = selected_topics
+  #selected_image_topics = selected_image_topics
     
   #######################
   ### Node Initialization
@@ -99,9 +99,13 @@ class NepiImageViewerApp(object):
 
     # Params Config Dict ####################
     self.PARAMS_DICT = {
-        'selected_topics': {
+          'single_image_topic': {
             'namespace': self.node_namespace,
-            'factory_val': self.selected_topics
+            'factory_val': self.single_image_topic
+        },
+        'selected_image_topics': {
+            'namespace': self.node_namespace,
+            'factory_val': self.selected_image_topics
         },
         'num_windows': {
             'namespace': self.node_namespace,
@@ -180,38 +184,13 @@ class NepiImageViewerApp(object):
     ##############################
     self.initCb(do_updates = True)
 
-    # Setup Save Data IF Class ####################
-    self.msg_if.pub_info("Starting Save Data IF Initialization")
-    factory_data_rates= {}
-    for d in self.data_products_list:
-        factory_data_rates[d] = [0.0, 0.0, 100] # Default to 0Hz save rate, set last save = 0.0, max rate = 100Hz
-    if 'image1' in self.data_products_list:
-        factory_data_rates['color_2d_image'] = [1.0, 0.0, 100] 
-    self.msg_if.pub_warn("Starting data products list: " + str(self.data_products_list))
-
-    factory_filename_dict = {
-        'prefix': "", 
-        'add_timestamp': True, 
-        'add_ms': True,
-        'add_us': False,
-        'suffix': "",
-        'add_node_name': True
-        }
-
-
-    self.save_data_if = SaveDataIF(data_products = self.data_products_list,
-                            factory_rate_dict = factory_data_rates,
-                            factory_filename_dict = factory_filename_dict)
-
-
-
 
     time.sleep(1)
     nepi_sdk.start_timer_process(1.0, self.statusPublishCb)
     # Give publishers time to setup
     time.sleep(1)
 
-    nepi_sdk.start_timer_process(self.update_image_subs_interval_sec, self.updateImageSubsThread)
+    #nepi_sdk.start_timer_process(self.update_image_subs_interval_sec, self.updateImageSubsThread)
     ## Initiation Complete
     self.msg_if.pub_info("Initialization Complete")
 
@@ -234,44 +213,50 @@ class NepiImageViewerApp(object):
     self.msg_if.pub_info(str(msg))
     img_index = 0
     img_topic = msg.data
-    if img_index < len(self.selected_topics):
-      self.selected_topics[img_index] = img_topic
+    if self.num_windows == 1:
+        self.single_image_topic = msg.image_topic
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('single_image_topic', msg.image_topic)
+            self.node_if.save_config()  
+    elif img_index < len(self.selected_image_topics):
+      self.selected_image_topics[img_index] = img_topic
       self.publish_status()
       if self.node_if is not None:
-        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.set_param('selected_image_topics', self.selected_image_topics)
         self.node_if.save_config()
 
   def setImageTopic2Cb(self,msg):
     self.msg_if.pub_info(str(msg))
     img_index = 1
     img_topic = msg.data
-    if img_index < len(self.selected_topics):
-      self.selected_topics[img_index] = img_topic
+    if img_index < len(self.selected_image_topics):
+      self.selected_image_topics[img_index] = img_topic
       self.publish_status()
       if self.node_if is not None:
-        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.set_param('selected_image_topics', self.selected_image_topics)
         self.node_if.save_config()
 
   def setImageTopic3Cb(self,msg):
     self.msg_if.pub_info(str(msg))
     img_index = 2
     img_topic = msg.data
-    if img_index < len(self.selected_topics):
-      self.selected_topics[img_index] = img_topic
+    if img_index < len(self.selected_image_topics):
+      self.selected_image_topics[img_index] = img_topic
       self.publish_status()
       if self.node_if is not None:
-        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.set_param('selected_image_topics', self.selected_image_topics)
         self.node_if.save_config()
 
   def setImageTopic4Cb(self,msg):
     self.msg_if.pub_info(str(msg))
     img_index = 3
     img_topic = msg.data
-    if img_index < len(self.selected_topics):
-      self.selected_topics[img_index] = img_topic
+    if img_index < len(self.selected_image_topics):
+      self.selected_image_topics[img_index] = img_topic
       self.publish_status()
       if self.node_if is not None:
-        self.node_if.set_param('selected_topics', self.selected_topics)
+        self.node_if.set_param('selected_image_topics', self.selected_image_topics)
         self.node_if.save_config()
       
   def setNumWindowsCb(self,msg):
@@ -291,8 +276,9 @@ class NepiImageViewerApp(object):
 
   def initCb(self,do_updates = False):
     if self.node_if is not None:
-      self.selected_topics = self.node_if.get_param('selected_topics')
+      self.selected_image_topics = self.node_if.get_param('selected_image_topics')
       self.num_windows = self.node_if.get_param('num_windows')
+      self.single_image_topic = self.node_if.get_param('single_image_topic')
     if do_updates == True:
       pass
     self.publish_status()
@@ -322,65 +308,68 @@ class NepiImageViewerApp(object):
       self.publish_status()
 
   def publish_status(self):
-    topics = copy.deepcopy(self.selected_topics)
+    topics = copy.deepcopy(self.selected_image_topics)
     # for i, topic in enumerate(topics):
     #    if nepi_sdk.check_for_topic(topic) == False:
     #       topics[i] = 'None'
     status_msg = NepiAppImageViewerStatus()     
-    status_msg.topics = topics
-    status_msg.num_windows = self.num_windows
+    image_topics = copy.deepcopy(self.selected_image_topics)
+    self.status_msg.num_windows = self.num_windows
+    if self.num_windows == 1:
+        image_topics[0] = self.single_image_topic
+    self.status_msg.image_topics = image_topics
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub',status_msg)
 
 
 
-  #######################
-  # Update Image Topic Subscribers Thread
+  # #######################
+  # # Update Image Topic Subscribers Thread
 
-  def updateImageSubsThread(self,timer):
-    # Subscribe to topic image topics if not subscribed
-    sel_topics = self.selected_topics
-    param_topics = None
-    if self.node_if is not None:
-        param_topics = self.node_if.get_param('selected_topics')
-    if param_topics is not None:
-      for i, param_topic in enumerate(param_topics):
-        if nepi_sdk.check_for_topic(param_topic):
-          sel_topics[i] = param_topic
+  # def updateImageSubsThread(self,timer):
+  #   # Subscribe to topic image topics if not subscribed
+  #   sel_topics = self.selected_image_topics
+  #   param_topics = None
+  #   if self.node_if is not None:
+  #       param_topics = self.node_if.get_param('selected_image_topics')
+  #   if param_topics is not None:
+  #     for i, param_topic in enumerate(param_topics):
+  #       if nepi_sdk.check_for_topic(param_topic):
+  #         sel_topics[i] = param_topic
 
-    #self.msg_if.pub_warn("Selected images: " + str(sel_topics))
-    #self.msg_if.pub_warn("Subs dict keys: " + str(self.img_subs_dict.keys()))
-    for i, sel_topic in enumerate(sel_topics):
-      if sel_topic != "" and sel_topic != "None" and sel_topic not in self.img_subs_dict.keys():
-        if nepi_sdk.check_for_topic(sel_topic):
-          topic_uid = sel_topic.replace('/','')
-          exec('self.' + topic_uid + '_img = None')
-          exec('self.' + topic_uid + '_timestamp = None')
-          exec('self.' + topic_uid + '_frame = None')
-          exec('self.' + topic_uid + '_lock = threading.Lock()')
-          self.msg_if.pub_info("Subscribing to topic: " + sel_topic)
-          self.msg_if.pub_info("with topic_uid: " + topic_uid)
-          data_product = "image" + str(i + 1)
-          img_sub = nepi_sdk.create_subscriber(sel_topic, Image, self.imageCb, queue_size = 10, callback_args=data_product)
-          self.img_subs_dict[sel_topic] = img_sub
-          self.msg_if.pub_info("IMG_VIEW_APP:  Image: " + sel_topic + " registered")
-    # Unregister image subscribers if not in selected images list
-    unreg_topic_list = []
-    for topic in self.img_subs_dict.keys():
-      if topic not in sel_topics:
-          img_sub = self.img_subs_dict[topic]
-          img_sub.unregister()
-          self.msg_if.pub_info("IMG_VIEW_APP: Image: " + topic + " unregistered")
-          unreg_topic_list.append(topic) # Can't change dictionary while looping through dictionary
-    for topic in unreg_topic_list: 
-          self.img_subs_dict.pop(topic)
+  #   #self.msg_if.pub_warn("Selected images: " + str(sel_topics))
+  #   #self.msg_if.pub_warn("Subs dict keys: " + str(self.img_subs_dict.keys()))
+  #   for i, sel_topic in enumerate(sel_topics):
+  #     if sel_topic != "" and sel_topic != "None" and sel_topic not in self.img_subs_dict.keys():
+  #       if nepi_sdk.check_for_topic(sel_topic):
+  #         topic_uid = sel_topic.replace('/','')
+  #         exec('self.' + topic_uid + '_img = None')
+  #         exec('self.' + topic_uid + '_timestamp = None')
+  #         exec('self.' + topic_uid + '_frame = None')
+  #         exec('self.' + topic_uid + '_lock = threading.Lock()')
+  #         self.msg_if.pub_info("Subscribing to topic: " + sel_topic)
+  #         self.msg_if.pub_info("with topic_uid: " + topic_uid)
+  #         data_product = "image" + str(i + 1)
+  #         img_sub = nepi_sdk.create_subscriber(sel_topic, Image, self.imageCb, queue_size = 10, callback_args=data_product)
+  #         self.img_subs_dict[sel_topic] = img_sub
+  #         self.msg_if.pub_info("IMG_VIEW_APP:  Image: " + sel_topic + " registered")
+  #   # Unregister image subscribers if not in selected images list
+  #   unreg_topic_list = []
+  #   for topic in self.img_subs_dict.keys():
+  #     if topic not in sel_topics:
+  #         img_sub = self.img_subs_dict[topic]
+  #         img_sub.unregister()
+  #         self.msg_if.pub_info("IMG_VIEW_APP: Image: " + topic + " unregistered")
+  #         unreg_topic_list.append(topic) # Can't change dictionary while looping through dictionary
+  #   for topic in unreg_topic_list: 
+  #         self.img_subs_dict.pop(topic)
     
 
-  def imageCb(self,img_msg, args):
-    data_product = args
-    cv2_img = nepi_img.rosimg_to_cv2img(img_msg)
-    timestamp = nepi_sdk.sec_from_timestamp(img_msg.header.stamp)
-    self.save_data_if.save(data_product,cv2_img,timestamp = timestamp)
+  # def imageCb(self,img_msg, args):
+  #   data_product = args
+  #   cv2_img = nepi_img.rosimg_to_cv2img(img_msg)
+  #   timestamp = nepi_sdk.sec_from_timestamp(img_msg.header.stamp)
+  #   self.save_data_if.save(data_product,cv2_img,timestamp = timestamp)
 
 
  
