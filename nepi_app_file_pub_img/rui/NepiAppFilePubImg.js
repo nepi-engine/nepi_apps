@@ -18,7 +18,7 @@ import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
 
-import ImageViewer from "./Nepi_IF_ImageViewer"
+import NepiIFImageViewer from "./Nepi_IF_ImageViewer"
 import NepiIFConfig from "./Nepi_IF_Config"
 
 import { onDropdownSelectedSendStr, createMenuListFromStrList,  onUpdateSetStateValue, onEnterSendFloatValue} from "./Utilities"
@@ -417,7 +417,7 @@ class FilePubImgApp extends Component {
                           <div style={{ width: '70%' }}>
 
 
-                              <ImageViewer
+                              <NepiIFImageViewer
                                 image_topic={appImageTopic}
                                 title={this.state.image_text}
                                 hideQualitySelector={false}
