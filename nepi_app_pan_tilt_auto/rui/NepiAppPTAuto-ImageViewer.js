@@ -33,7 +33,7 @@ import Styles from "./Styles"
 
 import { SliderAdjustment } from "./AdjustmentWidgets"
 
-import ImageViewersSelector from "./NepiSelectorImageViewers"
+import NepiIFImageViewersSelector from "./Nepi_IF_ImageViewersSelector"
 import {createMenuFirstLastNames} from "./Utilities"
 
 import NepiIFSaveData from "./Nepi_IF_SaveData"
@@ -294,7 +294,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
 
                           <div id="imageviewers">
-                            <ImageViewersSelector
+                            <NepiIFImageViewersSelector
                               id="imageviewers"
                               image_topics={image_topics}
                               titles={topics_text}

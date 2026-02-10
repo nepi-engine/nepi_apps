@@ -18,7 +18,7 @@ import Button, { ButtonMenu } from "./Button"
 import Styles from "./Styles"
 import Toggle from "react-toggle"
 
-import ImageViewersSelector from "./NepiSelectorImageViewers"
+import NepiIFImageViewersSelector from "./Nepi_IF_ImageViewersSelector"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 import NepiIFConfig from "./Nepi_IF_Config"
 
@@ -180,7 +180,7 @@ class ImageViewerApp extends Component {
 
 
                           <div id="imageviewers">
-                            <ImageViewersSelector
+                            <NepiIFImageViewersSelector
                               id="imageviewers"
                               image_topics={selected_image_topics}
                               titles={topics_text}
