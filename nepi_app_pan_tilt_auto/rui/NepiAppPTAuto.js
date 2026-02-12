@@ -316,12 +316,21 @@ class NepiAppPTAuto extends Component {
                 title={"Nepi_IF_Settings"}
               />
             : null }
-            </div>
 
            { <NepiIFAdmin
                 title={"Advanced Settings"}
+                show_advanced_option={true}
+                show_admin_config={true}
+                show_admin_modes={true}
                 make_section={true}
           /> }
+
+
+
+            </div>
+
+          
+
 
       </div>
 
