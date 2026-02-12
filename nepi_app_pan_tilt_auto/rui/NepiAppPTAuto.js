@@ -281,7 +281,7 @@ class NepiAppPTAuto extends Component {
 
       <div style={{ display: 'flex' }}>
 
-            <div style={{ width: '68%' }}>
+            <div style={{ width: '75%' }}>
 
                 { (ptConnected === true) ?
                     <Section>
@@ -304,7 +304,7 @@ class NepiAppPTAuto extends Component {
                   {}
             </div>
 
-            <div style={{ width: '30%' }}>
+            <div style={{ width: '23%' }}>
 
 
             { this.renderControls()}

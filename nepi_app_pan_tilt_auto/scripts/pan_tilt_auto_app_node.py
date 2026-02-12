@@ -1172,10 +1172,10 @@ class NepiPanTiltAutoApp(object):
     img_index = 0
     img_topic = msg.data
     if self.num_windows == 1:
-        self.single_image_topic = msg.image_topic
+        self.single_image_topic = msg.data
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('single_image_topic', msg.image_topic)
+            self.node_if.set_param('single_image_topic', msg.data)
             self.node_if.save_config()       
     if img_index < len(self.selected_image_topics):
       self.selected_image_topics[img_index] = img_topic
