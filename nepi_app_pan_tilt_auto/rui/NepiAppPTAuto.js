@@ -28,11 +28,8 @@ import NepiDevicePTXControls from "./NepiDevicePTX-Controls"
 import NepiPTAutoImageViewer from "./NepiAppPTAuto-ImageViewer"
 import NepiAppPTAutoControls from "./NepiAppPTAuto-Controls"
 import NepiIFSettings from "./Nepi_IF_Settings"
-//Unused import NepiIFSaveData from "./Nepi_IF_SaveData"
-import NepiIFAdmin from "./Nepi_IF_Admin"
-//import NepiSystemMessages from "./Nepi_IF_Messages"
 
-import NavPoseViewer from "./Nepi_IF_NavPoseViewer"
+//import NavPoseViewer from "./Nepi_IF_NavPoseViewer"
 
 
 
@@ -316,15 +313,6 @@ class NepiAppPTAuto extends Component {
                 title={"Nepi_IF_Settings"}
               />
             : null }
-
-           { <NepiIFAdmin
-                title={"Advanced Settings"}
-                show_advanced_option={true}
-                show_admin_config={true}
-                show_admin_modes={true}
-                make_section={true}
-          /> }
-
 
 
             </div>
