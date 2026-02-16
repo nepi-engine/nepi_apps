@@ -397,17 +397,9 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                     {'\u25BC'}
                   </Button>
 
-                </ButtonMenu>
-
-
-             
-
-                <ButtonMenu>
-
                   <Button onClick={() => onPTXStop(ptNamespace)}>{"STOP"}</Button>
-                  
-                </ButtonMenu>
 
+                </ButtonMenu>
                
 
              </div>
