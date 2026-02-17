@@ -313,11 +313,11 @@ class NepiImageViewerApp(object):
     #    if nepi_sdk.check_for_topic(topic) == False:
     #       topics[i] = 'None'
     status_msg = NepiAppImageViewerStatus()     
-    image_topics = copy.deepcopy(self.selected_image_topics)
-    self.status_msg.num_windows = self.num_windows
+    selected_image_topics = copy.deepcopy(self.selected_image_topics)
+    status_msg.num_windows = self.num_windows
     if self.num_windows == 1:
-        image_topics[0] = self.single_image_topic
-    self.status_msg.image_topics = image_topics
+        selected_image_topics[0] = self.single_image_topic
+    status_msg.selected_image_topics = selected_image_topics
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub',status_msg)
 

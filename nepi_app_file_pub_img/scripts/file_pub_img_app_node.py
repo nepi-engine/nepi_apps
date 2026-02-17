@@ -297,7 +297,7 @@ class NepiFilePubImgApp(object):
     data_product = 'color_image'
     self.image_ns = os.path.join(image_ns,data_product)
     self.image_if = ColorImageIF(namespace = image_ns, 
-                data_product_name = data_product, 
+                data_product = data_product, 
                 data_source_description = 'file',
                 data_ref_description = 'source',
                 perspective = 'pov',
