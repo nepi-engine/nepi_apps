@@ -28,7 +28,7 @@ import { Columns, Column } from "./Columns"
 import Label from "./Label"
 import Input from "./Input"
 import Styles from "./Styles"
-//import Button, { ButtonMenu } from "./Button"
+import Button, { ButtonMenu } from "./Button"
 import {onUpdateSetStateValue} from "./Utilities"
 
 //import {onChangeSwitchStateValue } from "./Utilities"
@@ -437,6 +437,13 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                   onChange={(event) => onUpdateSetStateValue.bind(this)(event,"scanTiltMax")} 
                   onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_auto_tilt_window","max",Number(this.state.scanTiltMin))} />                      
             </Label>
+
+
+          <ButtonMenu>
+            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop')}>{"STOP"}</Button>
+          </ButtonMenu>
+
+
 
             </React.Fragment>
         )

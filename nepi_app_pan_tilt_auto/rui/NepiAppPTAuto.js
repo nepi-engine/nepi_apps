@@ -30,7 +30,8 @@ import NepiAppPTAutoControls from "./NepiAppPTAuto-Controls"
 import NepiIFSettings from "./Nepi_IF_Settings"
 
 //import NavPoseViewer from "./Nepi_IF_NavPoseViewer"
-
+import NepiIFSaveData from "./Nepi_IF_SaveData"
+import NepiIFConfig from "./Nepi_IF_Config"
 
 
 function round(value, decimals = 0) {
@@ -66,17 +67,28 @@ class NepiAppPTAuto extends Component {
     }
 
     this.renderControls = this.renderControls.bind(this)
+    this.renderSaveData = this.renderSaveData.bind(this)
+    this.renderConfig = this.renderConfig.bind(this)
     
     this.createPtMenuOptions = this.createPtMenuOptions.bind(this)
     this.onClickToggleShowSettings = this.onClickToggleShowSettings.bind(this)
     this.onPtDeviceSelected = this.onPtDeviceSelected.bind(this)
 
-
+    this.getAllSaveNamespace = this.getAllSaveNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
   }
 
+
+  getAllSaveNamespace(){
+    const { namespacePrefix, deviceId} = this.props.ros
+    var allNamespace = null
+    if (namespacePrefix !== null && deviceId !== null){
+      allNamespace = "/" + namespacePrefix + "/" + deviceId + '/save_data'
+    }
+    return allNamespace
+  }
 
   getAppNamespace(){
     const { namespacePrefix, deviceId} = this.props.ros
@@ -99,7 +111,7 @@ class NepiAppPTAuto extends Component {
       available_pan_tilts: message.available_pan_tilts,
       selected_pan_tilt: message.selected_pan_tilt,
       connected: message.connected,
-      selected_image_topics: message.selected_image_topics,
+      selected_image_topics: message.image_topics,
       num_windows: message.num_windows
     })
   }
@@ -164,15 +176,16 @@ class NepiAppPTAuto extends Component {
     //var unique_names = createShortUniqueValues(topics)
     var device_name = ""
 
-
-    items.push(<Option value={"None Availble"}>{"None"}</Option>)
-
     if (topics.length > 0){
       for (i = 0; i < topics.length; i++) {
         device_name = topics[i].split('/ptx')[0].split('/').pop()
         items.push(<Option value={topics[i]}>{device_name}</Option>)
       }
     }
+
+    // if (topics.length === 0){
+    //   items.push(<Option value={"None"}>{"None Availble"}</Option>)
+    // }
     if (sel_topic === 'None' && topics.length > 0){
           this.setState({selected_pan_tilt: topics[0]})
           const selectNamespace = namespace + "/select_pt_device"
@@ -209,6 +222,7 @@ class NepiAppPTAuto extends Component {
     const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const ptMenuItems = this.createPtMenuOptions()
+    const show_pt_selector = (ptMenuItems.length > 1) ? true : false
     return (
 
 
@@ -227,17 +241,21 @@ class NepiAppPTAuto extends Component {
             />
           : null }
 
-          <Section>
-              <Label title={"Device"}>
-                  <Select
-                    onChange={this.onPtDeviceSelected}
-                    value={selected_pan_tilt}
-                  >
-                    {ptMenuItems}
-                  </Select>
-                </Label>
 
-            { (ptConnected === true) ? 
+          <Section>
+
+            {(show_pt_selector === true) ?
+                  <Label title={"Device"}>
+                      <Select
+                        onChange={this.onPtDeviceSelected}
+                        value={selected_pan_tilt}
+                      >
+                        {ptMenuItems}
+                      </Select>
+                    </Label>
+            : null }
+
+            { (ptConnected === true  && show_pt_selector === true) ? 
                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
             : null }
 
@@ -255,15 +273,67 @@ class NepiAppPTAuto extends Component {
 
 
 
-
           </React.Fragment>
         )
   }
 
 
+
+    renderSaveData(){
+      const allSaveNamespace = this.getAllSaveNamespace()
+      const saveNamespace = allSaveNamespace
+      const show_save_controls = (this.props.show_save_controls !== undefined) ? this.props.show_save_controls : true
+
+      if (show_save_controls === false){
+          return (
+            <Columns>
+            <Column>
+
+            </Column>
+            </Columns>
+
+          )
+
+      }
+      else {
+          return (
+        
+              <React.Fragment>
+
+                         
+                          
+                          <NepiIFSaveData
+                            saveNamespace={saveNamespace}
+                            make_section={true}
+                            show_all_options={true}
+                            show_topic_selector={true}
+                          />
+
+              </React.Fragment>
+
+          )
+        }
+  }
+
+  renderConfig(){
+    const namespace = this.getAppNamespace()
+    return (
+  
+    <React.Fragment>
+
+           <NepiIFConfig
+                namespace={namespace}
+                title={"Nepi_IF_Config"}
+                make_section={true}
+            />
+
+    </React.Fragment>
+
+    )
+}
+
     
   render() {
-    const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const num_windows = this.state.num_windows
     const selected_image_topics = this.state.selected_image_topics
@@ -281,7 +351,12 @@ class NepiAppPTAuto extends Component {
             <div style={{ width: '75%' }}>
 
                 { (ptConnected === true) ?
-                    <Section>
+                     this.renderSaveData()
+                  : null }
+
+                { (ptConnected === true) ?
+
+
                       <div id="ptAutoImageViewer">
                               <NepiPTAutoImageViewer
                                 id="ptAutoImageViewer"
@@ -292,7 +367,7 @@ class NepiAppPTAuto extends Component {
                                 image_topics={selected_image_topics}
                               />
                             </div>
-                      </Section>
+
                   : null }
 
             </div>
@@ -306,14 +381,9 @@ class NepiAppPTAuto extends Component {
 
             { this.renderControls()}
 
-
             { (ptConnected === true) ?
-              <NepiIFSettings
-                namespace={namespace}
-                title={"Nepi_IF_Settings"}
-              />
+              this.renderConfig()
             : null }
-
 
             </div>
 

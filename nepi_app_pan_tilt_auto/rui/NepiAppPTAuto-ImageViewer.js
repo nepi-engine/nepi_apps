@@ -24,7 +24,7 @@ import { observer, inject } from "mobx-react"
 
 //import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-//import Section from "./Section"
+import Section from "./Section"
 import Button, { ButtonMenu } from "./Button"
 
 import { Column, Columns } from "./Columns"
@@ -36,8 +36,7 @@ import { SliderAdjustment } from "./AdjustmentWidgets"
 import NepiIFImageViewersSelector from "./Nepi_IF_ImageViewersSelector"
 import {createMenuFirstLastNames} from "./Utilities"
 
-import NepiIFSaveData from "./Nepi_IF_SaveData"
-import NepiIFConfig from "./Nepi_IF_Config"
+
 
 
 
@@ -79,13 +78,9 @@ class NepiAppPTAutoImageViewer extends Component {
 
     
     this.renderImageViewers = this.renderImageViewers.bind(this)
-    this.renderSaveData = this.renderSaveData.bind(this)
-    this.renderConfig = this.renderConfig.bind(this)
 
     this.updateStatusPtListener = this.updateStatusPtListener.bind(this)
     this.statusPtListener = this.statusPtListener.bind(this)
-
-    this.getAllSaveNamespace = this.getAllSaveNamespace.bind(this)
 
     this.getAppNamespace = this.getAppNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
@@ -107,15 +102,6 @@ class NepiAppPTAutoImageViewer extends Component {
     return namespace
   }
 
-
-  getAllSaveNamespace(){
-    const { namespacePrefix, deviceId} = this.props.ros
-    var allNamespace = null
-    if (namespacePrefix !== null && deviceId !== null){
-      allNamespace = "/" + namespacePrefix + "/" + deviceId + '/save_data'
-    }
-    return allNamespace
-  }
 
   // Callback for handling ROS Status3DX messages
   statusListener(message) {
@@ -204,60 +190,10 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     }
   }
 
-  renderConfig(){
-    const namespace = this.getAppNamespace()
-    return (
-  
-    <React.Fragment>
-
-           <NepiIFConfig
-                namespace={namespace}
-                title={"Nepi_IF_Config"}
-            />
-
-    </React.Fragment>
-
-    )
-}
 
 
 
-    renderSaveData(){
-      const allSaveNamespace = this.getAllSaveNamespace()
-      const saveNamespace = (this.props.saveNamespace !== undefined) ? this.props.saveNamespace : allSaveNamespace
-      const show_save_controls = (this.props.show_save_controls !== undefined) ? this.props.show_save_controls : true
 
-      if (show_save_controls === false){
-          return (
-            <Columns>
-            <Column>
-
-            </Column>
-            </Columns>
-
-          )
-
-      }
-      else {
-          return (
-        
-              <React.Fragment>
-
-                         
-                          
-                          <NepiIFSaveData
-                            saveNamespace={saveNamespace}
-                            make_section={false}
-                            show_all_options={true}
-                            show_topic_selector={true}
-                          />
-        
-                  <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-              </React.Fragment>
-
-          )
-        }
-  }
 
 
 
@@ -341,18 +277,19 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     }
 
     const imageviewersElement = document.getElementById("imageviewers")
-    const tiltSliderHeight = (imageviewersElement)? Math.floor(imageviewersElement.offsetHeight * 0.85) : 1
+    const tiltSliderHeight = (imageviewersElement)? Math.floor(imageviewersElement.offsetHeight * 1.0) : 1
     const show_pt_controls = (tiltSliderHeight === 1) ? false : (has_abs_pos === true)
 
 
     return (
 
+
+      <Section>
+
         <Columns>
           <Column equalWidth = {false} >
 
-             
-
-              {this.renderSaveData()}
+  
 
           {this.renderImageViewers()}
 
@@ -374,39 +311,51 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                   />
         
 
-              <ButtonMenu>
 
-                  <Button 
-                    buttonDownAction={() => onPTXJogPan(ptNamespace,  1)}
-                    buttonUpAction={() => onPTXStop(ptNamespace)}>
-                    {'\u25C0'}
-                    </Button>
-                  <Button 
-                    buttonDownAction={() => onPTXJogPan(ptNamespace, - 1)}
-                    buttonUpAction={() => onPTXStop(ptNamespace)}>
-                    {'\u25B6'}
-                  </Button>
-                  <Button 
-                    buttonDownAction={() => onPTXJogTilt(ptNamespace, 1)}
-                    buttonUpAction={() => onPTXStop(ptNamespace)}>
-                    {'\u25B2'}
-                  </Button>
-                  <Button 
-                    buttonDownAction={() => onPTXJogTilt(ptNamespace, -1)}
-                    buttonUpAction={() => onPTXStop(ptNamespace)}>
-                    {'\u25BC'}
-                  </Button>
+              {(has_timed_pos === true) ?
 
-                  <Button onClick={() => onPTXStop(ptNamespace)}>{"STOP"}</Button>
+                      <ButtonMenu>
 
-                </ButtonMenu>
+                          <Button 
+                            buttonDownAction={() => onPTXJogPan(ptNamespace,  1)}
+                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            {'\u25C0'}
+                            </Button>
+                          <Button 
+                            buttonDownAction={() => onPTXJogPan(ptNamespace, - 1)}
+                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            {'\u25B6'}
+                          </Button>
+                          <Button 
+                            buttonDownAction={() => onPTXJogTilt(ptNamespace, 1)}
+                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            {'\u25B2'}
+                          </Button>
+                          <Button 
+                            buttonDownAction={() => onPTXJogTilt(ptNamespace, -1)}
+                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            {'\u25BC'}
+                          </Button>
+
+                          <Button onClick={() => onPTXStop(ptNamespace)}>{"STOP"}</Button>
+
+                        </ButtonMenu>
+
+                    : 
+
+                      <ButtonMenu>
+
+                          <Button onClick={() => onPTXStop(ptNamespace)}>{"STOP"}</Button>
+
+                        </ButtonMenu>
+
+                    }
+
                
 
              </div>
 
 
-
-              {this.renderConfig()}
           </Column>
           <Column style={{flex: 0.05}}>
 
@@ -433,7 +382,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
         </Column>
         </Columns>
 
-
+      </Section>
 
 
     )
