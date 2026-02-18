@@ -440,7 +440,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 
           <ButtonMenu>
-            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop')}>{"STOP"}</Button>
+            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop_pan_tilt')}>{"STOP"}</Button>
           </ButtonMenu>
 
 

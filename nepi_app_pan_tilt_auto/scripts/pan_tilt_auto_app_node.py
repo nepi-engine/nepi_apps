@@ -163,11 +163,7 @@ class NepiPanTiltAutoApp(object):
   tilt_errors = []
   num_errors = 1
 
-  pan_deg = 0
-  Tilt_deg = 0
-
-  pan_goal_deg = 0.0
-  tilt_goal_deg = 0.0
+  goto_position = [0,0]
 
   navpose_update_rate = 1
   status_update_rate = 1
@@ -331,12 +327,20 @@ class NepiPanTiltAutoApp(object):
             'callback': self.selectTopicCb, 
             'callback_args': ()
         },
+        'stop_pan_tilt': {
+            'namespace': self.node_namespace,
+            'topic': 'stop_pan_tilt',
+            'msg': Empty,
+            'qsize': 1,
+            'callback': self.stopPanTiltCb, 
+            'callback_args': ()
+        },
         'set_track_pan': {
             'namespace': self.node_namespace,
             'topic': 'set_track_pan_enable',
             'msg': Bool,
             'qsize': 1,
-            'callback': self.setTrackPanHandler, 
+            'callback': self.setTrackPanCb, 
             'callback_args': ()
         },
         'set_auto_pan': {
@@ -344,7 +348,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_auto_pan_enable',
             'msg': Bool,
             'qsize': 1,
-            'callback': self.setAutoPanHandler, 
+            'callback': self.setAutoPanCb, 
             'callback_args': ()
         },
         'set_auto_pan_window': {
@@ -352,7 +356,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_auto_pan_window',
             'msg': RangeWindow,
             'qsize': 1,
-            'callback': self.setAutoPanWindowHandler, 
+            'callback': self.setAutoPanWindowCb, 
             'callback_args': ()
         },
         '''
@@ -361,7 +365,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_auto_pan_sin_enable',
             'msg': Bool,
             'qsize': 1,
-            'callback': self.setSinPanHandler, 
+            'callback': self.setSinPanCb, 
             'callback_args': ()
         },
         '''
@@ -370,7 +374,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_track_tilt_enable',
             'msg': Bool,
             'qsize': 1,
-            'callback': self.setTrackTiltHandler, 
+            'callback': self.setTrackTiltCb, 
             'callback_args': ()
         },
         'set_auto_tilt': {
@@ -378,7 +382,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_auto_tilt_enable',
             'msg': Bool,
             'qsize': 1,
-            'callback': self.setAutoTiltHandler, 
+            'callback': self.setAutoTiltCb, 
             'callback_args': ()
         },
         'set_auto_tilt_window': {
@@ -386,7 +390,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_auto_tilt_window',
             'msg': RangeWindow,
             'qsize': 1,
-            'callback': self.setAutoTiltWindowHandler, 
+            'callback': self.setAutoTiltWindowCb, 
             'callback_args': ()
         },
         'set_pan_click_enable': {
@@ -394,7 +398,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_pan_click_enable',
             'msg': Bool,
             'qsize': None,
-            'callback': self.setPanClickHandler, 
+            'callback': self.setPanClickCb, 
             'callback_args': ()
         },
         'set_tilt_click_enable': {
@@ -402,7 +406,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_tilt_click_enable',
             'msg': Bool,
             'qsize': None,
-            'callback': self.setTiltClickHandler, 
+            'callback': self.setTiltClickCb, 
             'callback_args': ()
         },
 
@@ -563,34 +567,41 @@ class NepiPanTiltAutoApp(object):
   ##############################
   ## Node PT Commands
 
-  def stopMovingHandler(self, _):
-      self.stopMoving()
+  def stopPanTiltCb(self, _):
+      self.stopPanTilt()
 
-  def stopMoving(self):
+  def stopPanTilt(self):
       self.stopPanControls()
       self.stopTiltControls()
-      pan_cur_deg = self.status_msg.pan_now_deg * self.rpi
-      tilt_cur_deg = self.status_msg.tilt_now_deg * self.rti
-      self.msg_if.pub_info("Stopping motion by request", log_name_list = self.log_name_list)
-      if self.stopMovingCb is not None:
-          self.stopMovingCb()
-      elif self.gotoPositionCb is not None:
-          self.gotoPositionCb(pan_cur_deg,tilt_cur_deg)
+      self.stopMoving() 
       self.publish_status()
+
+
+  def stopMoving(self,axis = 'All'):       
+        if axis == 'pan' or axis == 'All':
+            self.stopPanControls()
+        if axis == 'tilt' or axis == 'All':
+            self.stopTiltControls()
+        self.publish_status() 
+
 
 
 
   def stopPanControls(self):
-      self.setAutoPan(False)
-      self.setTrackPan(False)
-      self.setNavLockPan(False)
+      self.goto_position[0] = self.current_position[0]
+      self.track_pan_enabled = False
+      self.nav_lock_pan_enabled = False
+      self.auto_pan_enabled = False
+      self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
       self.click_pan_enabled = True
 
 
   def stopTiltControls(self):
-      self.setTrackTilt(False)
-      self.setAutoTilt(False)
-      self.setNavLockTilt(False)
+      self.goto_position[1] = self.current_position[1]
+      self.track_tilt_enabled = False
+      self.nav_lock_tilt_enabled = False
+      self.auto_tilt_enabled = False
+      self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
       self.click_tilt_enabled = True
 
   def getPanClickEnabled(self):
@@ -599,7 +610,7 @@ class NepiPanTiltAutoApp(object):
   def getTiltClickEnabled(self):
      return (self.click_tilt_enabled == True) and (self.auto_tilt_enabled == False and self.track_tilt_enabled == False and self.nav_lock_tilt_enabled == False)
 
-  def setAutoPanWindowHandler(self, msg):
+  def setAutoPanWindowCb(self, msg):
       adj_min_deg = msg.start_range
       adj_max_deg = msg.stop_range
       if adj_min_deg > adj_max_deg:
@@ -625,7 +636,7 @@ class NepiPanTiltAutoApp(object):
 
 
 
-  def setAutoTiltWindowHandler(self, msg):
+  def setAutoTiltWindowCb(self, msg):
       adj_min_deg = msg.start_range
       adj_max_deg = msg.stop_range
       self.msg_if.pub_info("Setting auto tilt limits to: " + "%.2f" % adj_min_deg * self.rti + " " + "%.2f" % adj_max_deg * self.rti)
@@ -647,94 +658,117 @@ class NepiPanTiltAutoApp(object):
 
 
 
-  def setAutoPanHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting auto pan: " + str(enabled))
-      self.setAutoPan(enabled)
+  def setAutoPanCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting auto pan: " + str(enabled))
+        self.setAutoPan(enabled)
+
 
   def setAutoPan(self,enabled):
-      self.track_pan_enabled = False
-      self.nav_lock_pan_enabled = False
-      self.auto_pan_enabled = enabled
-      self.msg_if.pub_info("self.auto_pan_enabled: " + str(self.auto_pan_enabled))
-      self.publish_status()
-      self.node_if.set_param('auto_pan_enabled', self.auto_pan_enabled)
+        was_enabled = copy.deepcopy(self.auto_pan_enabled)
+        if enabled == True:
+            self.track_pan_enabled = False
+            self.nav_lock_pan_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('pan')
+        self.auto_pan_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('auto_pan_enabled', enabled)
         
 
 
-  def setAutoTiltHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting auto tilt: " + str(enabled))
-      self.setAutoTilt(enabled)
+  def setAutoTiltCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting auto tilt: " + str(enabled))
+        self.setAutoTilt(enabled)
+
 
   def setAutoTilt(self,enabled):
-      self.track_tilt_enabled = False
-      self.nav_lock_tilt_enabled = False
-      self.auto_tilt_enabled = enabled
-      self.publish_status()
-      self.node_if.set_param('auto_tilt_enabled', self.auto_tilt_enabled) 
+        was_enabled = copy.deepcopy(self.auto_tilt_enabled)
+        if enabled == True:
+            self.track_tilt_enabled = False
+            self.nav_lock_tilt_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('tilt')
+        self.auto_tilt_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('auto_tilt_enabled', self.auto_tilt_enabled)
 
 
 
-  def setTrackPanHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting track pan: " + str(enabled))
-      self.setTrackPan(enabled)
+  def setTrackPanCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting track pan: " + str(enabled))
+        self.setTrackPan(enabled)
+
 
   def setTrackPan(self,enabled):
-      self.auto_pan_enabled = False
-      self.nav_lock_pan_enabled = False
-      self.track_pan_enabled = enabled
-      self.publish_status()
-      self.node_if.set_param('track_pan_enabled', self.track_pan_enabled)
+        was_enabled = copy.deepcopy(self.track_pan_enabled)
+        if enabled == True:
+            self.auto_pan_enabled = False
+            self.nav_lock_pan_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('pan')
+        self.track_pan_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('track_pan_enabled', self.track_pan_enabled)
 
-
-
-  def setTrackTiltHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting track tilt: " + str(enabled))
-      self.setTrackTilt(enabled)
+  def setTrackTiltCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting track tilt: " + str(enabled))
+        self.setTrackTilt(enabled)
 
   def setTrackTilt(self,enabled):
-      self.auto_tilt_enabled = False
-      self.nav_lock_tilt_enabled = False
-      self.track_tilt_enabled = enabled
-      self.publish_status()
-      self.node_if.set_param('track_tilt_enabled', self.track_tilt_enabled) 
+        was_enabled = copy.deepcopy(self.track_tilt_enabled)
+        if enabled == True:
+            self.auto_tilt_enabled = False
+            self.nav_lock_tilt_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('tilt')
+        self.track_tilt_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('track_tilt_enabled', self.track_tilt_enabled)
 
 
 
-  def setNavLockPanHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting nav lock pan: " + str(enabled))
-      self.setTrackPan(enabled)
+  def setNavLockPanCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting nav lock pan: " + str(enabled))
+        self.setTrackPan(enabled)
 
   def setNavLockPan(self,enabled):
-      self.auto_pan_enabled = False
-      self.track_pan_enabled = False
-      self.nav_lock_pan_enabled = enabled
-      self.publish_status()
-      self.node_if.set_param('nav_lock_pan_enabled', self.nav_lock_pan_enabled)
+        was_enabled = copy.deepcopy(self.nav_lock_pan_enabled)
+        if enabled == True:
+            self.auto_pan_enabled = False
+            self.track_pan_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('pan')
+        self.nav_lock_pan_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('nav_lock_pan_enabled', self.nav_lock_pan_enabled)
 
 
-
-
-  def setNavLockTiltHandler(self, msg):
-      enabled = msg.data
-      self.msg_if.pub_info("Setting nav lock tilt: " + str(enabled))
-      self.setTrackTilt(enabled)
+  def setNavLockTiltCb(self, msg):
+        enabled = msg.data
+        self.msg_if.pub_info("Setting nav lock tilt: " + str(enabled))
+        self.setTrackTilt(enabled)
 
   def setNavLockTilt(self,enabled):
-      self.auto_tilt_enabled = False
-      self.track_tilt_enabled = False
-      self.nav_lock_tilt_enabled = enabled
-      self.publish_status()
-      self.node_if.set_param('nav_lock_tilt_enabled', self.nav_lock_tilt_enabled)
+        was_enabled = copy.deepcopy(self.nav_lock_tilt_enabled)
+        if enabled == True:
+            self.auto_tilt_enabled = False
+            self.track_tilt_enabled = False
+        if (was_enabled == True and enabled == False):
+            self.stopMoving('tilt')
+        self.nav_lock_tilt_enabled = enabled
+        self.publish_status()
+        self.node_if.set_param('nav_lock_tilt_enabled', self.nav_lock_tilt_enabled)
+
 
 
 
   '''
-  def setSinPanHandler(self, msg):
+  def setSinPanCb(self, msg):
       enabled = msg.data
       self.auto_pan_last_time = nepi_utils.get_time()
       self.msg_if.pub_info("Setting Sin pan: " + str(enabled))
@@ -750,6 +784,8 @@ class NepiPanTiltAutoApp(object):
       self.node_if.set_param('sin_pan_enabled', self.sin_pan_enabled)
       
   '''
+
+
 
 
 
@@ -774,6 +810,7 @@ class NepiPanTiltAutoApp(object):
             if start_auto_pan == True:
 
                 self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_min)) 
+                self.goto_position[0] = self.scan_pan_min
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min)  
               
             elif (pan_cur < (self.scan_pan_min + self.AUTO_SCAN_SWITCH_DEG)):
@@ -783,6 +820,7 @@ class NepiPanTiltAutoApp(object):
                 self.auto_pan_last_time = nepi_utils.get_time()
 
                 #self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_max)) 
+                self.goto_position[0] = self.scan_pan_max
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_max)
 
                 
@@ -791,7 +829,7 @@ class NepiPanTiltAutoApp(object):
                 if last_time is not None:
                     scan_time =  cur_time - self.auto_pan_last_time
                 self.auto_pan_last_time = nepi_utils.get_time()
-
+                self.goto_position[0] = self.scan_pan_min
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min)
         if scan_time is not None:
             self.auto_pan_times.pop(0)
@@ -834,13 +872,14 @@ class NepiPanTiltAutoApp(object):
             self.is_auto_tilt = True    
             tilt_cur = self.current_position[1]
             if start_auto_tilt == True:
+                self.goto_position[1] = self.scan_tilt_min
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min)  
             elif (tilt_cur < (self.scan_tilt_min + self.AUTO_SCAN_SWITCH_DEG)):
                 last_time = self.auto_tilt_last_time
                 if last_time is not None:
                     scan_time =  cur_time - self.auto_tilt_last_time
                 self.auto_pan_last_time = nepi_utils.get_time()
-
+                self.goto_position[1] = self.scan_tilt_max
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_max)
 
             elif (tilt_cur > (self.scan_tilt_max - self.AUTO_SCAN_SWITCH_DEG)):
@@ -848,7 +887,7 @@ class NepiPanTiltAutoApp(object):
                 if last_time is not None:
                     scan_time =  cur_time - self.auto_tilt_last_time
                 self.auto_pan_last_time = nepi_utils.get_time()
-
+                self.goto_position[1] = self.scan_tilt_min
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min)
         if scan_time is not None:
             self.auto_tilt_times.pop(0)
@@ -889,8 +928,10 @@ class NepiPanTiltAutoApp(object):
                 #self.msg_if.pub_warn("Got avg pan error " + str(avg_error), log_name_list = self.log_name_list)
                 if abs(avg_error) > self.track_min_error_deg:
                     pan_to_goal = pan_cur + avg_error /2 * self.rpi
+                    self.goto_position[0] = pan_to_goal
                     self.pt_connect_if.goto_to_pan_position(pan_to_goal)
             else:
+                self.goto_position[0] = 0.0
                 self.pt_connect_if.goto_to_pan_position(0.0)
       
 
@@ -912,15 +953,17 @@ class NepiPanTiltAutoApp(object):
                 #self.msg_if.pub_warn("Got avg tilt error " + str(avg_error), log_name_list = self.log_name_list)
                 if abs(avg_error) > self.track_min_error_deg:
                     tilt_to_goal = tilt_cur + avg_error /2 * self.rti
+                    self.goto_position[1] = tilt_to_goal
                     self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
             else:
+                self.goto_position[1] = 0.0
                 self.pt_connect_if.goto_to_tilt_position(0.0)
 
 
 
 
 
-  def setPanClickHandler(self, msg):
+  def setPanClickCb(self, msg):
       enabled = msg.data
       self.msg_if.pub_info("Setting Click Pan Enabled: " + str(enabled))
       self.setPanClick(enabled)
@@ -938,7 +981,7 @@ class NepiPanTiltAutoApp(object):
         self.node_if.set_param('click_pan_enabled', self.auto_tilt_enabled) 
         #self.node_if.save_config()
 
-  def setTiltClickHandler(self, msg):
+  def setTiltClickCb(self, msg):
       enabled = msg.data
       self.msg_if.pub_info("Setting Click Tilt: " + str(enabled))
       #self.setTiltClick(enabled)
@@ -990,6 +1033,7 @@ class NepiPanTiltAutoApp(object):
                     pan_cur = self.current_position[0]
                     pan_to_goal = self.click_position[0] + pan_cur
                     self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#, log_name_list = self.log_name_list)
+                    self.goto_position[0] = pan_to_goal
                     self.pt_connect_if.goto_to_pan_position(pan_to_goal)
             else: 
                 self.msg_if.pub_warn("Pan Click Enabled is False")#, log_name_list = self.log_name_list)
@@ -1003,7 +1047,7 @@ class NepiPanTiltAutoApp(object):
                     tilt_cur = self.current_position[1]
                     tilt_to_goal = self.click_position[1] + tilt_cur
                     self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#, log_name_list = self.log_name_list)
-
+                    self.goto_position[1] = tilt_to_goal
                     self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
             else: 
                 self.msg_if.pub_warn("Tilt Click Enabled is False")#, log_name_list = self.log_name_list)
@@ -1025,12 +1069,6 @@ class NepiPanTiltAutoApp(object):
       current_position = self.pt_connect_if.get_pan_tilt_position()
       #self.msg_if.pub_warn("current_position: " + str(current_position))
 
-    """ 
-    self.pan_deg = self.current_position[0]
-    self.error_pan_deg = self.pan_goal_deg - self.pan_deg
-    self.tilt_deg = self.current_position[1]
-    self.error_tilt_deg = self.tilt_goal_deg - self.tilt_deg
-    """
     selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
     last_available = copy.deepcopy(self.available_pan_tilts)
     needs_publish = False
