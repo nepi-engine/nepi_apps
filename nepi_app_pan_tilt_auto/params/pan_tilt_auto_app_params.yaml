@@ -5,8 +5,8 @@ APP_DICT:
   config_file: pan_tilt_auto_app_params.yaml
   app_file: pan_tilt_auto_app_node.py
   node_name: app_pan_tilt_auto
-  license_type: numurus_software_license
-  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
+  license_type: 3-clause BSD
+  license_link: https://opensource.org/licenses/BSD-3-Clause
 RUI_DICT:
   rui_menu_name: Pan Tilt Auto
   rui_files:
