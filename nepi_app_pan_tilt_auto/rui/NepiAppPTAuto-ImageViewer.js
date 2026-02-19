@@ -241,7 +241,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
-                              make_section={false}
+                              make_section={true}
                             />
                           </div>        
  
@@ -284,7 +284,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     return (
 
 
-      <Section>
+
 
         <Columns>
           <Column equalWidth = {false} >
@@ -382,7 +382,6 @@ componentDidUpdate(prevProps, prevState, snapshot) {
         </Column>
         </Columns>
 
-      </Section>
 
 
     )

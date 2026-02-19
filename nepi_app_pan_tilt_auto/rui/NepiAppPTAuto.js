@@ -183,9 +183,9 @@ class NepiAppPTAuto extends Component {
       }
     }
 
-    // if (topics.length === 0){
-    //   items.push(<Option value={"None"}>{"None Availble"}</Option>)
-    // }
+    if (topics.length === 0){
+      items.push(<Option value={"None"}>{"None Availble"}</Option>)
+    }
     if (sel_topic === 'None' && topics.length > 0){
           this.setState({selected_pan_tilt: topics[0]})
           const selectNamespace = namespace + "/select_pt_device"
@@ -245,7 +245,7 @@ class NepiAppPTAuto extends Component {
           <Section>
 
             {(show_pt_selector === true) ?
-                  <Label title={"Device"}>
+                  <Label title={"Pan Tilt Device"}>
                       <Select
                         onChange={this.onPtDeviceSelected}
                         value={selected_pan_tilt}
