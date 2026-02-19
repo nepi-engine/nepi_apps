@@ -571,8 +571,6 @@ class NepiPanTiltAutoApp(object):
       self.stopPanTilt()
 
   def stopPanTilt(self):
-      self.stopPanControls()
-      self.stopTiltControls()
       self.stopMoving() 
       self.publish_status()
 
@@ -580,28 +578,26 @@ class NepiPanTiltAutoApp(object):
   def stopMoving(self,axis = 'All'):       
         if axis == 'pan' or axis == 'All':
             self.stopPanControls()
+            self.pt_connect_if.goto_to_pan_position(self.current_position[0])
         if axis == 'tilt' or axis == 'All':
             self.stopTiltControls()
+            self.pt_connect_if.goto_to_tilt_position(self.current_position[1])
         self.publish_status() 
 
 
 
 
   def stopPanControls(self):
-      self.goto_position[0] = self.current_position[0]
       self.track_pan_enabled = False
       self.nav_lock_pan_enabled = False
       self.auto_pan_enabled = False
-      self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
       self.click_pan_enabled = True
 
 
   def stopTiltControls(self):
-      self.goto_position[1] = self.current_position[1]
       self.track_tilt_enabled = False
       self.nav_lock_tilt_enabled = False
       self.auto_tilt_enabled = False
-      self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
       self.click_tilt_enabled = True
 
   def getPanClickEnabled(self):
@@ -1120,6 +1116,8 @@ class NepiPanTiltAutoApp(object):
 
     pt_connect_if = ConnectPTXDeviceIF(namespace = topic,
                                        panTiltCb = self.panTiltCb,
+                                       stopPanCb = self.stopPanCb,
+                                       stopTiltCb = self.stopTiltCb,
                                        msg_if = self.msg_if
                                         )
     ready = pt_connect_if.wait_for_ready()
@@ -1143,7 +1141,7 @@ class NepiPanTiltAutoApp(object):
 
     success = True
     if self.pt_connect_if is not None:
-      success = self.pt_connect_if.unsubscribe()
+      success = self.pt_connect_if.unregister()
       self.connected = False
       self.connected_topic = None
       self.current_position = None
@@ -1154,7 +1152,14 @@ class NepiPanTiltAutoApp(object):
   def panTiltCb(self, pan_deg, tilt_deg):
      self.current_position = [pan_deg, tilt_deg]
      #self.msg_if.pub_warn("PT position: " + str(self.current_position))
-     
+
+  def stopPanCb(self):
+     self.msg_if.pub_warn("Got Stop Pan Cb")
+     self.stopPanControls()
+
+  def stopTiltCb(self):
+     self.msg_if.pub_warn("Got Stop Tilt Cb")
+     self.stopTiltControls()  
 
   def connectTrackSourceCb(self,timer):
     #self.msg_if.pub_info("connectTrackSourceCb called")
@@ -1269,21 +1274,6 @@ class NepiPanTiltAutoApp(object):
   ####################
 
  
-
-
-
-  def processCb(self,timer):
-    process_needs_update = copy.deepcopy(self.process_needs_update)
-    self.process_needs_update = False
-
-
-    if needs_publish == True:
-      self.publish_status()
-    # Set next process delay                         
-    step_delay = 1
-   
-    nepi_sdk.start_timer_process(1.0, self.processCb, oneshot = True)
-
   
 
   def publishStatusCb(self,timer):

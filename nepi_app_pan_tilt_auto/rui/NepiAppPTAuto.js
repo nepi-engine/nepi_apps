@@ -222,7 +222,7 @@ class NepiAppPTAuto extends Component {
     const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.connected
     const ptMenuItems = this.createPtMenuOptions()
-    const show_pt_selector = (ptMenuItems.length > 1) ? true : false
+    const show_pt_selector = (ptMenuItems.length > 1) ? true : (ptConnected === false)
     return (
 
 
@@ -252,6 +252,11 @@ class NepiAppPTAuto extends Component {
                       >
                         {ptMenuItems}
                       </Select>
+                    </Label>
+            : null }
+
+            {(ptConnected === true) ?
+                  <Label title={"Connecting"}>
                     </Label>
             : null }
 
@@ -350,9 +355,7 @@ class NepiAppPTAuto extends Component {
 
             <div style={{ width: '75%' }}>
 
-                { (ptConnected === true) ?
-                     this.renderSaveData()
-                  : null }
+
 
                 { (ptConnected === true) ?
 
@@ -368,6 +371,10 @@ class NepiAppPTAuto extends Component {
                               />
                             </div>
 
+                  : null }
+
+                { (ptConnected === true) ?
+                     this.renderSaveData()
                   : null }
 
             </div>
