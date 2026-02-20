@@ -44,6 +44,8 @@ from nepi_api.connect_device_if_ptx import ConnectPTXDeviceIF
 UPDATE_IMAGE_SUBS_RATE_HZ = 1
 UPDATE_SAVE_DATA_CHECK_RATE_HZ = 10
 
+TARGET_TOPIC_TIMEOUT_SEC = 2
+
 #########################################
 # Node Class
 #########################################
@@ -116,6 +118,7 @@ class NepiPanTiltAutoApp(object):
   track_source_connected_namespace = "None"
   track_source_connected = False
   track_source_connecting = False
+  last_track_time = 0
 
   track_exit_process = TRACK_EXIT_FUNCTION
   track_source_namespace = 'None'
@@ -1083,13 +1086,13 @@ class NepiPanTiltAutoApp(object):
     ####################
     if self.connected_topic is not None:
       if self.connected_topic not in self.available_pan_tilts:
-        success = self.unsubscribe_topic()
+        success = self.unsubscribe_pt_topic()
     if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
         self.selected_pan_tilt = self.available_pan_tilts[0]
     needs_publish = True
 
     if self.selected_pan_tilt in self.available_pan_tilts and self.connected_topic != selected_pan_tilt:
-      success = self.subscribe_topic(self.selected_pan_tilt)
+      success = self.subscribe_pt_topic(self.selected_pan_tilt)
 
     elif self.pt_connect_if is not None:
        self.connected = self.pt_connect_if.check_connection()
@@ -1107,12 +1110,12 @@ class NepiPanTiltAutoApp(object):
 
 
 
-  def subscribe_topic(self, topic):
-    self.msg_if.pub_warn("Subscribe_topic Called")
+  def subscribe_pt_topic(self, topic):
+    self.msg_if.pub_warn("subscribe_pt_topic Called")
 
     success = False
     if self.pt_connect_if is not None:
-      success = self.unsubscribe_topic()
+      success = self.unsubscribe_pt_topic()
 
     pt_connect_if = ConnectPTXDeviceIF(namespace = topic,
                                        panTiltCb = self.panTiltCb,
@@ -1136,8 +1139,8 @@ class NepiPanTiltAutoApp(object):
 
     return success
   
-  def unsubscribe_topic(self):
-    self.msg_if.pub_warn("Unsubscribe_topic Called")
+  def unsubscribe_pt_topic(self):
+    self.msg_if.pub_warn("unsubscribe_pt_topic Called")
 
     success = True
     if self.pt_connect_if is not None:
@@ -1176,6 +1179,15 @@ class NepiPanTiltAutoApp(object):
 
             self.track_source_connecting = True                 
             self.track_if = nepi_sdk.create_subscriber(track_namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (track_namespace), log_name_list = [])
+
+    if self.track_source_connected == True and self.track_dict is not None:
+       last_track = nepi_utils.get_time() - self.last_track_time
+       if last_track > TARGET_TOPIC_TIMEOUT_SEC:
+            self.track_pan_enabled = False
+            self.track_tilt_enabled = False
+            self.track_dict = None
+            self.track_source_connected = False
+           
     
     nepi_sdk.start_timer_process(1, self.connectTrackSourceCb, oneshot = True)
 
@@ -1203,6 +1215,7 @@ class NepiPanTiltAutoApp(object):
         #self.msg_if.pub_warn("Processing target list length " + str(len(targets_dict_list)))
         track_dict = nepi_targets.filter_targets_list(targets_dict_list,self.track_ordered_list,self.track_filter)
     #self.msg_if.pub_warn("Got track dict " + str(track_dict))
+    self.last_track_time = nepi_utils.get_time()
     self.track_dict = copy.deepcopy(track_dict)
 
 

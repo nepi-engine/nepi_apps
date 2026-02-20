@@ -231,18 +231,23 @@ class NepiAppPTAuto extends Component {
       
       <React.Fragment>
 
+
+          <Section title={"PAN TILT AUTOMATION"}>
           { (ptConnected === true) ? 
 
             <NepiAppPTAutoControls
                 namespace={appNamespace}
-                make_section={true}
-
-                title={"Auto Controls"}
+                make_section={false}
             />
           : null }
 
+                      { (ptConnected === true) ?
+              this.renderConfig()
+            : null }
 
-          <Section>
+          </Section>
+
+          <Section title={"PAN TILT CONTROLS"}>
 
             {(show_pt_selector === true) ?
                   <Label title={"Pan Tilt Device"}>
@@ -255,7 +260,7 @@ class NepiAppPTAuto extends Component {
                     </Label>
             : null }
 
-            {(ptConnected === true) ?
+            {(ptConnected === false) ?
                   <Label title={"Connecting"}>
                     </Label>
             : null }
@@ -269,11 +274,11 @@ class NepiAppPTAuto extends Component {
                 <NepiDevicePTXControls
                     namespace={selected_pan_tilt}
                     make_section={false}
-
-                    title={"Pan Tilt Controls"}
                 />
 
             : null }
+
+
           </Section>
 
 
@@ -329,6 +334,7 @@ class NepiAppPTAuto extends Component {
            <NepiIFConfig
                 namespace={namespace}
                 title={"Nepi_IF_Config"}
+                show_save_all={false}
                 make_section={true}
             />
 
@@ -388,9 +394,6 @@ class NepiAppPTAuto extends Component {
 
             { this.renderControls()}
 
-            { (ptConnected === true) ?
-              this.renderConfig()
-            : null }
 
             </div>
 

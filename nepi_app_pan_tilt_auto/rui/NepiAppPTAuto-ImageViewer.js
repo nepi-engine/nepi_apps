@@ -223,6 +223,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
         namespace + '/set_click_position'
     ]
 
+
       return (
      
 
@@ -235,7 +236,6 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               image_topics={image_topics}
                               titles={topics_text}
                               show_save_controls={false}
-                              show_image_options={true}
                               num_windows={num_windows}
                               num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
@@ -295,7 +295,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
 
               <div hidden={show_pt_controls === false}>
-                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+        
                   <SliderAdjustment
                     title={"Pan"}
                     msgType={"std_msgs/Float32"}

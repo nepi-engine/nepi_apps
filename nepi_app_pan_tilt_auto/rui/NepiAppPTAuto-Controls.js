@@ -357,8 +357,26 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         return (
           <React.Fragment>
 
+            
+        <Columns>
+        <Column>
 
-            <Label title={"PT Auto CONTROLS"} style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+
+        </Column>
+        <Column>
+
+              <ButtonMenu>
+                <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop_pan_tilt')}>{"STOP"}</Button>
+              </ButtonMenu>
+
+        </Column>
+        </Columns>
+
+
+
+
+
+            <Label title={""} style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pan"}</div>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Tilt"}</div>
             </Label>
@@ -405,6 +423,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             </Label>
 
 
+
             <Label title={"Min Scan Limits"}>
 
               <Input id="scan_pan_min" 
@@ -439,9 +458,6 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             </Label>
 
 
-          <ButtonMenu>
-            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop_pan_tilt')}>{"STOP"}</Button>
-          </ButtonMenu>
 
 
 
@@ -470,14 +486,12 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
       return (
 
-          <Columns>
-            <Column >
+          <React.Fragment>
 
               { this.renderControlPanel()}
 
 
-            </Column>
-          </Columns>
+          </React.Fragment>
       )
     }
     else {
