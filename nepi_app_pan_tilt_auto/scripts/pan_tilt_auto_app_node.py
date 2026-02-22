@@ -175,7 +175,7 @@ class NepiPanTiltAutoApp(object):
 
   click_pan_enabled = True
   click_tilt_enabled = True
-  set_click_position = [0,0]
+  set_mouse_click = [0,0]
 
   #################
   ### Image Viewer
@@ -417,12 +417,12 @@ class NepiPanTiltAutoApp(object):
         ######################
         ###Image Viewer
         ######################
-        'set_click_position': {
+        'set_mouse_click': {
             'namespace': self.node_namespace,
-            'topic': 'set_click_position',
+            'topic': 'set_mouse_click',
             'msg': ImageMouseEvent,
             'qsize': None,
-            'callback': self.clickPositionCB, 
+            'callback': self.clickCb, 
             'callback_args': ()
         },
         'set_topic_1': {
@@ -998,58 +998,73 @@ class NepiPanTiltAutoApp(object):
         self.node_if.set_param('click_tilt_enabled', self.auto_tilt_enabled)
         self.node_if.save_config()
 
-  def clickPositionCB(self,msg):
-      self.click_position = [0,0]
-      click_pan_enabled = self.getPanClickEnabled()
-      click_tilt_enabled = self.getTiltClickEnabled()
-      image_index = msg.image_index
-      if msg.click_event == True:
-        if self.num_windows > 1:
-            self.single_image_topic = msg.image_topic
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('single_image_topic', msg.image_topic)
-                self.node_if.save_config()            
+  def clickCb(self,msg):
+      
+      click_count = msg.click_count
+
+      if click_count > 1:
+        if self.num_windows == 1:
+           self.setNumWindows(4)
         else:
-            pixel = [msg.click_pixel.x, msg.click_pixel.y ]
-            status_msg = msg.image_status_msg
-            image_width = status_msg.width_px
-            image_height = status_msg.height_px
-            image_fov_horz = status_msg.width_deg
-            image_fov_vert = status_msg.height_deg
-            image_zoom_ratio = status_msg.zoom_ratio
-            if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
-                object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
-                object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
-                vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
-                horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
-                self.click_position = [horz_angle_deg,vert_angle_deg]
+           image_index = msg.image_index
+           image_topic = msg.image_topic
+           if image_index < len(self.selected_image_topics):
+            self.selected_image_topics[image_index] = image_topic
+            self.publish_status()
+            self.setNumWindows(1)
+         
+      else:
+        self.click_position = [0,0]
+        click_pan_enabled = self.getPanClickEnabled()
+        click_tilt_enabled = self.getTiltClickEnabled()
+        image_index = msg.image_index
+        if msg.click_event == True:
+            if self.num_windows > 1:
+                self.single_image_topic = msg.image_topic
+                self.publish_status()
+                if self.node_if is not None:
+                    self.node_if.set_param('single_image_topic', msg.image_topic)
+                    self.node_if.save_config()            
+            else:
+                pixel = [msg.click_pixel.x, msg.click_pixel.y ]
+                status_msg = msg.image_status_msg
+                image_width = status_msg.width_px
+                image_height = status_msg.height_px
+                image_fov_horz = status_msg.width_deg
+                image_fov_vert = status_msg.height_deg
+                image_zoom_ratio = status_msg.zoom_ratio
+                if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
+                    object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
+                    object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
+                    vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
+                    horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
+                    self.click_position = [horz_angle_deg,vert_angle_deg]
 
-            if click_pan_enabled == True:
-                if self.current_position == None:
-                    pass
-                else:
-                    pan_cur = self.current_position[0]
-                    pan_to_goal = self.click_position[0] + pan_cur
-                    self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#, log_name_list = self.log_name_list)
-                    self.goto_position[0] = pan_to_goal
-                    self.pt_connect_if.goto_to_pan_position(pan_to_goal)
-            else: 
-                self.msg_if.pub_warn("Pan Click Enabled is False")#, log_name_list = self.log_name_list)
+                if click_pan_enabled == True:
+                    if self.current_position == None:
+                        pass
+                    else:
+                        pan_cur = self.current_position[0]
+                        pan_to_goal = self.click_position[0] + pan_cur
+                        self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#, log_name_list = self.log_name_list)
+                        self.goto_position[0] = pan_to_goal
+                        self.pt_connect_if.goto_to_pan_position(pan_to_goal)
+                else: 
+                    self.msg_if.pub_warn("Pan Click Enabled is False")#, log_name_list = self.log_name_list)
 
 
 
-            if click_tilt_enabled == True:
-                if self.current_position == None:
-                    pass
-                else:
-                    tilt_cur = self.current_position[1]
-                    tilt_to_goal = self.click_position[1] + tilt_cur
-                    self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#, log_name_list = self.log_name_list)
-                    self.goto_position[1] = tilt_to_goal
-                    self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
-            else: 
-                self.msg_if.pub_warn("Tilt Click Enabled is False")#, log_name_list = self.log_name_list)
+                if click_tilt_enabled == True:
+                    if self.current_position == None:
+                        pass
+                    else:
+                        tilt_cur = self.current_position[1]
+                        tilt_to_goal = self.click_position[1] + tilt_cur
+                        self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#, log_name_list = self.log_name_list)
+                        self.goto_position[1] = tilt_to_goal
+                        self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
+                else: 
+                    self.msg_if.pub_warn("Tilt Click Enabled is False")#, log_name_list = self.log_name_list)
 
 
   def selectTopicCb(self,msg):
@@ -1276,6 +1291,9 @@ class NepiPanTiltAutoApp(object):
   def setNumWindowsCb(self,msg):
     self.msg_if.pub_info(str(msg))
     num_windows = msg.data
+    self.setNumWindows(num_windows)
+
+  def setNumWindows(self,num_windows):
     if num_windows > 0 and num_windows < 5:
       self.num_windows = num_windows
       self.publish_status()

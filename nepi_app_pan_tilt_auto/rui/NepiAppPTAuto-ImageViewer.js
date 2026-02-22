@@ -217,10 +217,10 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     ]
 
     const mouse_event_topics = [
-        namespace + '/set_click_position',
-        namespace + '/set_click_position',
-        namespace + '/set_click_position',
-        namespace + '/set_click_position'
+        namespace + '/set_mouse_click',
+        namespace + '/set_mouse_click',
+        namespace + '/set_mouse_click',
+        namespace + '/set_mouse_click'
     ]
 
 

@@ -1,4 +1,5 @@
 APP_DICT:
+  display_name: Video File Publisher
   description: Application for publishing images from video files
   pkg_name: nepi_app_file_pub_vid
   group_name: DATA
@@ -8,7 +9,6 @@ APP_DICT:
   license_type: 3-clause BSD
   license_link: https://opensource.org/licenses/BSD-3-Clause
 RUI_DICT:
-  rui_menu_name: Video File Publisher
   rui_files:
   - NepiAppFilePubVid.js
   rui_main_file: NepiAppFilePubVid.js
