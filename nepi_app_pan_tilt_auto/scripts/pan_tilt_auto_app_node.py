@@ -1000,20 +1000,20 @@ class NepiPanTiltAutoApp(object):
 
   def clickCb(self,msg):
       
-      click_count = msg.click_count
+    #   click_count = msg.click_count
 
-      if click_count > 1:
-        if self.num_windows == 1:
-           self.setNumWindows(4)
-        else:
-           image_index = msg.image_index
-           image_topic = msg.image_topic
-           if image_index < len(self.selected_image_topics):
-            self.selected_image_topics[image_index] = image_topic
-            self.publish_status()
-            self.setNumWindows(1)
+    #   if click_count > 1:
+    #     if self.num_windows == 1:
+    #        self.setNumWindows(4)
+    #     else:
+    #        image_index = msg.image_index
+    #        image_topic = msg.image_topic
+    #        if image_index < len(self.selected_image_topics):
+    #         self.selected_image_topics[image_index] = image_topic
+    #         self.publish_status()
+    #         self.setNumWindows(1)
          
-      else:
+    #   else:
         self.click_position = [0,0]
         click_pan_enabled = self.getPanClickEnabled()
         click_tilt_enabled = self.getTiltClickEnabled()

@@ -157,9 +157,9 @@ class NepiAppPTAuto extends Component {
   // Lifecycle method called just before the component umounts.
   // Used to unsubscribe to Status3DX message
   componentWillUnmount() {
-    if (this.state.listener) {
-      this.state.listener.unsubscribe()
-      this.setState({listener : null})
+    if (this.state.statusListener) {
+      this.state.statusListener.unsubscribe()
+      this.setState({statusListener : null})
     }
   }
 
