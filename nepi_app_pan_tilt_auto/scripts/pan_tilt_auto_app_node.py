@@ -84,6 +84,7 @@ class NepiPanTiltAutoApp(object):
   is_auto_pan = False
   start_auto_pan = False
   auto_pan_enabled = False
+  auto_pan_hold = False
   track_pan_enabled = False
   nav_lock_pan_enabled = False
   auto_pan_sec = 5
@@ -100,6 +101,7 @@ class NepiPanTiltAutoApp(object):
   is_auto_tilt = False
   start_auto_tilt = False
   auto_tilt_enabled = False
+  auto_tilt_hold = False
   track_tilt_enabled = False
   nav_lock_tilt_enabled = False
   auto_tilt_sec = 5
@@ -665,13 +667,13 @@ class NepiPanTiltAutoApp(object):
 
   def setAutoPan(self,enabled):
         was_enabled = copy.deepcopy(self.auto_pan_enabled)
-        if enabled == True:
-            self.track_pan_enabled = False
-            self.nav_lock_pan_enabled = False
-        if (was_enabled == True and enabled == False):
-            self.stopMoving('pan')
         self.auto_pan_enabled = enabled
         self.publish_status()
+        if enabled == True:
+            #self.track_pan_enabled = False
+            self.nav_lock_pan_enabled = False
+        if (was_enabled == True and enabled == False and self.track_pan_enabled == False):
+            self.pt_connect_if.goto_to_pan_position(0.0)
         self.node_if.set_param('auto_pan_enabled', enabled)
         
 
@@ -684,13 +686,13 @@ class NepiPanTiltAutoApp(object):
 
   def setAutoTilt(self,enabled):
         was_enabled = copy.deepcopy(self.auto_tilt_enabled)
-        if enabled == True:
-            self.track_tilt_enabled = False
-            self.nav_lock_tilt_enabled = False
-        if (was_enabled == True and enabled == False):
-            self.stopMoving('tilt')
         self.auto_tilt_enabled = enabled
         self.publish_status()
+        if enabled == True:
+            #self.track_tilt_enabled = False
+            self.nav_lock_tilt_enabled = False
+        if (was_enabled == True and enabled == False):
+               self.pt_connect_if.goto_to_tilt_position(0.0)        
         self.node_if.set_param('auto_tilt_enabled', self.auto_tilt_enabled)
 
 
@@ -704,10 +706,19 @@ class NepiPanTiltAutoApp(object):
   def setTrackPan(self,enabled):
         was_enabled = copy.deepcopy(self.track_pan_enabled)
         if enabled == True:
-            self.auto_pan_enabled = False
+            #self.auto_pan_enabled = False
             self.nav_lock_pan_enabled = False
         if (was_enabled == True and enabled == False):
-            self.stopMoving('pan')
+            if self.auto_pan_enabled == True:
+                last_pan_error = self.pan_errors[-1]
+                if last_pan_error > 0:
+                    self.goto_position[0] = self.scan_pan_max
+                else:
+                    self.goto_position[0] = self.scan_pan_min
+            else:
+                self.goto_position[0] = 0.0
+            self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
+            self.auto_pan_hold = False
         self.track_pan_enabled = enabled
         self.publish_status()
         self.node_if.set_param('track_pan_enabled', self.track_pan_enabled)
@@ -720,10 +731,19 @@ class NepiPanTiltAutoApp(object):
   def setTrackTilt(self,enabled):
         was_enabled = copy.deepcopy(self.track_tilt_enabled)
         if enabled == True:
-            self.auto_tilt_enabled = False
+            #self.auto_tilt_enabled = False
             self.nav_lock_tilt_enabled = False
         if (was_enabled == True and enabled == False):
-            self.stopMoving('tilt')
+            if self.auto_tilt_enabled == True:
+                last_tilt_error = self.tilt_errors[-1]
+                if last_tilt_error > 0:
+                    self.goto_position[0] = self.scan_tilt_max
+                else:
+                    self.goto_position[0] = self.scan_tilt_min
+            else:
+                self.goto_position[0] = 0.0
+            self.pt_connect_if.goto_to_tilt_position(self.goto_position[0])
+            self.auto_tilt_hold = False
         self.track_tilt_enabled = enabled
         self.publish_status()
         self.node_if.set_param('track_tilt_enabled', self.track_tilt_enabled)
@@ -799,7 +819,7 @@ class NepiPanTiltAutoApp(object):
       else:
         if self.auto_pan_enabled == False:
             self.is_auto_pan = False
-        elif self.pt_connect_if is not None:
+        elif self.pt_connect_if is not None and self.auto_pan_hold == False:
             start_auto_pan = False
             if self.is_auto_pan == False:
                 start_auto_pan = True     
@@ -861,10 +881,7 @@ class NepiPanTiltAutoApp(object):
       else:
         if self.auto_tilt_enabled == False:
             self.is_auto_tilt = False
-
-        else:
-            if self.track_tilt_enabled == True:
-                self.track_tilt_enabled = False
+        elif self.pt_connect_if is not None and self.auto_tilt_hold == False:
             start_auto_tilt = False
             if self.is_auto_tilt == False:
                 start_auto_tilt = True     
@@ -917,6 +934,7 @@ class NepiPanTiltAutoApp(object):
             pan_cur = self.current_position[0]
             track_dict = copy.deepcopy(self.track_dict)
             if track_dict is not None:
+                self.auto_pan_hold = True
                 pan_error = track_dict['azimuth_deg']
                 #self.msg_if.pub_warn("Got track pan error " + str(pan_error), log_name_list = self.log_name_list)
                 
@@ -930,8 +948,16 @@ class NepiPanTiltAutoApp(object):
                     self.goto_position[0] = pan_to_goal
                     self.pt_connect_if.goto_to_pan_position(pan_to_goal)
             else:
-                self.goto_position[0] = 0.0
-                self.pt_connect_if.goto_to_pan_position(0.0)
+                if self.auto_pan_enabled == True:
+                    last_pan_error = self.pan_errors[-1]
+                    if last_pan_error > 0:
+                        self.goto_position[0] = self.scan_pan_max
+                    else:
+                        self.goto_position[0] = self.scan_pan_min
+                else:
+                    self.goto_position[0] = 0.0
+                self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
+                self.auto_pan_hold = False
       
 
   def trackTiltProcess(self,timer):
@@ -942,6 +968,7 @@ class NepiPanTiltAutoApp(object):
             tilt_cur = self.current_position[1]
             track_dict = copy.deepcopy(self.track_dict)
             if track_dict is not None:
+                self.auto_tilt_hold = True
                 tilt_error = track_dict['elevation_deg']
                 #self.msg_if.pub_warn("Got track tilt error " + str(tilt_error), log_name_list = self.log_name_list)
                 
@@ -955,8 +982,16 @@ class NepiPanTiltAutoApp(object):
                     self.goto_position[1] = tilt_to_goal
                     self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
             else:
-                self.goto_position[1] = 0.0
-                self.pt_connect_if.goto_to_tilt_position(0.0)
+                if self.auto_tilt_enabled == True:
+                    last_tilt_error = self.tilt_errors[-1]
+                    if last_tilt_error > 0:
+                        self.goto_position[0] = self.scan_tilt_max
+                    else:
+                        self.goto_position[0] = self.scan_tilt_min
+                else:
+                    self.goto_position[0] = 0.0
+                self.pt_connect_if.goto_to_tilt_position(self.goto_position[0])
+                self.auto_tilt_hold = False
 
 
 
