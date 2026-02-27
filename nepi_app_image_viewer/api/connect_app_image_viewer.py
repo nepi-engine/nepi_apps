@@ -11,20 +11,15 @@ import time
 import sys
 import numpy as np
 import time
-import subprocess
-import threading
 
 
 from std_msgs.msg import UInt8, Empty, String, Bool, Float32, Int32
-from sensor_msgs.msg import Image
-from nepi_app_image_viewer.msg import ImageSelection
+
 from nepi_interfaces.msg import StringArray
 
-from nepi_interfaces.msg import SaveDataRate, SaveDataStatus
+from nepi_interfaces.msg import SaveDataRate
 
 from nepi_sdk import nepi_sdk
-from nepi_sdk import nepi_utils
-from nepi_sdk import nepi_img
 
 from nepi_api.messages_if import MsgIF
 from nepi_api.connect_system_if import ConnectSaveDataIF
@@ -86,12 +81,35 @@ class ConnectAppImageViewer:
 
         # Publishers Config Dict ####################
         self.PUBS_DICT = {
-            'set_topic': {
+            'set_topic_1': {
                 'namespace': self.node_namespace,
-                'topic': 'set_topic',
-                'msg': ImageSelection,
-                'qsize': 10,
-                'latch': False
+                'topic': 'set_topic_1',
+                'msg': String,
+                'qsize': 1
+            },
+            'set_topic_2': {
+                'namespace': self.node_namespace,
+                'topic': 'set_topic_2',
+                'msg': String,
+                'qsize': 1
+            },
+            'set_topic_3': {
+                'namespace': self.node_namespace,
+                'topic': 'set_topic_3',
+                'msg': String,
+                'qsize': 1
+            },
+            'set_topic_4': {
+                'namespace': self.node_namespace,
+                'topic': 'set_topic_4',
+                'msg': String,
+                'qsize': 1
+            },
+            'set_num_windows': {
+                'namespace': self.node_namespace,
+                'topic': 'set_num_windows',
+                'msg': Int32,
+                'qsize': 1
             },
             'save_config': {
                 'namespace': self.node_namespace,
@@ -224,10 +242,15 @@ class ConnectAppImageViewer:
     def unregister(self):
         self._unsubscribeTopic()
 
-    def set_viewer_topic(self,set_topic):
-        pub_name = 'set_topic'
+    def set_viewer_topic(self,window_num,set_topic):
+        pub_name = 'set_topic_' + str(window_num)
         msg = set_topic
         self.con_node_if.publish_pub(pub_name,msg)  
+
+    def set_num_windows(self,num_windows):
+        pub_name = 'set_num_windows'
+        msg = num_windows
+        self.con_node_if.publish_pub(pub_name,msg) 
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config',Empty())
