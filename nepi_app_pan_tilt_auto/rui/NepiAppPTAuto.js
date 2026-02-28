@@ -363,21 +363,21 @@ class NepiAppPTAuto extends Component {
 
 
 
-                { (ptConnected === true) ?
 
 
-                      <div id="ptAutoImageViewer">
-                              <NepiPTAutoImageViewer
-                                id="ptAutoImageViewer"
-                                show_image_options={false}
-                                namespace={namespace}
-                                mouse_event_topic={mouse_event_topic}
-                                num_windows={num_windows}
-                                image_topics={selected_image_topics}
-                              />
-                            </div>
 
-                  : null }
+            <div id="ptAutoImageViewer">
+                    <NepiPTAutoImageViewer
+                      id="ptAutoImageViewer"
+                      show_image_options={false}
+                      namespace={namespace}
+                      mouse_event_topic={mouse_event_topic}
+                      num_windows={num_windows}
+                      image_topics={selected_image_topics}
+                    />
+                  </div>
+
+
 
                 { (ptConnected === true) ?
                      this.renderSaveData()
