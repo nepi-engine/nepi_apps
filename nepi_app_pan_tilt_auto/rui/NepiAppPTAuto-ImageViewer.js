@@ -241,6 +241,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
+                              auto_select_image={false}
                               make_section={true}
                             />
                           </div>        

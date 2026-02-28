@@ -185,10 +185,11 @@ class NepiPanTiltAutoApp(object):
   FACTORY_SELECTED_PAN_TILTS = ["None","None","None","None"]
 
   update_image_subs_interval_sec = float(1)/UPDATE_IMAGE_SUBS_RATE_HZ
-
+  available_image_topics = []   
   single_image_topic = "None"
   selected_image_topics = ["None","None","None","None"]
   num_windows = 1
+  last_num_windows = 4
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_pan_tilt_auto" # Can be overwitten by luanch command
@@ -1035,20 +1036,20 @@ class NepiPanTiltAutoApp(object):
 
   def clickCb(self,msg):
       
-    #   click_count = msg.click_count
+      click_count = msg.click_count
 
-    #   if click_count > 1:
-    #     if self.num_windows == 1:
-    #        self.setNumWindows(4)
-    #     else:
-    #        image_index = msg.image_index
-    #        image_topic = msg.image_topic
-    #        if image_index < len(self.selected_image_topics):
-    #         self.selected_image_topics[image_index] = image_topic
-    #         self.publish_status()
-    #         self.setNumWindows(1)
+      if click_count > 1:
+        if self.num_windows == 1:
+           self.setNumWindows(self.last_num_windows)
+        else:
+           image_index = msg.image_index
+           image_topic = msg.image_topic
+           if image_topic != 'None':
+            self.single_image_topic = image_topic
+            self.publish_status()
+            self.setNumWindows(1)
          
-    #   else:
+      else:
         self.click_position = [0,0]
         click_pan_enabled = self.getPanClickEnabled()
         click_tilt_enabled = self.getTiltClickEnabled()
@@ -1132,7 +1133,6 @@ class NepiPanTiltAutoApp(object):
       self.available_pan_tilts = available_pan_tilts
       needs_publish = True
 
-
     ####################
     if self.connected_topic is not None:
       if self.connected_topic not in self.available_pan_tilts:
@@ -1150,6 +1150,14 @@ class NepiPanTiltAutoApp(object):
     else:
        self.connected = False
 
+    ######################
+    topics = nepi_sdk.find_topics_by_msg('Image')
+    available_image_topics = []
+    for topic in topics:
+      available_image_topics.append(topic)
+    self.available_image_topics = available_image_topics
+      
+    ##################
     # Get settings from param server
     if needs_publish == True:
       self.publish_status()
@@ -1330,6 +1338,8 @@ class NepiPanTiltAutoApp(object):
 
   def setNumWindows(self,num_windows):
     if num_windows > 0 and num_windows < 5:
+      if num_windows == 1 and self.num_windows != 1:
+         self.last_num_windows = copy.deepcopy(self.num_windows)
       self.num_windows = num_windows
       self.publish_status()
       if self.node_if is not None:
@@ -1407,6 +1417,10 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.num_windows = self.num_windows
     if self.num_windows == 1:
         image_topics[0] = self.single_image_topic
+    for i, topic in enumerate(image_topics):
+       if topic != 'None':
+          if topic not in self.available_image_topics:
+             image_topics[i] = 'None'
     self.status_msg.image_topics = image_topics
 
     ############
