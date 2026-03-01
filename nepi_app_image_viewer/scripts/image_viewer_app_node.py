@@ -335,7 +335,7 @@ class NepiImageViewerApp(object):
        if topic != 'None':
           if topic not in self.available_image_topics:
              image_topics[i] = 'None'
-    self.status_msg.selected_image_topics = image_topics
+    status_msg.selected_image_topics = image_topics
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub',status_msg)
 
