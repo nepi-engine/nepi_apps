@@ -229,7 +229,7 @@ class NepiPanTiltAutoApp(object):
     self.auto_tilt_sin_ind = 0
 
 
-    self.status_msg.image_priority_options = self.image_priority_list
+    
     # AUTO SCANNING ##############
     # timed auto scanning is not supported yet
 
@@ -1475,6 +1475,7 @@ class NepiPanTiltAutoApp(object):
           if topic not in self.available_image_topics:
              image_topics[i] = 'None'
     self.status_msg.image_topics = image_topics
+    self.status_msg.image_priority_options = self.image_priority_list
 
     ############
 

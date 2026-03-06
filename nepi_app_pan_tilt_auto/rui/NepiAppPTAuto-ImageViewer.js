@@ -243,8 +243,8 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
-                              set_image_priority_callback={set_image_priority_callback}
-                              image_priority_options={image_priority_options}
+                              custom_selection_options={image_priority_options}
+                              custom_selection_callback={set_image_priority_callback}
                               image_filters={image_filters}
                               auto_select_image={false}
                               make_section={true}
