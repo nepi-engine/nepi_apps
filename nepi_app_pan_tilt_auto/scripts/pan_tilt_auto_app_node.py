@@ -64,6 +64,8 @@ class NepiPanTiltAutoApp(object):
   TRACK_MIN_ERROR_DEG = 5
   TRACK_DEFAULT_SOURCE = 'targets'
 
+  IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
+
   has_auto_pan = True
   has_auto_tilt = True
   has_sin_pan = False
@@ -185,11 +187,16 @@ class NepiPanTiltAutoApp(object):
   FACTORY_SELECTED_PAN_TILTS = ["None","None","None","None"]
 
   update_image_subs_interval_sec = float(1)/UPDATE_IMAGE_SUBS_RATE_HZ
-  available_image_topics = []   
+ 
   single_image_topic = "None"
   selected_image_topics = ["None","None","None","None"]
   num_windows = 1
   last_num_windows = 4
+
+  
+  image_priority_options = IMAGE_PRIORITY_OPTIONS
+  available_image_topics = []  
+  available_image_dict = dict()
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_pan_tilt_auto" # Can be overwitten by luanch command
@@ -218,7 +225,7 @@ class NepiPanTiltAutoApp(object):
     self.auto_tilt_sin_ind = 0
 
 
-
+    self.status_msg.image_priority_options = self.image_priority_options
     # AUTO SCANNING ##############
     # timed auto scanning is not supported yet
 
@@ -466,6 +473,14 @@ class NepiPanTiltAutoApp(object):
             'msg': Int32,
             'qsize': 10,
             'callback': self.setNumWindowsCb, 
+            'callback_args': ()
+        },
+          'set_image_priority': {
+            'namespace': self.node_namespace,
+            'topic': 'set_image_priority',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setImagePriorityCb, 
             'callback_args': ()
         }
     }
@@ -1152,9 +1167,27 @@ class NepiPanTiltAutoApp(object):
 
     ######################
     topics = nepi_sdk.find_topics_by_msg('Image')
+    available_image_dict = dict()
     available_image_topics = []
     for topic in topics:
       available_image_topics.append(topic)
+      base_topic = os.path.dirname(topic)
+      color_topic = os.path.join(base_topic,'color_image')
+      detection_topic = os.path.join(base_topic,'detection_image')
+      target_topic = os.path.join(base_topic,'target_image')
+      if color_topic not in available_image_dict.keys():
+         available_image_dict[color_topic] = dict()
+         available_image_dict[color_topic]['color_topic'] = None
+         available_image_dict[color_topic]['detection_topic'] = None
+         available_image_dict[color_topic]['target_topic'] = None
+      if topic == color_topic:
+        available_image_dict[color_topic]['color_topic'] = topic
+      elif topic == detection_topic:
+        available_image_dict[color_topic]['detection_topic'] = topic
+      elif topic == target_topic:
+        available_image_dict[color_topic]['target_topic'] = topic
+    self.available_image_dict = available_image_dict
+        
     self.available_image_topics = available_image_topics
       
     ##################
@@ -1346,6 +1379,9 @@ class NepiPanTiltAutoApp(object):
         self.node_if.set_param('num_windows', self.num_windows)
         self.node_if.save_config()
 
+  def setImagePriorityCb(self,msg):
+     priority = msg.data
+     
 
   ####################
 

@@ -45,4 +45,6 @@ bool click_tilt_enabled
 string[] image_topics
 # Number of Windows to Dipslay
 int32 num_windows
+string[] image_priority_options
+
 
