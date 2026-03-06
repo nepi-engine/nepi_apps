@@ -634,7 +634,7 @@ class NepiPanTiltAutoApp(object):
       for priority_option in self.image_priority_dict.keys(): 
          priority_name = self.image_priority_dict[priority_option]
          if priority_name == image_name and priority_option not in image_priority_list:
-            image_priority_list.append(priority_name)
+            image_priority_list.append(priority_option)
     self.available_image_topics = available_image_topics
     self.image_priority_list = image_priority_list
       
