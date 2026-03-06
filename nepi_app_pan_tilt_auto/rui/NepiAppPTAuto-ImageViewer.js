@@ -224,6 +224,9 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     ]
 
 
+    const set_image_priority_callback = namespace + '/set_image_priority'
+    const image_priority_options = (this.state.status_msg != null) ? this.state.status_msg.image_priority_options : []
+
       return (
      
 
@@ -240,6 +243,8 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
+                              set_image_priority_callback={set_image_priority_callback}
+                              image_priority_options={image_priority_options}
                               image_filters={image_filters}
                               auto_select_image={false}
                               make_section={true}

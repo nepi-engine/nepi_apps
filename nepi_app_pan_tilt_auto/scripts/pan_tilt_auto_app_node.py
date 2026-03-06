@@ -65,6 +65,7 @@ class NepiPanTiltAutoApp(object):
   TRACK_DEFAULT_SOURCE = 'targets'
 
   IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
+  IMAGE_PRIORITY_NAMES = ['color_image','detection_image','target_image']
 
   has_auto_pan = True
   has_auto_tilt = True
@@ -193,8 +194,11 @@ class NepiPanTiltAutoApp(object):
   num_windows = 1
   last_num_windows = 4
 
-  
-  image_priority_options = IMAGE_PRIORITY_OPTIONS
+  image_priority_list = []
+  image_priority_dict = dict()
+  for i, option in enumerate(IMAGE_PRIORITY_OPTIONS):
+     image_priority_dict[option] = IMAGE_PRIORITY_NAMES[i]
+
   available_image_topics = []  
   available_image_dict = dict()
   #######################
@@ -225,7 +229,7 @@ class NepiPanTiltAutoApp(object):
     self.auto_tilt_sin_ind = 0
 
 
-    self.status_msg.image_priority_options = self.image_priority_options
+    self.status_msg.image_priority_options = self.image_priority_list
     # AUTO SCANNING ##############
     # timed auto scanning is not supported yet
 
@@ -581,6 +585,77 @@ class NepiPanTiltAutoApp(object):
 
   def imageUpdateCb(self):
     self.img_needs_update = True
+
+
+  def updaterCb(self,timer):
+    #self.msg_if.pub_warn("Updater Called")
+    if self.pt_connect_if is not None:
+      current_position = self.pt_connect_if.get_pan_tilt_position()
+      #self.msg_if.pub_warn("current_position: " + str(current_position))
+
+    selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
+    last_available = copy.deepcopy(self.available_pan_tilts)
+    needs_publish = False
+
+    
+    ##############
+    topics = nepi_sdk.find_topics_by_msg('DevicePTXStatus')
+    available_pan_tilts = []
+    for topic in topics:
+      available_pan_tilts.append(topic.replace('/status',''))
+    if available_pan_tilts != last_available:
+      self.available_pan_tilts = available_pan_tilts
+      needs_publish = True
+
+    ####################
+    if self.connected_topic is not None:
+      if self.connected_topic not in self.available_pan_tilts:
+        success = self.unsubscribe_pt_topic()
+    if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
+        self.selected_pan_tilt = self.available_pan_tilts[0]
+    needs_publish = True
+
+    if self.selected_pan_tilt in self.available_pan_tilts and self.connected_topic != selected_pan_tilt:
+      success = self.subscribe_pt_topic(self.selected_pan_tilt)
+
+    elif self.pt_connect_if is not None:
+       self.connected = self.pt_connect_if.check_connection()
+       needs_publish = True
+    else:
+       self.connected = False
+
+    ######################
+    topics = nepi_sdk.find_topics_by_msg('Image')
+    available_image_topics = []
+    image_priority_list = []
+    for topic in topics:
+      available_image_topics.append(topic)   
+      image_name = os.path.basename(topic)
+      for priority_option in self.image_priority_dict.keys(): 
+         priority_name = self.image_priority_dict[priority_option]
+         if priority_name == image_name and priority_option not in image_priority_list:
+            image_priority_list.append(priority_name)
+    self.available_image_topics = available_image_topics
+    self.image_priority_list = image_priority_list
+      
+    ##################
+    # Get settings from param server
+    if needs_publish == True:
+      self.publish_status()
+    nepi_sdk.start_timer_process(1.0, self.updaterCb, oneshot = True)
+
+
+  def get_image_priority_topic(self,image_topic,image_priority):
+    priority_topic = image_topic
+    if image_priority in self.image_priority_dict.keys():
+      base_topic = os.path.dirname(image_topic)
+      priority_name = self.image_priority_dict[image_priority]
+      check_topic = os.path.join(base_topic,priority_name)
+      topics = nepi_sdk.find_topics_by_msg('Image')
+      if check_topic in  topics:
+         priority_topic = check_topic
+    return priority_topic
+     
 
 
 
@@ -1128,77 +1203,6 @@ class NepiPanTiltAutoApp(object):
         self.node_if.set_param('selected_pan_tilt', selected_pan_tilt)
     
 
-  def updaterCb(self,timer):
-    #self.msg_if.pub_warn("Updater Called")
-    if self.pt_connect_if is not None:
-      current_position = self.pt_connect_if.get_pan_tilt_position()
-      #self.msg_if.pub_warn("current_position: " + str(current_position))
-
-    selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
-    last_available = copy.deepcopy(self.available_pan_tilts)
-    needs_publish = False
-
-    
-    ##############
-    topics = nepi_sdk.find_topics_by_msg('DevicePTXStatus')
-    available_pan_tilts = []
-    for topic in topics:
-      available_pan_tilts.append(topic.replace('/status',''))
-    if available_pan_tilts != last_available:
-      self.available_pan_tilts = available_pan_tilts
-      needs_publish = True
-
-    ####################
-    if self.connected_topic is not None:
-      if self.connected_topic not in self.available_pan_tilts:
-        success = self.unsubscribe_pt_topic()
-    if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
-        self.selected_pan_tilt = self.available_pan_tilts[0]
-    needs_publish = True
-
-    if self.selected_pan_tilt in self.available_pan_tilts and self.connected_topic != selected_pan_tilt:
-      success = self.subscribe_pt_topic(self.selected_pan_tilt)
-
-    elif self.pt_connect_if is not None:
-       self.connected = self.pt_connect_if.check_connection()
-       needs_publish = True
-    else:
-       self.connected = False
-
-    ######################
-    topics = nepi_sdk.find_topics_by_msg('Image')
-    available_image_dict = dict()
-    available_image_topics = []
-    for topic in topics:
-      available_image_topics.append(topic)
-      base_topic = os.path.dirname(topic)
-      color_topic = os.path.join(base_topic,'color_image')
-      detection_topic = os.path.join(base_topic,'detection_image')
-      target_topic = os.path.join(base_topic,'target_image')
-      if color_topic not in available_image_dict.keys():
-         available_image_dict[color_topic] = dict()
-         available_image_dict[color_topic]['color_topic'] = None
-         available_image_dict[color_topic]['detection_topic'] = None
-         available_image_dict[color_topic]['target_topic'] = None
-      if topic == color_topic:
-        available_image_dict[color_topic]['color_topic'] = topic
-      elif topic == detection_topic:
-        available_image_dict[color_topic]['detection_topic'] = topic
-      elif topic == target_topic:
-        available_image_dict[color_topic]['target_topic'] = topic
-    self.available_image_dict = available_image_dict
-        
-    self.available_image_topics = available_image_topics
-      
-    ##################
-    # Get settings from param server
-    if needs_publish == True:
-      self.publish_status()
-    nepi_sdk.start_timer_process(1.0, self.updaterCb, oneshot = True)
-
-
-
-
 
 
   def subscribe_pt_topic(self, topic):
@@ -1380,7 +1384,20 @@ class NepiPanTiltAutoApp(object):
         self.node_if.save_config()
 
   def setImagePriorityCb(self,msg):
-     priority = msg.data
+    image_priority = msg.data
+    self.single_image_topic = self.get_image_priority_topic(self.single_image_topic,image_priority)
+    selected_image_topics = []
+    for image_topic in self.selected_image_topics:
+      selected_image_topics.append(self.get_image_priority_topic(image_topic,image_priority))
+    self.selected_image_topics = selected_image_topics
+    self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('single_image_topic', self.single_image_topic)
+      self.node_if.set_param('selected_image_topics', self.selected_image_topics)
+      self.node_if.save_config()
+
+        
+        
      
 
   ####################
