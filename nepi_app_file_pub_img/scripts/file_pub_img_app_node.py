@@ -665,6 +665,7 @@ class NepiFilePubImgApp(object):
         self.current_file = file2open.split('/')[-1]
         self.current_ind = current_ind
         #self.msg_if.pub_info("Opening File: " + file2open)
+        cv2_img = None
         if file2open != self.file2open:
           cv2_img = cv2.imread(file2open)
           self.file2open = file2open
