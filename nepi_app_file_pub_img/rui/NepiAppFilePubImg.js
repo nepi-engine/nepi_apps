@@ -449,7 +449,7 @@ class FilePubImgApp extends Component {
                                   
                                   <Label title={"Current Folder"} >
                                   </Label>
-                                  <pre style={{ height: "25px", overflowY: "auto" }}>
+                                  <pre style={{ height: "50px", overflowY: "auto" }}>
                                     {this.state.current_folder}
                                   </pre>
 
