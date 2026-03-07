@@ -352,7 +352,7 @@ class ONVIFMgr:
     #ln = sys._getframe().f_lineno ; self.printND('Info',ln)
     self.drivers_files = drivers_files
     # Next update available drivers base on active drivers
-    active_drivers_list = msg.active_pkg_list
+    active_drivers_list = msg.drivers_active_list
     if self.active_drivers_list != active_drivers_list:
       self.msg_if.pub_warn("Got Active Drivers Update list: " + str(active_drivers_list))
     for drv_name in drvs_dict.keys():
@@ -816,62 +816,83 @@ class ONVIFMgr:
     password = config['password']
     hostname = self.detected_onvifs[uuid]['host']
     port = self.detected_onvifs[uuid]['port']
+    path_str = str(hostname) + ":" + str(port)  #######
     
     identifier = hostname.replace(".","")
     device_name = config['node_base_name'] + '_' + identifier
     self.msg_if.pub_info(device_name)
     self.device_name_dict[uuid] = device_name
-    ros_node_name = config['node_base_name'] + '_camera_' + identifier
+    device_name = config['node_base_name'] + '_camera_' + identifier
+    node_name = nepi_system.get_device_alias(device_name) #######
+
+
     if start_idx is True:
       self.msg_if.pub_warn('Starting IDX Onvif Node for host' + str(hostname))
       driver_name = self.configured_onvifs[uuid]['idx_driver']
+      self.msg_if.pub_warn('driver_name: ' + str(driver_name)) 
+
       if driver_name not in self.drvs_dict.keys():
-        # self.msg_if.pub_warn('Cant find driver for IDX Onvif Node for host' + str(hostname) + " " + str( driver_name) + " in dict " + str(self.drivers_dict))
-        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + ros_node_name )
+        #self.msg_if.pub_warn('Cant find driver for IDX Onvif Node for host' + str(hostname) + " " + str( driver_name) + " in dict " + str(self.drivers_dict))
+        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + node_name )
         self.msg_if.pub_warn('Driver Dict keys: ' + str(self.drvs_dict.keys()) ) 
       else:
         self.msg_if.pub_warn('Found Driver for IDX Onvif Node host' + str(hostname))
         file_name = self.drvs_dict[driver_name]['NODE_DICT']['file_name']
-        connect_namespace = nepi_sdk.create_namespace(self.base_namespace,ros_node_name)
+        connect_namespace = nepi_sdk.create_namespace(self.base_namespace,node_name)
         self.checkLoadConfigFile(node_namespace=connect_namespace)
+
+
+
+        #########################
         drv_dict = self.configured_onvifs[uuid]['idx_drv_dict']
-        driver_param_name = ros_node_name + "/drv_dict"
+        self.msg_if.pub_warn('drv_dict' + str(drv_dict))
+        drv_dict['DEVICE_DICT'] = dict()  #####
+        drv_dict['DEVICE_DICT']['device_name'] = device_name ########
+        drv_dict['DEVICE_DICT']['device_path'] = path_str ########
+        
+        driver_param_name = node_name + "/drv_dict"
         nepi_sdk.set_param(driver_param_name,drv_dict)
+
         self.overrideConnectionParams(connect_namespace, username, password, hostname, port, config['idx_driver'])
         # And try to launch the node
-        self.msg_if.pub_info('Launching node ' + ros_node_name + ' with file ' + file_name + ' for uuid ' + str(uuid))
-        [success, msg, sub_process] = nepi_drvs.launchDriverNode(file_name, ros_node_name)
+        self.msg_if.pub_info('Launching node ' + node_name + ' with file ' + file_name + ' for uuid ' + str(uuid))
+        [success, msg, sub_process] = nepi_drvs.launchDriverNode(file_name, node_name)
         if success == True:
-          self.msg_if.pub_info('Launched driver node ' + ros_node_name )
+          self.msg_if.pub_info('Launched driver node ' + node_name )
           self.detected_onvifs[uuid]['idx_subproc'] = sub_process
-          self.detected_onvifs[uuid]['idx_node_name'] = ros_node_name
+          self.detected_onvifs[uuid]['idx_node_name'] = node_name
         else:
-          self.msg_if.pub_warn('Failed to launch driver node ' + ros_node_name )
+          self.msg_if.pub_warn('Failed to launch driver node ' + node_name )
 
     if start_ptx is True:
       driver_name = self.configured_onvifs[uuid]['ptx_driver']
       if driver_name in self.drvs_dict.keys():
         file_name = self.drvs_dict[driver_name]['NODE_DICT']['file_name']
-        ros_node_name = config['node_base_name'] + '_pan_tilt_' + identifier
-        connect_namespace = nepi_sdk.create_namespace(self.base_namespace,ros_node_name)
+        node_name = config['node_base_name'] + '_pan_tilt_' + identifier
+        connect_namespace = nepi_sdk.create_namespace(self.base_namespace,node_name)
+
+        #########################
         self.checkLoadConfigFile(node_namespace=connect_namespace)
         drv_dict = self.configured_onvifs[uuid]['ptx_drv_dict']
-        driver_param_name = '/' + ros_node_name + "/drv_dict"
-        ns = nepi_sdk.get_full_namespace(self.node_namespace)
-        nepi_sdk.set_param(ns + driver_param_name,drv_dict)
+        drv_dict['DEVICE_DICT'] = dict()
+        drv_dict['DEVICE_DICT']['device_name'] = device_name
+        drv_dict['DEVICE_DICT']['device_path'] = path_str
+        
+        driver_param_name = node_name + "/drv_dict"
+        nepi_sdk.set_param(driver_param_name, drv_dict)
         self.overrideConnectionParams(connect_namespace, username, password, hostname, port, config['ptx_driver'])
         # And try to launch the node
         self.detected_onvifs[uuid]['launch_time'] = nepi_sdk.get_time()
-        self.msg_if.pub_info('Launching node ' + ros_node_name + ' with file ' + file_name + ' for uuid ' + str(uuid))
-        [success, msg, sub_process] = nepi_drvs.launchDriverNode(file_name, ros_node_name)
+        self.msg_if.pub_info('Launching node ' + node_name + ' with file ' + file_name + ' for uuid ' + str(uuid))
+        [success, msg, sub_process] = nepi_drvs.launchDriverNode(file_name, node_name)
         if success == True:
-          self.msg_if.pub_info('Launched driver node ' + ros_node_name )
+          self.msg_if.pub_info('Launched driver node ' + node_name )
           self.detected_onvifs[uuid]['ptx_subproc'] = sub_process
-          self.detected_onvifs[uuid]['ptx_node_name'] = ros_node_name
+          self.detected_onvifs[uuid]['ptx_node_name'] = node_name
         else:
-          self.msg_if.pub_warn('Failed to launch driver node ' + ros_node_name + ' with msg: ' + str(msg))
+          self.msg_if.pub_warn('Failed to launch driver node ' + node_name + ' with msg: ' + str(msg))
       else:
-        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + ros_node_name )
+        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + node_name )
 
   def overrideConnectionParams(self, connect_namespace, username, password, hostname, port, driver_id):
     ns = nepi_sdk.get_full_namespace(connect_namespace)
@@ -922,13 +943,13 @@ class ONVIFMgr:
     return running
   
   def checkLoadConfigFile(self, node_namespace):
-    ros_node_name = node_namespace.split('/')[-1]
+    node_name = node_namespace.split('/')[-1]
     node_config_file_folder = self.DEFAULT_USER_CONFIG_PATH
     self.msg_if.pub_info(node_config_file_folder)
     # Just make the folder if necessary 
     os.makedirs(node_config_file_folder, exist_ok=True)
 
-    full_path_config_file = os.path.join(node_config_file_folder, ros_node_name + ".yaml")
+    full_path_config_file = os.path.join(node_config_file_folder, node_name + ".yaml")
     
     self.msg_if.pub_info(self.node_name + ": Loading parameters from " + full_path_config_file + " for " + node_namespace)
     rosparam_load_cmd = ['rosparam', 'load', full_path_config_file, node_namespace]
