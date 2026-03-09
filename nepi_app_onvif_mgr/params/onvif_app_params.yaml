@@ -2,7 +2,7 @@ APP_DICT:
   display_name: ONVIF Mgr
   description: Application for configuring credetials and connecting to ONVIF type camera and pan tilt devices
   pkg_name: nepi_app_onvif_mgr
-  group_name: DEVICE
+  group_name: SYSTEM
   config_file: app_onvif_mgr.yaml
   app_file: onvif_mgr_app_node.py
   node_name: app_onvif_mgr
