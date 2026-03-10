@@ -275,7 +275,7 @@ class ONVIFMgr:
     # Complete init processes
 
     # Iterate through these configured devices fixing invalid characters in the node base name
-    for uuid in self.configured_onvifs:
+    for uuid in list(self.configured_onvifs.keys()):
       self.configured_onvifs[uuid]['node_base_name'] = self.configured_onvifs[uuid]['node_base_name'].replace(' ','_').replace('-','_')
 
     # Must handle our own store params rather than offloading to SaveCfgIF per WARNING above
@@ -378,6 +378,19 @@ class ONVIFMgr:
     self.active_drivers_list = active_drivers_list
     #self.msg_if.pub_warn("IDX Drivers Dict: " + str(idx_drivers_dict.keys()))
     #self.msg_if.pub_warn("PTX Drivers Dict: " + str(ptx_drivers_dict.keys()))
+
+    # Stop any running nodes whose driver has become inactive
+    for uuid in list(self.detected_onvifs.keys()):
+      device = self.detected_onvifs[uuid]
+      cfg = self.configured_onvifs.get(uuid)
+      if cfg is None:
+        continue
+      if device['idx_subproc'] is not None and cfg.get('idx_driver', '') not in idx_drivers_dict:
+        self.msg_if.pub_warn('IDX driver for ' + str(uuid) + ' is no longer active, stopping IDX node')
+        self.stopNodeForUuid(uuid, 'idx')
+      if device['ptx_subproc'] is not None and cfg.get('ptx_driver', '') not in ptx_drivers_dict:
+        self.msg_if.pub_warn('PTX driver for ' + str(uuid) + ' is no longer active, stopping PTX node')
+        self.stopNodeForUuid(uuid, 'ptx')
 
 
 
@@ -491,7 +504,7 @@ class ONVIFMgr:
       resp_status_for_device.ptx_node_running = False
       resp.device_statuses.append(resp_status_for_device)
     else:
-      for uuid in self.detected_onvifs:
+      for uuid in list(self.detected_onvifs.keys()):
         device = self.detected_onvifs[uuid]
         if uuid in self.device_name_dict.keys():
             device_name = self.device_name_dict[uuid]
@@ -526,7 +539,7 @@ class ONVIFMgr:
 
       #self.msg_if.pub_warn("Detected ONVIF devices: " + str(self.detected_onvifs))
       #self.msg_if.pub_warn("Connected ONVIF device at: " + str(self.configured_onvifs))
-      for uuid in self.configured_onvifs:
+      for uuid in list(self.configured_onvifs.keys()):
         if uuid in self.detected_onvifs.keys():
           device = self.detected_onvifs[uuid]
           if uuid in self.device_name_dict.keys():
@@ -549,7 +562,7 @@ class ONVIFMgr:
     return resp
 
   def resyncOnvifDeviceClocks(self, _):
-    for uuid in self.detected_onvifs:
+    for uuid in list(self.detected_onvifs.keys()):
       device = self.detected_onvifs[uuid]
       if (device['connectable'] is False) or  (uuid not in self.configured_onvifs):
         continue
@@ -672,16 +685,21 @@ class ONVIFMgr:
             self.msg_if.pub_info('Connected to device '  + str(uuid) + ' at ' + hostname + ':' + str(port) + ' via configured credentials')
 
     lost_onvifs = []
-    for uuid in self.detected_onvifs:
+    for uuid in list(self.detected_onvifs.keys()):
       detected_onvif = self.detected_onvifs[uuid]
-      # Now look for services we've previously detected but are now lost
+      # Now look for services we've previously detected but are now lost.
+      # WS-Discovery may cache devices even after they are physically disconnected,
+      # so we also do a quick ping check for connected devices to catch unplug events.
       lost_connection = False
-      #if self.detected_onvifs[uuid]['connectable']:
-        #lost_connection = self.attemptONVIFConnection(uuid) == False
-      
+      if uuid in detected_uuids and detected_onvif['connectable']:
+        hostname = detected_onvif['host']
+        host_reachable = (os.system(f"ping -c 1 -W 1 {hostname} > /dev/null 2>&1") == 0)
+        if not host_reachable:
+          self.msg_if.pub_warn('ONVIF device ' + str(uuid) + ' at ' + str(hostname) + ' is no longer reachable')
+          lost_connection = True
 
       if uuid not in detected_uuids or lost_connection:
-        self.msg_if.pub_warn('detected uuids: ' + str(detected_uuids)) 
+        self.msg_if.pub_warn('Lost ONVIF device ' + str(uuid) + ' at ' + str(detected_onvif.get('host', '')))
         self.stopAndPurgeNodes(uuid)
         lost_onvifs.append(uuid)
         continue
@@ -703,7 +721,8 @@ class ONVIFMgr:
                         (detected_onvif['config'] is not None) and ('idx_enabled' in detected_onvif['config']) and \
                         (detected_onvif['config']['idx_enabled'] is True)
       if needs_idx_start:
-        self.msg_if.pub_info("IDX node needs start " + str(needs_idx_start) )
+        if not detected_onvif.get('idx_drv_not_found_warned', False):
+          self.msg_if.pub_info("IDX node needs start " + str(needs_idx_start) )
       # Check for restarts
       '''
       elif (detected_onvif['idx_node_name'] is not None) and (self.nodeIsRunning(detected_onvif['idx_node_name']) is False):
@@ -726,7 +745,8 @@ class ONVIFMgr:
       launch_time = self.detected_onvifs[uuid]['launch_time']       
       cur_time = nepi_sdk.get_time()             
       if needs_ptx_start:
-        self.msg_if.pub_info("PTX needs start " + str(needs_ptx_start) )
+        if not detected_onvif.get('ptx_drv_not_found_warned', False):
+          self.msg_if.pub_info("PTX needs start " + str(needs_ptx_start) )
       # Check for restarts
       elif (cur_time - launch_time) > self.NODE_LAUNCH_TIME_SEC: #Give nodes time to load
         if (detected_onvif['ptx_node_name'] is not None) and (self.nodeIsRunning(detected_onvif['ptx_node_name']) is False):
@@ -798,7 +818,9 @@ class ONVIFMgr:
     return True    
 
   def startNodesForDevice(self, uuid, start_idx, start_ptx):
-    self.msg_if.pub_warn('Starting node launch for ' + str(uuid))
+    if not self.detected_onvifs.get(uuid, {}).get('idx_drv_not_found_warned', False) and \
+       not self.detected_onvifs.get(uuid, {}).get('ptx_drv_not_found_warned', False):
+      self.msg_if.pub_warn('Starting node launch for ' + str(uuid))
     if uuid not in self.detected_onvifs:
       self.msg_if.pub_warn("Can't start nodes for undetected device... ignoring")
       return False 
@@ -820,24 +842,25 @@ class ONVIFMgr:
     
     identifier = hostname.replace(".","")
     device_name = config['node_base_name'] + '_' + identifier
-    self.msg_if.pub_info(device_name)
     self.device_name_dict[uuid] = device_name
     device_name = config['node_base_name'] + '_camera_' + identifier
     node_name = nepi_system.get_device_alias(device_name) #######
 
 
     if start_idx is True:
-      self.msg_if.pub_warn('Starting IDX Onvif Node for host' + str(hostname))
       driver_name = self.configured_onvifs[uuid]['idx_driver']
-      self.msg_if.pub_warn('driver_name: ' + str(driver_name)) 
 
-      if driver_name not in self.drvs_dict.keys():
-        #self.msg_if.pub_warn('Cant find driver for IDX Onvif Node for host' + str(hostname) + " " + str( driver_name) + " in dict " + str(self.drivers_dict))
-        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + node_name )
-        self.msg_if.pub_warn('Driver Dict keys: ' + str(self.drvs_dict.keys()) ) 
+      if driver_name not in self.idx_drivers_dict.keys():
+        if not self.detected_onvifs[uuid].get('idx_drv_not_found_warned', False):
+          self.msg_if.pub_warn('Starting IDX Onvif Node for host' + str(hostname))
+          self.msg_if.pub_warn('driver_name: ' + str(driver_name))
+          self.msg_if.pub_warn('Failed to find active IDX driver ' + driver_name + ' for launch driver node ' + node_name )
+          self.msg_if.pub_warn('Active IDX Driver Dict keys: ' + str(self.idx_drivers_dict.keys()) )
+          self.detected_onvifs[uuid]['idx_drv_not_found_warned'] = True
       else:
-        self.msg_if.pub_warn('Found Driver for IDX Onvif Node host' + str(hostname))
-        file_name = self.drvs_dict[driver_name]['NODE_DICT']['file_name']
+        self.detected_onvifs[uuid]['idx_drv_not_found_warned'] = False
+        self.msg_if.pub_warn('Found active IDX Driver for Onvif Node host' + str(hostname))
+        file_name = self.idx_drivers_dict[driver_name]['NODE_DICT']['file_name']
         connect_namespace = nepi_sdk.create_namespace(self.base_namespace,node_name)
         self.checkLoadConfigFile(node_namespace=connect_namespace)
 
@@ -866,8 +889,9 @@ class ONVIFMgr:
 
     if start_ptx is True:
       driver_name = self.configured_onvifs[uuid]['ptx_driver']
-      if driver_name in self.drvs_dict.keys():
-        file_name = self.drvs_dict[driver_name]['NODE_DICT']['file_name']
+      if driver_name in self.ptx_drivers_dict.keys():
+        self.detected_onvifs[uuid]['ptx_drv_not_found_warned'] = False
+        file_name = self.ptx_drivers_dict[driver_name]['NODE_DICT']['file_name']
         node_name = config['node_base_name'] + '_pan_tilt_' + identifier
         connect_namespace = nepi_sdk.create_namespace(self.base_namespace,node_name)
 
@@ -892,7 +916,10 @@ class ONVIFMgr:
         else:
           self.msg_if.pub_warn('Failed to launch driver node ' + node_name + ' with msg: ' + str(msg))
       else:
-        self.msg_if.pub_warn('Failed to find driver ' + driver_name + ' for launch driver node ' + node_name )
+        if not self.detected_onvifs[uuid].get('ptx_drv_not_found_warned', False):
+          self.msg_if.pub_warn('Failed to find active PTX driver ' + driver_name + ' for launch driver node ' + node_name)
+          self.msg_if.pub_warn('Active PTX Driver Dict keys: ' + str(self.ptx_drivers_dict.keys()))
+          self.detected_onvifs[uuid]['ptx_drv_not_found_warned'] = True
 
   def overrideConnectionParams(self, connect_namespace, username, password, hostname, port, driver_id):
     ns = nepi_sdk.get_full_namespace(connect_namespace)
@@ -903,6 +930,29 @@ class ONVIFMgr:
     nepi_sdk.set_param(ns + '/driver_id', str(driver_id))
   
     
+  def stopNodeForUuid(self, uuid, node_type):
+    # node_type: 'idx' or 'ptx'
+    device = self.detected_onvifs[uuid]
+    subproc_key = node_type + '_subproc'
+    p = device[subproc_key]
+    if (p is not None) and (p.poll() is None):
+      p.terminate()
+      terminate_timeout = 3
+      node_dead = False
+      while terminate_timeout > 0:
+        time.sleep(1)
+        if p.poll() is None:
+          terminate_timeout -= 1
+        else:
+          node_dead = True
+          break
+      if not node_dead:
+        p.kill()
+        time.sleep(1)
+    if uuid in self.detected_onvifs:
+      self.detected_onvifs[uuid][subproc_key] = None
+      self.detected_onvifs[uuid][node_type + '_node_name'] = None
+
   def stopAndPurgeNodes(self, uuid):
     device = self.detected_onvifs[uuid]
     subprocs = [device['idx_subproc'], device['ptx_subproc']]
