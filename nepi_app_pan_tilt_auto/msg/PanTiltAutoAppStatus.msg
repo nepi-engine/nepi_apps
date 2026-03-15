@@ -14,19 +14,20 @@ float32 scan_tilt_min_deg
 float32 scan_tilt_max_deg
 float32 scan_speed_ratio
 
-bool has_auto_pan
-bool auto_pan_enabled
+bool has_scan_pan
+bool scan_pan_enabled
+
 bool sin_pan_enabled
 bool track_pan_enabled
 
-bool auto_pan_sec
+bool scan_pan_sec
 
-bool has_auto_tilt
-bool auto_tilt_enabled
+bool has_scan_tilt
+bool scan_tilt_enabled
 bool sin_tilt_enabled
 bool track_tilt_enabled
 
-float32 auto_tilt_sec
+float32 scan_tilt_sec
 
 string[] track_source_namespaces
 string track_source_namespace

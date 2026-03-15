@@ -120,8 +120,8 @@ class NepiAppPTAutoControls extends Component {
       status_msg: message,
       selected_pan_tilt: message.selected_pan_tilt,
 
-      autoPanEnabled: message.auto_pan_enabled,
-      autoTiltEnabled: message.auto_tilt_enabled,
+      autoPanEnabled: message.scan_pan_enabled,
+      autoTiltEnabled: message.scan_tilt_enabled,
 
       track_source_namespaces: message.track_source_namespaces,
       track_source_namespace: message.track_source_namespace,
@@ -310,17 +310,17 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const has_abs_pos = ptx_caps && (ptx_caps.has_absolute_positioning)
     //Unused const has_timed_pos = ptx_caps && (ptx_caps.has_timed_positioning)
     //Unused const has_sep_pan_tilt = ptx_caps && (ptx_caps.has_seperate_pan_tilt_control)
-    const has_auto_pan = ptx_caps && (ptx_caps.has_auto_pan)
-    const has_auto_tilt = ptx_caps && (ptx_caps.has_auto_tilt)
+    const has_scan_pan = ptx_caps && (ptx_caps.has_scan_pan)
+    const has_scan_tilt = ptx_caps && (ptx_caps.has_scan_tilt)
     const has_speed_control = ptx_caps && (ptx_caps.has_adjustable_speed)
     const has_homing = ptx_caps && (ptx_caps.has_homing)
     //Unused const has_set_home = ptx_caps && (ptx_caps.has_set_home)
 
-    const hide_auto_pan = ((has_auto_pan === false ))
-    const hide_auto_tilt = ((has_auto_tilt === false ))
+    const hide_scan_pan = ((has_scan_pan === false ))
+    const hide_scan_tilt = ((has_scan_tilt === false ))
 
-    const hide_track_pan = ((track_source_connected === false || hide_auto_pan === true))
-    const hide_track_tilt = ((track_source_connected === false || hide_auto_tilt === true))
+    const hide_track_pan = ((track_source_connected === false || hide_scan_pan === true))
+    const hide_track_tilt = ((track_source_connected === false || hide_scan_tilt === true))
 
     //Unused const {sendTriggerMsg} = this.props.ros
 
@@ -382,15 +382,15 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             </Label>
 
             <Label title={"Enable Auto Scan"}>
-            <div hidden={(hide_auto_pan === true)}>
+            <div hidden={(hide_scan_pan === true)}>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                <Toggle style={{justifyContent: "flex-left"}} checked={autoPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_auto_pan_enable",!autoPanEnabled)} />
+                <Toggle style={{justifyContent: "flex-left"}} checked={autoPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_pan_enable",!autoPanEnabled)} />
               </div>
               </div>
 
-              <div hidden={(hide_auto_tilt === true)}>
+              <div hidden={(hide_scan_tilt === true)}>
               <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                <Toggle style={{justifyContent: "flex-right"}} checked={autoTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_auto_tilt_enable",!autoTiltEnabled)} />
+                <Toggle style={{justifyContent: "flex-right"}} checked={autoTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_tilt_enable",!autoTiltEnabled)} />
               </div>
               </div>
             </Label>
@@ -430,13 +430,13 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                   value={this.state.scanPanMin} 
                   style={{ width: "45%", float: "left" }}
                   onChange={(event) => onUpdateSetStateValue.bind(this)(event,"scanPanMin")} 
-                  onKeyDown= {(event) => this.onEnterSendPanScanRangeWindowValue(event,"/set_auto_pan_window","min",Number(this.state.scanPanMax))} />
+                  onKeyDown= {(event) => this.onEnterSendPanScanRangeWindowValue(event,"/set_scan_pan_window","min",Number(this.state.scanPanMax))} />
 
               <Input id="scan_tilt_min" 
                   value={this.state.scanTiltMin} 
                   style={{ width: "45%" }}
                   onChange={(event) => onUpdateSetStateValue.bind(this)(event,"scanTiltMin")} 
-                  onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_auto_tilt_window","min",Number(this.state.scanTiltMax))} />
+                  onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_scan_tilt_window","min",Number(this.state.scanTiltMax))} />
 
               
             </Label>
@@ -447,14 +447,14 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                 value={this.state.scanPanMax} 
                 style={{ width: "45%", float: "left" }}
                 onChange={(event) => onUpdateSetStateValue.bind(this)(event,"scanPanMax")} 
-                onKeyDown= {(event) => this.onEnterSendPanScanRangeWindowValue(event,"/set_auto_pan_window","max",Number(this.state.scanPanMin))} />     
+                onKeyDown= {(event) => this.onEnterSendPanScanRangeWindowValue(event,"/set_scan_pan_window","max",Number(this.state.scanPanMin))} />     
 
 
               <Input id="scan_tilt_max" 
                   value={this.state.scanTiltMax} 
                   style={{ width: "45%" }}
                   onChange={(event) => onUpdateSetStateValue.bind(this)(event,"scanTiltMax")} 
-                  onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_auto_tilt_window","max",Number(this.state.scanTiltMin))} />                      
+                  onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_scan_tilt_window","max",Number(this.state.scanTiltMin))} />                      
             </Label>
 
 
