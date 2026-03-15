@@ -1037,7 +1037,7 @@ class NepiPanTiltAutoApp(object):
                     self.pt_connect_if.goto_to_pan_position(pan_to_goal)
             else:
                 if self.scan_pan_enabled == True:
-                    if self.scan_pan_hold == True and len(self.track_pan_error) > 0:
+                    if self.scan_pan_hold == True:
                         if last_error > 0:
                             self.goto_position[0] = self.scan_pan_max
                         else:
@@ -1067,7 +1067,7 @@ class NepiPanTiltAutoApp(object):
                     self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
             else:
                 if self.scan_tilt_enabled == True:
-                    if self.scan_tilt_hold == True and len(self.track_tilt_error) > 0:
+                    if self.scan_tilt_hold == True:
                         if last_error > 0:
                             self.goto_position[0] = self.scan_tilt_max
                         else:
