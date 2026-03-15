@@ -801,7 +801,7 @@ class NepiPanTiltAutoApp(object):
             self.nav_lock_pan_enabled = False
         if (was_tracking == True and enabled == False):
             if self.scan_pan_enabled == True:
-                last_pan_error = self.track_pan_error[-1]
+                last_pan_error = self.track_pan_error
                 if last_pan_error > 0:
                     self.goto_position[0] = self.scan_pan_max
                 else:
@@ -827,7 +827,7 @@ class NepiPanTiltAutoApp(object):
             self.nav_lock_tilt_enabled = False
         if (was_tracking == True and enabled == False):
             if self.scan_tilt_enabled == True:
-                last_tilt_error = self.track_tilt_error[-1]
+                last_tilt_error = self.track_tilt_error
                 if last_tilt_error > 0:
                     self.goto_position[0] = self.scan_tilt_max
                 else:
@@ -1315,7 +1315,7 @@ class NepiPanTiltAutoApp(object):
 
     if track_dict is not None:
         self.last_track_time = nepi_utils.get_time()
-    self.track_tilt_dict = copy.deepcopy(track_dict)
+    self.track_pan_dict = copy.deepcopy(track_dict)
     self.track_tilt_dict = copy.deepcopy(track_dict)
 
 
