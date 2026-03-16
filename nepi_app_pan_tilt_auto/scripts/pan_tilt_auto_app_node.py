@@ -123,8 +123,6 @@ class NepiPanTiltAutoApp(object):
 
   #####################
 
-  is_scan_pan = False
-  start_scan_pan = False
   scan_pan_enabled = False
   scan_pan_track_hold = False
 
@@ -139,8 +137,6 @@ class NepiPanTiltAutoApp(object):
   rpi = 1
   rti = 1
 
-  is_scan_tilt = False
-  start_scan_tilt = False
   scan_tilt_enabled = False
   scan_tilt_track_hold = False
   scan_tilt_sec = 5
@@ -720,29 +716,36 @@ class NepiPanTiltAutoApp(object):
   def initCb(self,do_updates = False):
     if self.node_if is not None:
 
+        
       self.selected_pan_tilt = self.node_if.get_param('selected_pan_tilt')
 
-      self.scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
-      self.scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
+      scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
+      scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
       self.scan_pan_min_deg = self.node_if.get_param('scan_pan_min_deg')
       self.scan_pan_max_deg = self.node_if.get_param('scan_pan_max_deg')
       self.scan_tilt_min_deg = self.node_if.get_param('scan_tilt_min_deg')
       self.scan_tilt_max_deg = self.node_if.get_param('scan_tilt_max_deg')
+      self.setScanPan(scan_pan_enabled)
+      self.setScanTilt(scan_tilt_enabled)
 
-      self.track_pan_enabled = self.node_if.get_param('track_pan_enabled')
-      self.track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
+      track_pan_enabled = self.node_if.get_param('track_pan_enabled')
+      track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
       self.track_pan_min_deg = self.node_if.get_param('track_pan_min_deg')
       self.track_pan_max_deg = self.node_if.get_param('track_pan_max_deg')
       self.track_tilt_min_deg = self.node_if.get_param('track_tilt_min_deg')
       self.track_tilt_max_deg = self.node_if.get_param('track_tilt_max_deg')
       self.track_reset_time_sec = self.node_if.get_param('track_reset_time_sec')
+      self.setTrackPan(track_pan_enabled)
+      self.setTrackTilt(track_tilt_enabled)
 
-      self.lock_pan_enabled = self.node_if.get_param('lock_pan_enabled')
-      self.lock_tilt_enabled = self.node_if.get_param('lock_tilt_enabled')
+      lock_pan_enabled = self.node_if.get_param('lock_pan_enabled')
+      lock_tilt_enabled = self.node_if.get_param('lock_tilt_enabled')
       self.lock_pan_min_deg = self.node_if.get_param('lock_pan_min_deg')
       self.lock_pan_max_deg = self.node_if.get_param('lock_pan_max_deg')
       self.lock_tilt_min_deg = self.node_if.get_param('lock_tilt_min_deg')
       self.lock_tilt_max_deg = self.node_if.get_param('lock_tilt_max_deg')
+      self.setLockPan(lock_pan_enabled)
+      self.setLockTilt(lock_tilt_enabled)
 
       self.num_windows = self.node_if.get_param('num_windows')
       self.selected_image_topics = self.node_if.get_param('selected_image_topics')
@@ -871,16 +874,18 @@ class NepiPanTiltAutoApp(object):
 
 
   def stopPanControls(self):
+      self.scan_pan_enabled = False
+      self.scan_pan_track_hold = False
       self.track_pan_enabled = False
       self.lock_pan_enabled = False
-      self.scan_pan_enabled = False
       self.click_pan_enabled = True
 
 
   def stopTiltControls(self):
+      self.scan_tilt_enabled = False
+      self.scan_tilt_track_hold = False
       self.track_tilt_enabled = False
       self.lock_tilt_enabled = False
-      self.scan_tilt_enabled = False
       self.click_tilt_enabled = True
 
   def getPanClickEnabled(self):
@@ -990,23 +995,11 @@ class NepiPanTiltAutoApp(object):
 
 
   def setTrackPan(self,enabled):
-        was_tracking = copy.deepcopy(self.track_pan_enabled)
         if enabled == True:
             #self.scan_pan_enabled = False
-            self.lock_pan_enabled = False
-        if (was_tracking == True and enabled == False):
-            if self.scan_pan_enabled == True:
-                last_pan_error = self.track_pan_error
-                if last_pan_error > 0:
-                    self.goto_position[0] = self.scan_pan_max_deg
-                else:
-                    self.goto_position[0] = self.scan_pan_min_deg
-                self.scan_pan_track_hold = False
-            else:
-                self.goto_position[0] = 0.0
-            self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
-            
+            self.lock_pan_enabled = False           
         self.track_pan_enabled = enabled
+        self.scan_pan_track_hold = enabled
         self.publish_status()
         self.node_if.set_param('track_pan_enabled', self.track_pan_enabled)
 
@@ -1016,23 +1009,11 @@ class NepiPanTiltAutoApp(object):
         self.setTrackTilt(enabled)
 
   def setTrackTilt(self,enabled):
-        was_tracking = copy.deepcopy(self.track_tilt_enabled)
         if enabled == True:
             #self.scan_tilt_enabled = False
             self.lock_tilt_enabled = False
-        if (was_tracking == True and enabled == False):
-            if self.scan_tilt_enabled == True:
-                last_tilt_error = self.track_tilt_error
-                if last_tilt_error > 0:
-                    self.goto_position[0] = self.scan_tilt_max_deg
-                else:
-                    self.goto_position[0] = self.scan_tilt_min_deg
-                self.scan_tilt_track_hold = False
-            else:
-                self.goto_position[0] = 0.0
-            self.pt_connect_if.goto_to_tilt_position(self.goto_position[0])
-            
         self.track_tilt_enabled = enabled
+        self.scan_tilt_track_hold = enabled
         self.publish_status()
         self.node_if.set_param('track_tilt_enabled', self.track_tilt_enabled)
 
@@ -1229,7 +1210,6 @@ class NepiPanTiltAutoApp(object):
       scan_time = None
 
       if self.current_position == None:
-        self.is_scan_pan = False
         self.pan_scanning = False
       else:
         if self.scan_pan_enabled == False or self.scan_pan_track_hold == True:
@@ -1237,15 +1217,10 @@ class NepiPanTiltAutoApp(object):
         elif self.pt_connect_if is not None:
             self.pan_scanning = True
 
-            start_scan_pan = False
-            if self.is_scan_pan == False:
-                start_scan_pan = True     
-            self.is_scan_pan = True    
 
             pan_cur = self.current_position[0]
-            if start_scan_pan == True:
-
-                self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_min_deg)) 
+            if self.goto_position[0] != self.scan_pan_min_deg and self.goto_position[0] != self.scan_pan_max_deg:
+                self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
                 self.goto_position[0] = self.scan_pan_min_deg
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)  
               
@@ -1296,7 +1271,6 @@ class NepiPanTiltAutoApp(object):
       cur_time = nepi_utils.get_time()
       scan_time = None
       if self.current_position == None:
-        self.is_scan_tilt = False
         self.tilt_scanning = False
       else:
         if self.scan_tilt_enabled == False or self.scan_tilt_track_hold == True:
@@ -1304,13 +1278,9 @@ class NepiPanTiltAutoApp(object):
         elif self.pt_connect_if is not None:
             self.tilt_scanning = True
 
-            start_scan_tilt = False
-            if self.is_scan_tilt == False:
-                start_scan_tilt = True     
-            self.is_scan_tilt = True   
 
             tilt_cur = self.current_position[1]
-            if start_scan_tilt == True:
+            if self.goto_position[1] != self.scan_tilt_min_deg and self.goto_position[0] != self.scan_tilt_max_deg:
                 self.goto_position[1] = self.scan_tilt_min_deg
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min_deg)  
             elif (tilt_cur < (self.scan_tilt_min_deg + self.SCAN_SWITCH_DEG)):
