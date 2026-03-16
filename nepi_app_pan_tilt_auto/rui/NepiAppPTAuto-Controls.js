@@ -59,10 +59,21 @@ class NepiAppPTAutoControls extends Component {
       selected_pan_tilt: 'None',
 
 
-      scanPanMin: -60,
-      scanPanMax: 60,
-      scanTiltMin: -60,
-      scanTiltMax: 60,
+      scanPanMin: -50,
+      scanPanMax: 50,
+      scanTiltMin: -50,
+      scanTiltMax: 50,
+
+      trackPanMin: -50,
+      trackPanMax: 50,
+      trackTiltMin: -50,
+      trackTiltMax: 50,
+      trackResetTime: null,
+
+      lockPanMin: -50,
+      lockPanMax: 50,
+      lockTiltMin: -50,
+      lockTiltMax: 50,
 
 
       autoPanEnabled: false,
@@ -140,25 +151,78 @@ class NepiAppPTAutoControls extends Component {
     })
   
 
-    const pan_min_ss = message.scan_pan_min_deg
-    const pan_max_ss = message.scan_pan_max_deg
-    const tilt_min_ss = message.scan_tilt_min_deg
-    const tilt_max_ss = message.scan_tilt_max_deg
+    const pan_min_scan = message.scan_pan_min_deg
+    const pan_max_scan = message.scan_pan_max_deg
+    const tilt_min_scan = message.scan_tilt_min_deg
+    const tilt_max_scan = message.scan_tilt_max_deg
 
-    const scan_limits_changed = (last_status_msg == null) ? true : (pan_min_ss !== last_status_msg.scan_pan_min_deg || pan_max_ss !== last_status_msg.scan_pan_max_deg ||
-                              tilt_min_ss !== last_status_msg.scan_tilt_min_deg || tilt_max_ss !== last_status_msg.scan_tilt_max_deg)
+    const scan_limits_changed = (last_status_msg == null) ? true : (pan_min_scan !== last_status_msg.scan_pan_min_deg || pan_max_scan !== last_status_msg.scan_pan_max_deg ||
+                              tilt_min_scan !== last_status_msg.scan_tilt_min_deg || tilt_max_scan !== last_status_msg.scan_tilt_max_deg)
     if (scan_limits_changed === true){
-      this.setState({scanPanMin: pan_min_ss,
-                     scanPanMax: pan_max_ss
+      this.setState({scanPanMin: pan_min_scan,
+                     scanPanMax: pan_max_scan
       })
     }
     if (scan_limits_changed === true){
-      this.setState({scanTiltMin: tilt_min_ss,
-                     scanTiltMax: tilt_max_ss
+      this.setState({scanTiltMin: tilt_min_scan,
+                     scanTiltMax: tilt_max_scan
       })
     }
+
+    const pan_min_track = message.track_pan_min_deg
+    const pan_max_track = message.track_pan_max_deg
+    const tilt_min_track = message.track_tilt_min_deg
+    const tilt_max_track = message.track_tilt_max_deg
+
+    const track_limits_changed = (last_status_msg == null) ? true : (pan_min_track !== last_status_msg.track_pan_min_deg || pan_max_track !== last_status_msg.track_pan_max_deg ||
+                              tilt_min_track !== last_status_msg.track_tilt_min_deg || tilt_max_track !== last_status_msg.track_tilt_max_deg)
+    if (track_limits_changed === true){
+      this.setState({trackPanMin: pan_min_track,
+                     trackPanMax: pan_max_track
+      })
+    }
+    if (track_limits_changed === true){
+      this.setState({trackTiltMin: tilt_min_track,
+                     trackTiltMax: tilt_max_track
+      })
+    }    
+
+    const track_reset_time_sec = message.track_reset_time_sec
+
+    const track_reset_changed = (last_status_msg == null) ? true : (track_reset_time_sec !== last_status_msg.track_reset_time_sec )
+    if (track_reset_changed === true){
+      this.setState({trackPanResetTime: track_reset_time_sec
+      })
+    }
+    if (track_limits_changed === true){
+      this.setState({trackTiltMin: tilt_min_track,
+                     trackTiltMax: tilt_max_track
+      })
+    }    
+
+
+    const pan_min_lock = message.lock_pan_min_deg
+    const pan_max_lock = message.lock_pan_max_deg
+    const tilt_min_lock = message.lock_tilt_min_deg
+    const tilt_max_lock = message.lock_tilt_max_deg
+
+    const lock_limits_changed = (last_status_msg == null) ? true : (pan_min_lock !== last_status_msg.lock_pan_min_deg || pan_max_lock !== last_status_msg.lock_pan_max_deg ||
+                              tilt_min_lock !== last_status_msg.lock_tilt_min_deg || tilt_max_lock !== last_status_msg.lock_tilt_max_deg)
+    if (lock_limits_changed === true){
+      this.setState({lockPanMin: pan_min_lock,
+                     lockPanMax: pan_max_lock
+      })
+    }
+    if (lock_limits_changed === true){
+      this.setState({lockTiltMin: tilt_min_lock,
+                     lockTiltMax: tilt_max_lock
+      })
+    }    
     
   }
+
+
+
 
   // Function for configuring and subscribing to Status
   updateStatusListener(namespace) {
