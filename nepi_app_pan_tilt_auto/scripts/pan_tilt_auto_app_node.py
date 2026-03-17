@@ -1626,13 +1626,8 @@ class NepiPanTiltAutoApp(object):
         targets_dict_list.append(target_dict)
         #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
     #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
-    filtered_dict_list = []
-    filtered_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
-    #for target_dict in filtered_dict_list:
-       #self.msg_if.pub_warn("Got target list for name " + str(target_dict['target_name']))
-    targets_dict_list = filtered_dict_list
 
-
+    ################
     # Filter by min max range and angles
     filtered_dict_list = []
     cur_position = copy.deepcopy(self.current_position)
@@ -1667,11 +1662,23 @@ class NepiPanTiltAutoApp(object):
     targets_dict_list = filtered_dict_list
 
 
+
+    #########################
+    filtered_dict_list = []
+    filtered_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
+    #for target_dict in filtered_dict_list:
+       #self.msg_if.pub_warn("Got target list for name " + str(target_dict['target_name']))
+    targets_dict_list = filtered_dict_list
+
+
+
+    #################
     track_dict = None
     if len(targets_dict_list) > 0:
         #self.msg_if.pub_warn("Processing target list length " + str(len(targets_dict_list)))
         track_dict = nepi_targets.find_best(targets_dict_list, best_filter = self.track_best_filter)
-
+        
+    ##################
     #self.msg_if.pub_warn("Got track dict" + str(track_dict))
     self.track_pan_dict = copy.deepcopy(track_dict)
     self.track_tilt_dict = copy.deepcopy(track_dict)

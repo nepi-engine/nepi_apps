@@ -259,7 +259,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
 
   render() {
-    const { ptxDevices, onPTXJogPan, onPTXJogTilt, onPTXStop } = this.props.ros
+    const { ptxDevices, onPTXJogPan, onPTXJogTilt, onPTXStop, onPTXPanStop, onPTXTiltStop } = this.props.ros
     const namespace = this.getAppNamespace()
     const status_msg = this.state.status_msg
     const pt_status_msg = this.state.pt_status_msg
@@ -324,22 +324,22 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
                           <Button 
                             buttonDownAction={() => onPTXJogPan(ptNamespace,  1)}
-                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            buttonUpAction={() => onPTXPanStop(ptNamespace)}>
                             {'\u25C0'}
                             </Button>
                           <Button 
                             buttonDownAction={() => onPTXJogPan(ptNamespace, - 1)}
-                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            buttonUpAction={() => onPTXPanStop(ptNamespace)}>
                             {'\u25B6'}
                           </Button>
                           <Button 
                             buttonDownAction={() => onPTXJogTilt(ptNamespace, 1)}
-                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            buttonUpAction={() => onPTXTiltStop(ptNamespace)}>
                             {'\u25B2'}
                           </Button>
                           <Button 
                             buttonDownAction={() => onPTXJogTilt(ptNamespace, -1)}
-                            buttonUpAction={() => onPTXStop(ptNamespace)}>
+                            buttonUpAction={() => onPTXTiltStop(ptNamespace)}>
                             {'\u25BC'}
                           </Button>
 
