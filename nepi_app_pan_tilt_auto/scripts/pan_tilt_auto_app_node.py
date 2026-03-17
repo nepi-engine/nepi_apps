@@ -1608,25 +1608,12 @@ class NepiPanTiltAutoApp(object):
 
 
 
-  def targetsCb(self,msg, args):
-    #self.msg_if.pub_info("Targets callback got new targets mgs")
-    target_namespace = args
-    self.track_source_connected = True
-    #self.msg_if.pub_warn("set_track_source connected True")
-    self.track_source_connected_namespace = self.track_source_namespace
-    self.track_source_connecting == False
-    self.targets_msg = msg.targets
-    self.last_targets_time = nepi_utils.get_time()
+  def customFilterCb(self,targets_dict_list):
+     filtered_dict_list = self.filter_by_range_angles(targets_dict_list)
+     return filtered_dict_list
 
 
-    #self.msg_if.pub_warn("Got targets msg list " + str(targets_msg))
-    targets_dict_list = []
-    for target_msg in self.targets_msg:
-        target_dict = nepi_targets.convert_target_msg2dict(target_msg)
-        targets_dict_list.append(target_dict)
-        #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
-    #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
-
+  def filter_by_range_angles(self,targets_dict_list):
     ################
     # Filter by min max range and angles
     filtered_dict_list = []
@@ -1659,29 +1646,45 @@ class NepiPanTiltAutoApp(object):
           #self.msg_if.pub_warn(str([range_m,cur_pan,cur_tilt]))
           #self.msg_if.pub_warn(str([range_m,target_pan_angle,target_tilt_angle]))
           #self.msg_if.pub_warn(str([range_m,pan_angle,tilt_angle]))
-    targets_dict_list = filtered_dict_list
+    return filtered_dict_list
 
+
+  def targetsCb(self,msg, args):
+    #self.msg_if.pub_info("Targets callback got new targets mgs")
+    target_namespace = args
+    self.track_source_connected = True
+    #self.msg_if.pub_warn("set_track_source connected True")
+    self.track_source_connected_namespace = self.track_source_namespace
+    self.track_source_connecting == False
+    self.targets_msg = msg.targets
+    self.last_targets_time = nepi_utils.get_time()
+
+
+    #self.msg_if.pub_warn("Got targets msg list " + str(targets_msg))
+    targets_dict_list = []
+    for target_msg in self.targets_msg:
+        target_dict = nepi_targets.convert_target_msg2dict(target_msg)
+        targets_dict_list.append(target_dict)
+        #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
+    #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
 
 
     #########################
-    filtered_dict_list = []
-    filtered_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
-    #for target_dict in filtered_dict_list:
-       #self.msg_if.pub_warn("Got target list for name " + str(target_dict['target_name']))
-    targets_dict_list = filtered_dict_list
-
-
-
+    # Filter Targets
+    targets_dict_list = self.customFilterCb(targets_dict_list)
+    targets_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
+    
     #################
-    track_dict = None
+    # Find Best Target
+    best_target_dict = None
     if len(targets_dict_list) > 0:
         #self.msg_if.pub_warn("Processing target list length " + str(len(targets_dict_list)))
-        track_dict = nepi_targets.find_best(targets_dict_list, best_filter = self.track_best_filter)
-        
+        best_target_dict = nepi_targets.find_best(targets_dict_list, best_filter = self.track_best_filter)
+
     ##################
     #self.msg_if.pub_warn("Got track dict" + str(track_dict))
-    self.track_pan_dict = copy.deepcopy(track_dict)
-    self.track_tilt_dict = copy.deepcopy(track_dict)
+    self.track_pan_dict = copy.deepcopy(best_target_dict)
+    self.track_tilt_dict = copy.deepcopy(best_target_dict)
 
 
 ##########################
