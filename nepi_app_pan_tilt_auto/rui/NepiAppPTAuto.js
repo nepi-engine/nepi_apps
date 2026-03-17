@@ -54,8 +54,8 @@ class NepiAppPTAuto extends Component {
 
       available_pan_tilts: [],
       selected_pan_tilt: null,
-      connected: false,
-      connected_topic: null,
+      pt_connected: false,
+      pt_connected_topic: null,
 
       selected_image_topics: ['None','None','None','None'],
       num_windows: 1,
@@ -110,7 +110,7 @@ class NepiAppPTAuto extends Component {
       status_msg: message,
       available_pan_tilts: message.available_pan_tilts,
       selected_pan_tilt: message.selected_pan_tilt,
-      connected: message.connected,
+      pt_connected: message.pt_connected,
       selected_image_topics: message.image_topics,
       num_windows: message.num_windows
     })
@@ -220,7 +220,7 @@ class NepiAppPTAuto extends Component {
 
     const appNamespace = this.getAppNamespace()
     const selected_pan_tilt = this.state.selected_pan_tilt
-    const ptConnected = this.state.connected
+    const ptConnected = this.state.pt_connected
     const ptMenuItems = this.createPtMenuOptions()
     const show_pt_selector = (ptMenuItems.length > 1) ? true : (ptConnected === false)
     return (
@@ -345,7 +345,7 @@ class NepiAppPTAuto extends Component {
 
     
   render() {
-    const ptConnected = this.state.connected
+    const ptConnected = this.state.pt_connected
     const num_windows = this.state.num_windows
     const selected_image_topics = this.state.selected_image_topics
     const clicking_enabled = (this.state.status_msg != null) ? (this.state.status_msg.click_pan_enabled === true || this.state.status_msg.click_tilt_enabled === true) : false

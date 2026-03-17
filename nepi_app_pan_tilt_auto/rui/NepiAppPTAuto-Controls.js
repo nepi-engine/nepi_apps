@@ -393,15 +393,15 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const status_msg = this.state.status_msg
     const selected_pan_tilt = this.state.selected_pan_tilt
     const topics = Object.keys(ptxDevices)
-    const connected_topic = []
+    const pt_connected_topics = []
     var i
     for (i = 0; i <topics.length; i++) {
     if (topics[i].includes(selected_pan_tilt)){
-      connected_topic.push(topics[i])
+      pt_connected_topics.push(topics[i])
     }
   }
     
-    const pt_connected = (connected_topic.indexOf(selected_pan_tilt) !== -1)
+    const pt_connected = (pt_connected_topics.indexOf(selected_pan_tilt) !== -1)
     //console.log('pt_connected: ' + pt_connected)
     if (status_msg == null || pt_connected === false || namespace == null){
       return(

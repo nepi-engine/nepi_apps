@@ -86,10 +86,11 @@ class NepiPanTiltAutoApp(object):
   #####################
 
   available_pan_tilts = []
-  pt_connect_if = None
   selected_pan_tilt = "None"
-  connected_topic = None
-  connected = False
+  pt_connect_if = None
+
+  pt_connected_topic = None
+  pt_connected = False
   pt_status_msg = DevicePTXStatus()
 
   min_pan_softstop_deg = -DEFAULT_MIN_MAX_DEG
@@ -182,6 +183,9 @@ class NepiPanTiltAutoApp(object):
   track_pan_enabled = False
   track_tilt_enabled = False
 
+
+  track_range_min_m = 0
+  track_range_max_m = 1000
   track_pan_min_deg = -DEFAULT_MIN_MAX_DEG
   track_pan_max_deg = DEFAULT_MIN_MAX_DEG
   track_tilt_min_deg = -DEFAULT_MIN_MAX_DEG
@@ -798,21 +802,21 @@ class NepiPanTiltAutoApp(object):
       needs_publish = True
 
     ####################
-    if self.connected_topic is not None:
-      if self.connected_topic not in self.available_pan_tilts:
+    if self.pt_connected_topic is not None:
+      if self.pt_connected_topic not in self.available_pan_tilts:
         success = self.unsubscribe_pt_topic()
     if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
         self.selected_pan_tilt = self.available_pan_tilts[0]
     needs_publish = True
 
-    if self.selected_pan_tilt in self.available_pan_tilts and self.connected_topic != selected_pan_tilt:
+    if self.selected_pan_tilt in self.available_pan_tilts and self.pt_connected_topic != selected_pan_tilt:
       success = self.subscribe_pt_topic(self.selected_pan_tilt)
 
     elif self.pt_connect_if is not None:
-       self.connected = self.pt_connect_if.check_connection()
+       self.pt_connected = self.pt_connect_if.check_connection()
        needs_publish = True
     else:
-       self.connected = False
+       self.pt_connected = False
 
     ######################
     topics = nepi_sdk.find_topics_by_msg('Image')
@@ -909,6 +913,7 @@ class NepiPanTiltAutoApp(object):
         self.scan_pan_enabled = enabled
         self.publish_status()
         if enabled == True:
+            self.goto_position[0] = 0.0
             self.scan_pan_track_hold = False
             #self.track_pan_enabled = False
             self.lock_pan_enabled = False
@@ -929,6 +934,7 @@ class NepiPanTiltAutoApp(object):
         self.scan_tilt_enabled = enabled
         self.publish_status()
         if enabled == True:
+            self.goto_position[1] = 0.0
             #self.track_tilt_enabled = False
             self.scan_tilt_track_hold = False
             self.lock_tilt_enabled = False
@@ -996,6 +1002,7 @@ class NepiPanTiltAutoApp(object):
 
   def setTrackPan(self,enabled):
         if enabled == True:
+            
             #self.scan_pan_enabled = False
             self.lock_pan_enabled = False           
         self.track_pan_enabled = enabled
@@ -1209,7 +1216,7 @@ class NepiPanTiltAutoApp(object):
       cur_time = nepi_utils.get_time()
       scan_time = None
 
-      if self.current_position == None:
+      if self.current_position == None or self.pt_connected == False:
         self.pan_scanning = False
       else:
         if self.scan_pan_enabled == False or self.scan_pan_track_hold == True:
@@ -1242,6 +1249,8 @@ class NepiPanTiltAutoApp(object):
                 self.scan_pan_last_time = nepi_utils.get_time()
                 self.goto_position[0] = self.scan_pan_min_deg
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)
+            elif (self.pt_connect_if.check_pan_moving() == False):
+                self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
 
 
             if scan_time is not None:
@@ -1270,7 +1279,7 @@ class NepiPanTiltAutoApp(object):
 
       cur_time = nepi_utils.get_time()
       scan_time = None
-      if self.current_position == None:
+      if self.current_position == None or self.pt_connected == False:
         self.tilt_scanning = False
       else:
         if self.scan_tilt_enabled == False or self.scan_tilt_track_hold == True:
@@ -1280,7 +1289,7 @@ class NepiPanTiltAutoApp(object):
 
 
             tilt_cur = self.current_position[1]
-            if self.goto_position[1] != self.scan_tilt_min_deg and self.goto_position[0] != self.scan_tilt_max_deg:
+            if self.goto_position[1] != self.scan_tilt_min_deg and self.goto_position[1] != self.scan_tilt_max_deg:
                 self.goto_position[1] = self.scan_tilt_min_deg
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min_deg)  
             elif (tilt_cur < (self.scan_tilt_min_deg + self.SCAN_SWITCH_DEG)):
@@ -1298,6 +1307,9 @@ class NepiPanTiltAutoApp(object):
                 self.scan_tilt_last_time = nepi_utils.get_time()
                 self.goto_position[1] = self.scan_tilt_min_deg
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min_deg)
+            elif (self.pt_connect_if.check_tilt_moving() == False):
+                self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
+
             if scan_time is not None:
                 self.scan_tilt_times.pop(0)
                 self.scan_tilt_times.append(scan_time)
@@ -1537,8 +1549,8 @@ class NepiPanTiltAutoApp(object):
     ready = pt_connect_if.wait_for_ready()
     if ready == True:
       self.pt_connect_if = pt_connect_if
-      self.connected_topic = topic
-      self.msg_if.pub_warn("connected_topic: " + str(self.connected_topic))
+      self.pt_connected_topic = topic
+      self.msg_if.pub_warn("pt_connected_topic: " + str(self.pt_connected_topic))
       if self.pt_connect_if is not None:
         limits = self.pt_connect_if.get_pan_tilt_soft_limits()
         self.msg_if.pub_warn("setting scan limits: " + str(limits))
@@ -1556,8 +1568,8 @@ class NepiPanTiltAutoApp(object):
     success = True
     if self.pt_connect_if is not None:
       success = self.pt_connect_if.unregister()
-      self.connected = False
-      self.connected_topic = None
+      self.pt_connected = False
+      self.pt_connected_topic = None
       self.current_position = None
       nepi_sdk.sleep(1)
       self.pt_connect_if = None
@@ -1613,13 +1625,54 @@ class NepiPanTiltAutoApp(object):
         target_dict = nepi_targets.convert_target_msg2dict(target_msg)
         targets_dict_list.append(target_dict)
         #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
-    targets_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
+    #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
+    filtered_dict_list = []
+    filtered_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
+    #for target_dict in filtered_dict_list:
+       #self.msg_if.pub_warn("Got target list for name " + str(target_dict['target_name']))
+    targets_dict_list = filtered_dict_list
+
+
+    # Filter by min max range and angles
+    filtered_dict_list = []
+    cur_position = copy.deepcopy(self.current_position)
+    if cur_position is not None:
+      [cur_pan,cur_tilt] = [cur_position[0],cur_position[1]]
+      range_min = self.track_range_min_m
+      range_max = self.track_range_max_m
+      pan_min = self.track_pan_min_deg
+      pan_max = self.track_pan_max_deg
+      tilt_min = self.track_tilt_min_deg
+      tilt_max = self.track_tilt_max_deg
+
+      for target_dict in targets_dict_list:
+          target_valid = True
+          range_m = target_dict['range_m']
+          if (range_m < range_min or range_m > range_max) and range_m != -999:
+            target_valid = False
+          target_pan_angle = target_dict['azimuth_deg']
+          pan_angle =  cur_pan + target_pan_angle
+          if (pan_angle < pan_min or pan_angle > pan_max) and target_pan_angle != -999:
+            target_valid = False
+          target_tilt_angle = cur_pan + target_dict['elevation_deg']
+          tilt_angle =  cur_tilt + target_tilt_angle
+          if (tilt_angle < tilt_min or tilt_angle > tilt_max) and target_tilt_angle != -999:
+            target_valid = False
+          if target_valid == True:
+            filtered_dict_list.append(target_dict)
+          #self.msg_if.pub_warn("Range Angle Filter returned: " + str(target_dict['target_name']) + " : " + str(target_valid) )
+          #self.msg_if.pub_warn(str([range_m,cur_pan,cur_tilt]))
+          #self.msg_if.pub_warn(str([range_m,target_pan_angle,target_tilt_angle]))
+          #self.msg_if.pub_warn(str([range_m,pan_angle,tilt_angle]))
+    targets_dict_list = filtered_dict_list
+
 
     track_dict = None
     if len(targets_dict_list) > 0:
         #self.msg_if.pub_warn("Processing target list length " + str(len(targets_dict_list)))
         track_dict = nepi_targets.find_best(targets_dict_list, best_filter = self.track_best_filter)
 
+    #self.msg_if.pub_warn("Got track dict" + str(track_dict))
     self.track_pan_dict = copy.deepcopy(track_dict)
     self.track_tilt_dict = copy.deepcopy(track_dict)
 
@@ -1725,11 +1778,11 @@ class NepiPanTiltAutoApp(object):
        selected_pan_tilt = self.selected_pan_tilt
     self.status_msg.selected_pan_tilt = selected_pan_tilt
 
-    connected_topic = self.connected_topic
-    if connected_topic is None:
-       connected_topic = 'None'
-    self.status_msg.connected_topic = connected_topic
-    self.status_msg.connected = self.connected
+    pt_connected_topic = self.pt_connected_topic
+    if pt_connected_topic is None:
+       pt_connected_topic = 'None'
+    self.status_msg.pt_connected_topic = pt_connected_topic
+    self.status_msg.pt_connected = self.pt_connected
 
     ###
     current_position = [-999,-999]

@@ -5,8 +5,8 @@
 #####################
 string[] available_pan_tilts
 string selected_pan_tilt
-bool connected
-string connected_topic
+bool pt_connected
+string pt_connected_topic
 
 #[pan_deg, tilt_deg], unset values are -999
 float32[] current_position
