@@ -333,12 +333,12 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                             {'\u25B6'}
                           </Button>
                           <Button 
-                            buttonDownAction={() => onPTXJogTilt(ptNamespace, 1)}
+                            buttonDownAction={() => onPTXJogTilt(ptNamespace, -1)}
                             buttonUpAction={() => onPTXTiltStop(ptNamespace)}>
                             {'\u25B2'}
                           </Button>
                           <Button 
-                            buttonDownAction={() => onPTXJogTilt(ptNamespace, -1)}
+                            buttonDownAction={() => onPTXJogTilt(ptNamespace, 1)}
                             buttonUpAction={() => onPTXTiltStop(ptNamespace)}>
                             {'\u25BC'}
                           </Button>
