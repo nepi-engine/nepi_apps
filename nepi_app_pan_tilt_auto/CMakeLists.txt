@@ -19,10 +19,6 @@ message_generation
 std_msgs
 sensor_msgs
 nav_msgs
-nepi_interfaces
-
-
-
 )
 
 ## System dependencies are found with CMake's conventions
@@ -81,7 +77,6 @@ nepi_interfaces
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
-   nepi_interfaces
 )
 
 ################################################
