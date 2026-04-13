@@ -32,7 +32,10 @@ import NepiIFSaveData from "./Nepi_IF_SaveData"
 import NepiIFConfig from "./Nepi_IF_Config"
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> abbcce952ac236ef5236f61e9b424b5e44fed389
 @inject("ros")
 @observer
 
