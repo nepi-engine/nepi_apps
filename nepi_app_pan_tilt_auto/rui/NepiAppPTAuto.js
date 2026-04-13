@@ -19,7 +19,6 @@ import Styles from "./Styles"
 //import Button, { ButtonMenu } from "./Button"
 //import {setElementStyleModified, clearElementStyleModified, onUpdateSetStateValue} from "./Utilities"
 //import {createShortValuesFromNamespaces} from "./Utilities"
-import BooleanIndicator from "./BooleanIndicator"
 
 //import {onChangeSwitchStateValue } from "./Utilities"
 
@@ -27,17 +26,12 @@ import NepiDevicePTXControls from "./NepiDevicePTX-Controls"
 
 import NepiPTAutoImageViewer from "./NepiAppPTAuto-ImageViewer"
 import NepiAppPTAutoControls from "./NepiAppPTAuto-Controls"
-import NepiIFSettings from "./Nepi_IF_Settings"
 
 //import NavPoseViewer from "./Nepi_IF_NavPoseViewer"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 import NepiIFConfig from "./Nepi_IF_Config"
 
 
-function round(value, decimals = 0) {
-  return Number(value).toFixed(decimals)
-  //return value && Number(Math.round(value + "e" + decimals) + "e-" + decimals)
-}
 
 @inject("ros")
 @observer

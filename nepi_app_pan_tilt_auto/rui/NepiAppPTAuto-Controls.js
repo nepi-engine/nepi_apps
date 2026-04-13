@@ -36,11 +36,6 @@ import {onUpdateSetStateValue} from "./Utilities"
 
 
 
-function round(value, decimals = 0) {
-  return Number(value).toFixed(decimals)
-  //return value && Number(Math.round(value + "e" + decimals) + "e-" + decimals)
-}
-
 @inject("ros")
 @observer
 
@@ -364,20 +359,18 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 
   renderControlPanel() {
-    const { ptxDevices, sendBoolMsg, onPTXGoHome, onPTXSetHomeHere } = this.props.ros
-    
-    const { reversePanEnabled, reverseTiltEnabled, autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled, 
-            track_source_connected,
-            speed_pan_dps, speed_tilt_dps, click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+    const { ptxDevices, sendBoolMsg } = this.props.ros
 
+    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
+            track_source_connected,
+            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+
+    const selected_pan_tilt = this.state.selected_pan_tilt
     const ptx_caps = ptxDevices[selected_pan_tilt]
-    const has_abs_pos = ptx_caps && (ptx_caps.has_absolute_positioning)
     //Unused const has_timed_pos = ptx_caps && (ptx_caps.has_timed_positioning)
     //Unused const has_sep_pan_tilt = ptx_caps && (ptx_caps.has_seperate_pan_tilt_control)
     const has_scan_pan = ptx_caps && (ptx_caps.has_scan_pan)
     const has_scan_tilt = ptx_caps && (ptx_caps.has_scan_tilt)
-    const has_speed_control = ptx_caps && (ptx_caps.has_adjustable_speed)
-    const has_homing = ptx_caps && (ptx_caps.has_homing)
     //Unused const has_set_home = ptx_caps && (ptx_caps.has_set_home)
 
     const hide_scan_pan = ((has_scan_pan === false ))
@@ -391,7 +384,6 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const namespace = this.getAppNamespace()
 
     const status_msg = this.state.status_msg
-    const selected_pan_tilt = this.state.selected_pan_tilt
     const topics = Object.keys(ptxDevices)
     const pt_connected_topics = []
     var i
@@ -561,7 +553,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     else {
       return (
 
-          <Section title={(this.props.title != undefined) ? this.props.title : ""}>
+          <Section title={(this.props.title !== undefined) ? this.props.title : ""}>
 
               {this.renderControlPanel()}
 

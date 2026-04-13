@@ -5,7 +5,7 @@
 # License: 3-clause BSD, see https://opensource.org/licenses/BSD-3-Clause
 #
  */
-import React, { Component, useEffect } from 'react';
+import React, { Component } from 'react';
 import { observer, inject } from "mobx-react"
 
 import Toggle from "react-toggle"
@@ -316,10 +316,9 @@ class OnvifMgr extends Component {
 
   render() {
     //const { onvifDeviceStatuses, onvifDeviceConfigs } = this.props.ros;
-    const { selectedDeviceUUID, 
+    const { selectedDeviceUUID,
             selectedDeviceConfigDevName,
             selectedDeviceConfigModified,
-            selectedDeviceConfigUUID,
             selectedDeviceConfigUsername,
             selectedDeviceConfigPassword,
             selectedDeviceConfigBasename,
@@ -331,10 +330,9 @@ class OnvifMgr extends Component {
         
     let detectedDeviceUUIDsForListBox = []
     let detectedDeviceDevNamesForListBox = []
-    const needs_update = this.state.needs_upadate
     const app_connected = this.state.app_connected
     const onvifDeviceStatuses = this.onvifDeviceStatuses
-    if (app_connected === false || onvifDeviceStatuses.length == 0){
+    if (app_connected === false || onvifDeviceStatuses.length === 0){
       detectedDeviceDevNamesForListBox.push("Application Loading")
     }
     else if (onvifDeviceStatuses.length > 0) {
