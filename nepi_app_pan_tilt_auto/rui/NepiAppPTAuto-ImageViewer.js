@@ -36,13 +36,6 @@ import {createMenuFirstLastNames} from "./Utilities"
 
 
 
-
-
-<<<<<<< HEAD
-=======
-
-
->>>>>>> abbcce952ac236ef5236f61e9b424b5e44fed389
 @inject("ros")
 @observer
 class NepiAppPTAutoImageViewer extends Component {
