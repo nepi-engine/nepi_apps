@@ -24,11 +24,9 @@ import { observer, inject } from "mobx-react"
 
 //import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-import Section from "./Section"
 import Button, { ButtonMenu } from "./Button"
 
 import { Column, Columns } from "./Columns"
-import Styles from "./Styles"
 
 
 import { SliderAdjustment } from "./AdjustmentWidgets"
@@ -40,10 +38,6 @@ import {createMenuFirstLastNames} from "./Utilities"
 
 
 
-function round(value, decimals = 0) {
-  return Number(value).toFixed(decimals)
-  //return value && Number(Math.round(value + "e" + decimals) + "e-" + decimals)
-}
 
 
 @inject("ros")
@@ -105,7 +99,7 @@ class NepiAppPTAutoImageViewer extends Component {
 
   // Callback for handling ROS Status3DX messages
   statusListener(message) {
-    if ((this.state.selected_pan_tilt != message.selected_pan_tilt) && (message.selected_pan_tilt !== '' && message.selected_pan_tilt !== 'None')) {
+    if ((this.state.selected_pan_tilt !== message.selected_pan_tilt) && (message.selected_pan_tilt !== '' && message.selected_pan_tilt !== 'None')) {
       this.updateStatusPtListener(message.selected_pan_tilt)
     }
     this.setState({
@@ -201,7 +195,6 @@ componentDidUpdate(prevProps, prevState, snapshot) {
      if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
-    const {sendIntMsg} = this.props.ros
     const num_windows = (this.props.num_windows !== undefined) ? this.props.num_windows : this.state.num_windows
     const image_topics = (this.props.image_topics !== undefined) ? this.props.image_topics : ['None','None','None','None']
     const namespace = (this.props.namespace !== null) ? this.props.namespace : 'None'
@@ -260,8 +253,6 @@ componentDidUpdate(prevProps, prevState, snapshot) {
 
   render() {
     const { ptxDevices, onPTXJogPan, onPTXJogTilt, onPTXStop, onPTXPanStop, onPTXTiltStop } = this.props.ros
-    const namespace = this.getAppNamespace()
-    const status_msg = this.state.status_msg
     const pt_status_msg = this.state.pt_status_msg
     var panGoalRatio = 0.5
     var tiltGoalRatio = 0.5

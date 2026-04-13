@@ -12,17 +12,13 @@ import { observer, inject } from "mobx-react"
 
 import Section from "./Section"
 import { Columns, Column } from "./Columns"
-import Label from "./Label"
-import Select, { Option } from "./Select"
-import Button, { ButtonMenu } from "./Button"
 import Styles from "./Styles"
-import Toggle from "react-toggle"
 
 import NepiIFImageViewersSelector from "./Nepi_IF_ImageViewersSelector"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 import NepiIFConfig from "./Nepi_IF_Config"
 
-import {createMenuFirstLastNames, onChangeSwitchStateValue} from "./Utilities"
+import {createMenuFirstLastNames} from "./Utilities"
 
 @inject("ros")
 @observer
@@ -150,9 +146,7 @@ class ImageViewerApp extends Component {
      if (this.state.needs_update === true){
       this.setState({needs_update: false})
     }
-    const {sendIntMsg} = this.props.ros
     const selected_image_topics = this.state.selected_image_topics
-    const num_windows = this.state.num_windows
 
     //Unused const baseNamespace = "/" + namespacePrefix + "/" + deviceId 
     const topics_text = createMenuFirstLastNames(selected_image_topics)
