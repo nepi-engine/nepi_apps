@@ -181,6 +181,7 @@ class ImageViewerApp extends Component {
                               show_save_controls={true}
                               show_image_options={true}
                               num_windows_updated_topic={num_windows_updated_topic}
+                              auto_select_image={false}
                               select_updated_topics={select_updated_topics}
                               mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
