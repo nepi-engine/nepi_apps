@@ -1580,11 +1580,11 @@ class NepiPanTiltAutoApp(object):
      #self.msg_if.pub_warn("PT position: " + str(self.current_position))
 
   def stopPanCb(self):
-     self.msg_if.pub_warn("Got Stop Pan Cb")
+     #self.msg_if.pub_warn("Got Stop Pan Cb")
      self.stopPanControls()
 
   def stopTiltCb(self):
-     self.msg_if.pub_warn("Got Stop Tilt Cb")
+     #self.msg_if.pub_warn("Got Stop Tilt Cb")
      self.stopTiltControls()  
 
   def connectTrackSourceCb(self,timer):
