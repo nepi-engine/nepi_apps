@@ -264,6 +264,7 @@ class NepiAppPTAuto extends Component {
 
                 <NepiDevicePTXControls
                     namespace={selected_pan_tilt}
+                    show_save_all={false}
                     make_section={false}
                 />
 
