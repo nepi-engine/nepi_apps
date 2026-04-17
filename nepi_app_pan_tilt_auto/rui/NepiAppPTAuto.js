@@ -234,9 +234,7 @@ class NepiAppPTAuto extends Component {
             />
           : null }
 
-                      { (ptConnected === true) ?
-              this.renderConfig()
-            : null }
+            { this.renderConfig() }
 
           </Section>
 
@@ -328,7 +326,8 @@ class NepiAppPTAuto extends Component {
                 namespace={namespace}
                 title={"Nepi_IF_Config"}
                 show_save_all={false}
-                make_section={true}
+                restricted={false}
+                make_section={false}
             />
 
     </React.Fragment>
