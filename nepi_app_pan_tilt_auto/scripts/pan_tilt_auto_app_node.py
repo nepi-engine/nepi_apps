@@ -409,16 +409,6 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val':self.lock_tilt_max_deg
         },  
-
-        'click_pan_enabled': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        }
-        ,
-        'click_tilt_enabled': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
         #####################
         ###Image Viewer
         #####################
@@ -1430,9 +1420,7 @@ class NepiPanTiltAutoApp(object):
 
       self.click_pan_enabled = enabled
       self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('click_pan_enabled', self.scan_tilt_enabled) 
-        #self.node_if.save_config()
+
 
   def setTiltClickCb(self, msg):
       enabled = msg.data
@@ -1443,14 +1431,10 @@ class NepiPanTiltAutoApp(object):
       if self.click_tilt_enabled == False:
           self.click_position = [0,0]
       if self.click_tilt_enabled == True:
-          self.scan_tilt_enabled = False
-          self.track_tilt_enabled = False
+          self.stopTiltControls()
           self.track_tilt_error = 0
       self.click_tilt_enabled = enabled
       self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('click_tilt_enabled', self.scan_tilt_enabled)
-        self.node_if.save_config()
 
   def clickCb(self,msg):
       
@@ -1473,52 +1457,45 @@ class NepiPanTiltAutoApp(object):
         click_tilt_enabled = self.getTiltClickEnabled()
         image_index = msg.image_index
         if msg.click_event == True:
-            if self.num_windows > 1:
-                self.single_image_topic = msg.image_topic
-                self.publish_status()
-                if self.node_if is not None:
-                    self.node_if.set_param('single_image_topic', msg.image_topic)
-                    self.node_if.save_config()            
-            else:
-                pixel = [msg.click_pixel.x, msg.click_pixel.y ]
-                status_msg = msg.image_status_msg
-                image_width = status_msg.width_px
-                image_height = status_msg.height_px
-                image_fov_horz = status_msg.width_deg
-                image_fov_vert = status_msg.height_deg
-                image_zoom_ratio = status_msg.zoom_ratio
-                if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
-                    object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
-                    object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
-                    vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
-                    horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
-                    self.click_position = [horz_angle_deg,vert_angle_deg]
+            pixel = [msg.click_pixel.x, msg.click_pixel.y ]
+            status_msg = msg.image_status_msg
+            image_width = status_msg.width_px
+            image_height = status_msg.height_px
+            image_fov_horz = status_msg.width_deg
+            image_fov_vert = status_msg.height_deg
+            image_zoom_ratio = status_msg.zoom_ratio
+            if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
+                object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
+                object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
+                vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
+                horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
+                self.click_position = [horz_angle_deg,vert_angle_deg]
 
-                if click_pan_enabled == True:
-                    if self.current_position == None:
-                        pass
-                    else:
-                        pan_cur = self.current_position[0]
-                        pan_to_goal = self.click_position[0] + pan_cur
-                        self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#)
-                        self.goto_position[0] = pan_to_goal
-                        self.pt_connect_if.goto_to_pan_position(pan_to_goal)
-                else: 
-                    self.msg_if.pub_warn("Pan Click Enabled is False")#)
+            if click_pan_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    pan_cur = self.current_position[0]
+                    pan_to_goal = self.click_position[0] + pan_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#)
+                    self.goto_position[0] = pan_to_goal
+                    self.pt_connect_if.goto_to_pan_position(pan_to_goal)
+            else: 
+                self.msg_if.pub_warn("Pan Click Enabled is False")#)
 
 
 
-                if click_tilt_enabled == True:
-                    if self.current_position == None:
-                        pass
-                    else:
-                        tilt_cur = self.current_position[1]
-                        tilt_to_goal = self.click_position[1] + tilt_cur
-                        self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#)
-                        self.goto_position[1] = tilt_to_goal
-                        self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
-                else: 
-                    self.msg_if.pub_warn("Tilt Click Enabled is False")#)
+            if click_tilt_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    tilt_cur = self.current_position[1]
+                    tilt_to_goal = self.click_position[1] + tilt_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#)
+                    self.goto_position[1] = tilt_to_goal
+                    self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
+            else: 
+                self.msg_if.pub_warn("Tilt Click Enabled is False")#)
 
 
   def selectTopicCb(self,msg):
@@ -1531,6 +1508,20 @@ class NepiPanTiltAutoApp(object):
         self.node_if.set_param('selected_pan_tilt', selected_pan_tilt)
     
 
+  def getPositionWithinSoftLimits(self, pan_deg, tilt_deg):
+        pan_max = self.min_pan_softstop_deg
+        pan_min = self.max_pan_softstop_deg
+        tilt_min = self.min_tilt_softstop_deg
+        tilt_max = self.max_tilt_softstop_deg
+        if (pan_deg > pan_max):
+            pan_deg = pan_max
+        if (pan_deg < pan_min):
+            pan_deg = pan_min
+        if (tilt_deg > tilt_max):
+            tilt_deg = tilt_max
+        if (tilt_deg < tilt_min):
+            tilt_deg = tilt_min
+        return pan_deg,tilt_deg
 
 
   def subscribe_pt_topic(self, topic):
@@ -1551,16 +1542,10 @@ class NepiPanTiltAutoApp(object):
       self.pt_connect_if = pt_connect_if
       self.pt_connected_topic = topic
       self.msg_if.pub_warn("pt_connected_topic: " + str(self.pt_connected_topic))
-      if self.pt_connect_if is not None:
-        limits = self.pt_connect_if.get_pan_tilt_soft_limits()
-        self.msg_if.pub_warn("setting scan limits: " + str(limits))
-        if limits is not None:
-            self.min_pan_softstop_deg = limits[0]
-            self.max_pan_softstop_deg = limits[1]
-            self.min_tilt_softstop_deg = limits[2]
-            self.max_tilt_softstop_deg = limits[3]
-
     return success
+  
+
+
   
   def unsubscribe_pt_topic(self):
     self.msg_if.pub_warn("unsubscribe_pt_topic Called")
@@ -1779,7 +1764,21 @@ class NepiPanTiltAutoApp(object):
   
 
   def publishStatusCb(self,timer):
+
+    if self.pt_connect_if is not None:
+        limits = self.pt_connect_if.get_pan_tilt_soft_limits()
+        #self.msg_if.pub_warn("setting scan limits: " + str(limits))
+        if limits is not None:
+            self.min_pan_softstop_deg = limits[0]
+            self.max_pan_softstop_deg = limits[1]
+            self.min_tilt_softstop_deg = limits[2]
+            self.max_tilt_softstop_deg = limits[3]
+
+            [self.scan_pan_min_deg,self.scan_tilt_min_deg] = self.getPositionWithinSoftLimits(self.scan_pan_min_deg,self.scan_tilt_min_deg)
+            [self.scan_pan_max_deg,self.scan_tilt_max_deg] = self.getPositionWithinSoftLimits(self.scan_pan_max_deg,self.scan_tilt_max_deg)
+
     self.publish_status()
+
 
   def publish_status(self):
     self.status_msg.available_pan_tilts = self.available_pan_tilts

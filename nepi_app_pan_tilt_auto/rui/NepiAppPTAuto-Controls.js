@@ -452,16 +452,16 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             </Label>
 
             <div hidden={(this.state.hide_click_controls === true)}>
-            <Label title={"Select Pixel"}>
-              <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                <Toggle style={{justifyContent: "flex-left"}} checked={click_pan_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_pan_click_enable",!click_pan_enabled)} />
-              </div>
+              <Label title={"Select Pixel"}>
+                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                  <Toggle style={{justifyContent: "flex-left"}} checked={click_pan_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_pan_click_enable",!click_pan_enabled)} />
+                </div>
 
 
-              <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                <Toggle style={{justifyContent: "flex-right"}} checked={click_tilt_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_tilt_click_enable",!click_tilt_enabled)} />
-              </div>
-            </Label>
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                  <Toggle style={{justifyContent: "flex-right"}} checked={click_tilt_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_tilt_click_enable",!click_tilt_enabled)} />
+                </div>
+              </Label>
             </div>
 
             <Label title={"Enable Tracking"}>
