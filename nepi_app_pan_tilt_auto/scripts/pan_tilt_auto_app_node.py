@@ -1680,7 +1680,7 @@ class NepiPanTiltAutoApp(object):
     self.msg_if.pub_info(str(msg))
     img_index = 0
     img_topic = msg.data
-    if self.num_windows == 1:
+    if self.num_windows == 1 or self.single_image_topic is None:
         self.single_image_topic = msg.data
         self.publish_status()
         if self.node_if is not None:
