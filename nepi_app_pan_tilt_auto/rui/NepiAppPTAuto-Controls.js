@@ -464,19 +464,22 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
               </Label>
             </div>
 
-            <Label title={"Enable Tracking"}>
-              <div hidden={(hide_track_pan === true)}>
-              <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                <Toggle style={{justifyContent: "flex-left"}} checked={trackPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
-              </div>
-              </div>
 
-              <div hidden={(hide_track_tilt === true)}>
-              <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                <Toggle style={{justifyContent: "flex-right"}} checked={trackTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
-              </div>
-              </div>
-            </Label>
+            <div hidden={track_source_connected == false}>
+              <Label title={"Enable Tracking"}>
+                <div hidden={(hide_track_pan === true)}>
+                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                  <Toggle style={{justifyContent: "flex-left"}} checked={trackPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
+                </div>
+                </div>
+
+                <div hidden={(hide_track_tilt === true)}>
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                  <Toggle style={{justifyContent: "flex-right"}} checked={trackTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
+                </div>
+                </div>
+              </Label>
+            </div>
 
 
 
