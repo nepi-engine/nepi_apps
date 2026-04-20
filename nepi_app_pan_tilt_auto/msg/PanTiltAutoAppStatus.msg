@@ -44,9 +44,16 @@ float32 scan_tilt_sec
 
 ###############
 
-string[] track_source_namespaces
-string track_source_namespace
+string[] track_available_sources
+string track_selected_source
 bool track_source_connected
+
+string[] track_available_classes
+string[] track_selected_classes
+
+string[] track_available_filters
+string[] track_selected_filter
+
 
 bool track_pan_enabled
 bool track_tilt_enabled
