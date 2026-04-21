@@ -193,8 +193,8 @@ class NepiPanTiltAutoApp(object):
 
   track_reset_time_sec = TRACK_RESET_TIME_SEC
 
-  track_source_namespace = 'None'
-  track_last_namespace = 'None'
+  track_selected_source = 'None'
+  track_last_source = 'None'
   track_if = None
   track_pan_dict = None
   track_tilt_dict = None
@@ -287,7 +287,7 @@ class NepiPanTiltAutoApp(object):
 
     ##############################     
     # Initialize Class Variables
-    self.track_source_namespace = os.path.join(self.base_namespace,self.track_source_topic)
+    self.track_selected_source = os.path.join(self.base_namespace,self.track_source_topic)
 
     self.scan_pan_times = [0,0,0,0,0]
     self.scan_tilt_times = [0,0,0,0,0]
@@ -1574,7 +1574,7 @@ class NepiPanTiltAutoApp(object):
 
   def connectTrackSourceCb(self,timer):
     #self.msg_if.pub_info("connectTrackSourceCb called")
-    track_namespace = copy.deepcopy(self.track_source_namespace)
+    track_namespace = copy.deepcopy(self.track_selected_source)
     if track_namespace != self.track_source_connected_namespace  and self.track_source_connecting == False:
         if self.track_if is not None:
             self.track_if = None
@@ -1639,7 +1639,7 @@ class NepiPanTiltAutoApp(object):
     target_namespace = args
     self.track_source_connected = True
     #self.msg_if.pub_warn("set_track_source connected True")
-    self.track_source_connected_namespace = self.track_source_namespace
+    self.track_source_connected_namespace = self.track_selected_source
     self.track_source_connecting == False
     self.targets_msg = msg.targets
     self.last_targets_time = nepi_utils.get_time()
@@ -1822,7 +1822,7 @@ class NepiPanTiltAutoApp(object):
 
 
 
-    self.status_msg.track_source_namespace = self.track_source_namespace
+    self.status_msg.track_selected_source = self.track_selected_source
     self.status_msg.track_source_connected = self.track_source_connected
     self.status_msg.track_pan_enabled = self.track_pan_enabled
     self.status_msg.track_tilt_enabled = self.track_tilt_enabled

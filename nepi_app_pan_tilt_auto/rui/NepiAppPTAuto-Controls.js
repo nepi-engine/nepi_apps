@@ -74,8 +74,8 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: false,
       autoTiltEnabled: false,
 
-      track_source_namespaces: null,
-      track_source_namespace: null,
+      track_available_sources: null,
+      track_selected_source: null,
       track_source_connected: null,
 
       click_pan_enabled: false,
@@ -129,8 +129,8 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: message.scan_pan_enabled,
       autoTiltEnabled: message.scan_tilt_enabled,
 
-      track_source_namespaces: message.track_source_namespaces,
-      track_source_namespace: message.track_source_namespace,
+      track_available_sources: message.track_available_sources,
+      track_selected_source: message.track_selected_source,
       track_source_connected: message.track_source_connected,
 
       trackPanEnabled: message.track_pan_enabled,
