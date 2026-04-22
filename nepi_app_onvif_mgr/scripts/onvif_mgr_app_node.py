@@ -28,7 +28,7 @@ from nepi_sdk import nepi_drvs
 
 from std_msgs.msg import String, Bool
 from std_srvs.srv import Empty, EmptyResponse
-from nepi_interfaces.msg import MgrDriversStatus
+from nepi_interfaces.msg import MgrDriversStatus, MgrSystemStatus
 from nepi_app_onvif_mgr.msg import OnvifStatus, OnvifDeviceCfg, OnvifDeviceStatus
 from nepi_app_onvif_mgr.srv import OnvifDeviceListQuery, OnvifDeviceListQueryRequest, OnvifDeviceListQueryResponse
 from nepi_app_onvif_mgr.srv import OnvifDeviceCfgUpdate, OnvifDeviceCfgUpdateRequest, OnvifDeviceCfgUpdateResponse
@@ -72,7 +72,11 @@ class ONVIFMgr:
   idx_drivers_dict = []
   ptx_drivers_dict = []
 
-  
+  active_nodes = []
+  active_topics = []
+  active_topic_types = []
+  active_services = []
+
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "onvif_app" # Can be overwitten by luanch command
@@ -243,8 +247,15 @@ class ONVIFMgr:
             'topic': '',
             'msg': MgrDriversStatus,
             'qsize': 10,
-            'callback': self.driversStatusCb, 
+            'callback': self.driversStatusCb,
             'callback_args': ()
+        },
+        'system_status': {
+            'msg': MgrSystemStatus,
+            'namespace': self.base_namespace,
+            'topic': 'status',
+            'qsize': 5,
+            'callback': self.systemStatusCb
         }
     }
 
@@ -339,6 +350,12 @@ class ONVIFMgr:
       self.msg_if.pub_info('Auto-saving updated config')
       self.setCurrentSettingsAsDefault()
       #self.saveParamsCb_publisher.publish(self.node_namespace)
+
+  def systemStatusCb(self,msg):
+    self.active_nodes = msg.active_nodes
+    self.active_topics = msg.active_topics
+    self.active_topic_types = msg.active_topic_types
+    self.active_services = msg.active_services
 
   def driversStatusCb(self,msg):
     # First check if drv driver database needs updating
@@ -984,7 +1001,7 @@ class ONVIFMgr:
   
   def nodeIsRunning(self, node_name):
     running = False
-    node_list = nepi_sdk.get_node_list()
+    node_list = self.active_nodes
     for node in node_list:
       if node.find(node_name) != -1:
         running = True

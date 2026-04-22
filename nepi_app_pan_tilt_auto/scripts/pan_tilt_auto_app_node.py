@@ -31,7 +31,7 @@ from nepi_sdk import nepi_targets
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent
-from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus
+from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TrackingStatus
 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -1821,9 +1821,10 @@ class NepiPanTiltAutoApp(object):
 
 
 
-
     self.status_msg.track_selected_source = self.track_selected_source
     self.status_msg.track_source_connected = self.track_source_connected
+
+
     self.status_msg.track_pan_enabled = self.track_pan_enabled
     self.status_msg.track_tilt_enabled = self.track_tilt_enabled
     self.status_msg.track_pan_min_deg = self.track_pan_min_deg

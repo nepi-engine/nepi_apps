@@ -44,6 +44,12 @@ float32 scan_tilt_sec
 
 ###############
 
+
+
+
+####### Debug
+#nepi_interfaces/TrackingStatus tracking_status
+
 string[] track_available_sources
 string track_selected_source
 bool track_source_connected
@@ -51,9 +57,12 @@ bool track_source_connected
 string[] track_available_classes
 string[] track_selected_classes
 
+float32 track_threshold
+
 string[] track_available_filters
 string[] track_selected_filter
 
+#######
 
 bool track_pan_enabled
 bool track_tilt_enabled
