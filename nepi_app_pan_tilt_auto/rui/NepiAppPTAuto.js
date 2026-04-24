@@ -22,8 +22,6 @@ import Styles from "./Styles"
 
 //import {onChangeSwitchStateValue } from "./Utilities"
 
-import NepiDevicePTXControls from "./NepiDevicePTX-Controls"
-
 import NepiPTAutoImageViewer from "./NepiAppPTAuto-ImageViewer"
 import NepiAppPTAutoControls from "./NepiAppPTAuto-Controls"
 
@@ -226,19 +224,9 @@ class NepiAppPTAuto extends Component {
 
 
           <Section title={"PAN TILT AUTOMATION"}>
-          { (ptConnected === true) ? 
 
-            <NepiAppPTAutoControls
-                namespace={appNamespace}
-                make_section={false}
-            />
-          : null }
 
-            { this.renderConfig() }
 
-          </Section>
-
-          <Section title={"PAN TILT CONTROLS"}>
 
             {(show_pt_selector === true) ?
                   <Label title={"Pan Tilt Device"}>
@@ -256,19 +244,20 @@ class NepiAppPTAuto extends Component {
                     </Label>
             : null }
 
-            { (ptConnected === true  && show_pt_selector === true) ? 
-               <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-            : null }
+
 
           { (ptConnected === true) ? 
 
-                <NepiDevicePTXControls
-                    namespace={selected_pan_tilt}
-                    show_save_all={false}
-                    make_section={false}
-                />
+            <NepiAppPTAutoControls
+                namespace={appNamespace}
+                make_section={false}
+            />
+          : null }
 
-            : null }
+            { this.renderConfig() }
+
+
+
 
 
           </Section>

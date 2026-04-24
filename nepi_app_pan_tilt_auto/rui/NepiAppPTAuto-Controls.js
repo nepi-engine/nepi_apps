@@ -29,9 +29,7 @@ import Label from "./Label"
 import Input from "./Input"
 import Styles from "./Styles"
 import Button, { ButtonMenu } from "./Button"
-import {onUpdateSetStateValue} from "./Utilities"
-
-//import {onChangeSwitchStateValue } from "./Utilities"
+import {onChangeSwitchStateValue, onUpdateSetStateValue, round} from "./Utilities"
 
 
 
@@ -50,6 +48,7 @@ class NepiAppPTAutoControls extends Component {
       appNamespace: null,  
       status_msg: null,  
    
+      show_controls: false,
 
       selected_pan_tilt: 'None',
 
@@ -102,6 +101,7 @@ class NepiAppPTAutoControls extends Component {
     this.onEnterSendTiltScanRangeWindowValue = this.onEnterSendTiltScanRangeWindowValue.bind(this)
 
     this.renderControlPanel = this.renderControlPanel.bind(this)
+    this.renderPTControls = this.renderPTControls.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
@@ -145,11 +145,10 @@ class NepiAppPTAutoControls extends Component {
       
     })
   
-
-    const pan_min_scan = message.scan_pan_min_deg
-    const pan_max_scan = message.scan_pan_max_deg
-    const tilt_min_scan = message.scan_tilt_min_deg
-    const tilt_max_scan = message.scan_tilt_max_deg
+    const pan_min_scan = round(message.scan_pan_min_deg, 0)
+    const pan_max_scan = round(message.scan_pan_max_deg, 0)
+    const tilt_min_scan = round(message.scan_tilt_min_deg, 0)
+    const tilt_max_scan = round(message.scan_tilt_max_deg, 0)
 
     const scan_limits_changed = (last_status_msg == null) ? true : (pan_min_scan !== last_status_msg.scan_pan_min_deg || pan_max_scan !== last_status_msg.scan_pan_max_deg ||
                               tilt_min_scan !== last_status_msg.scan_tilt_min_deg || tilt_max_scan !== last_status_msg.scan_tilt_max_deg)
@@ -277,6 +276,167 @@ componentWillUnmount() {
 
 
 
+
+  renderControlPanel() {
+    const { ptxDevices, sendBoolMsg } = this.props.ros
+
+    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
+            track_source_connected,
+            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+
+    const selected_pan_tilt = this.state.selected_pan_tilt
+    const ptx_caps = ptxDevices[selected_pan_tilt]
+    //Unused const has_timed_pos = ptx_caps && (ptx_caps.has_timed_positioning)
+    //Unused const has_sep_pan_tilt = ptx_caps && (ptx_caps.has_seperate_pan_tilt_control)
+    const has_scan_pan = ptx_caps && (ptx_caps.has_scan_pan)
+    const has_scan_tilt = ptx_caps && (ptx_caps.has_scan_tilt)
+    //Unused const has_set_home = ptx_caps && (ptx_caps.has_set_home)
+
+    const hide_scan_pan = ((has_scan_pan === false ))
+    const hide_scan_tilt = ((has_scan_tilt === false ))
+
+    const hide_track_pan = ((track_source_connected === false || hide_scan_pan === true))
+    const hide_track_tilt = ((track_source_connected === false || hide_scan_tilt === true))
+
+    //Unused const {sendTriggerMsg} = this.props.ros
+
+    const namespace = this.getAppNamespace()
+
+    const status_msg = this.state.status_msg
+    const topics = Object.keys(ptxDevices)
+    const pt_connected_topics = []
+    var i
+    for (i = 0; i <topics.length; i++) {
+    if (topics[i].includes(selected_pan_tilt)){
+      pt_connected_topics.push(topics[i])
+    }
+  }
+    
+    const pt_connected = (pt_connected_topics.indexOf(selected_pan_tilt) !== -1)
+    //console.log('pt_connected: ' + pt_connected)
+
+    const show_controls = this.state.show_controls
+
+    if (status_msg == null || pt_connected === false || namespace == null){
+      return(
+
+        <Columns>
+        <Column>
+
+        </Column>
+        </Columns>
+
+      )
+
+    }
+    else {
+  
+
+        return (
+          <React.Fragment>
+
+            
+        <Columns>
+        <Column>
+
+
+        </Column>
+        <Column>
+
+              <ButtonMenu>
+                <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop_pan_tilt')}>{"STOP"}</Button>
+              </ButtonMenu>
+
+        </Column>
+        </Columns>
+
+
+            <Label title={""} style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+              <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pan"}</div>
+              <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Tilt"}</div>
+            </Label>
+
+            <Label title={"Enable Auto Scan"}>
+            <div hidden={(hide_scan_pan === true)}>
+              <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                <Toggle style={{justifyContent: "flex-left"}} checked={autoPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_pan_enable",!autoPanEnabled)} />
+              </div>
+              </div>
+
+              <div hidden={(hide_scan_tilt === true)}>
+              <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                <Toggle style={{justifyContent: "flex-right"}} checked={autoTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_tilt_enable",!autoTiltEnabled)} />
+              </div>
+              </div>
+            </Label>
+
+            <div hidden={(this.state.hide_click_controls === true)}>
+              <Label title={"Select Pixel"}>
+                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                  <Toggle style={{justifyContent: "flex-left"}} checked={click_pan_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_pan_click_enable",!click_pan_enabled)} />
+                </div>
+
+
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                  <Toggle style={{justifyContent: "flex-right"}} checked={click_tilt_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_tilt_click_enable",!click_tilt_enabled)} />
+                </div>
+              </Label>
+            </div>
+
+
+            <div hidden={track_source_connected == false}>
+              <Label title={"Enable Tracking"}>
+                <div hidden={(hide_track_pan === true)}>
+                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                  <Toggle style={{justifyContent: "flex-left"}} checked={trackPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
+                </div>
+                </div>
+
+                <div hidden={(hide_track_tilt === true)}>
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                  <Toggle style={{justifyContent: "flex-right"}} checked={trackTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
+                </div>
+                </div>
+              </Label>
+            </div>
+
+
+              <Columns>
+                <Column>
+
+
+                    <Label title="Show Controls">
+                        <Toggle
+                          checked={show_controls===true}
+                          onClick={() => onChangeSwitchStateValue.bind(this)("show_controls",show_controls)}>
+                        </Toggle>
+                    </Label>
+
+
+                  </Column>
+                  <Column>
+
+                  </Column>
+                </Columns>
+
+
+            <div hidden={show_controls === false}>
+
+                  {this.renderPTControls()}
+
+            </div>
+
+
+
+
+            </React.Fragment>
+        )
+  }
+}
+
+
+
+
 onEnterSendPanScanRangeWindowValue(event, topicName, entryName, other_val) {
   const {publishRangeWindow} = this.props.ros
   const appnamespace = this.getAppNamespace()
@@ -357,131 +517,37 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 }
 
-
-  renderControlPanel() {
-    const { ptxDevices, sendBoolMsg } = this.props.ros
-
-    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
-            track_source_connected,
-            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+  renderPTControls() {
 
     const selected_pan_tilt = this.state.selected_pan_tilt
-    const ptx_caps = ptxDevices[selected_pan_tilt]
-    //Unused const has_timed_pos = ptx_caps && (ptx_caps.has_timed_positioning)
-    //Unused const has_sep_pan_tilt = ptx_caps && (ptx_caps.has_seperate_pan_tilt_control)
-    const has_scan_pan = ptx_caps && (ptx_caps.has_scan_pan)
-    const has_scan_tilt = ptx_caps && (ptx_caps.has_scan_tilt)
-    //Unused const has_set_home = ptx_caps && (ptx_caps.has_set_home)
-
-    const hide_scan_pan = ((has_scan_pan === false ))
-    const hide_scan_tilt = ((has_scan_tilt === false ))
-
-    const hide_track_pan = ((track_source_connected === false || hide_scan_pan === true))
-    const hide_track_tilt = ((track_source_connected === false || hide_scan_tilt === true))
-
-    //Unused const {sendTriggerMsg} = this.props.ros
 
     const namespace = this.getAppNamespace()
 
     const status_msg = this.state.status_msg
-    const topics = Object.keys(ptxDevices)
-    const pt_connected_topics = []
-    var i
-    for (i = 0; i <topics.length; i++) {
-    if (topics[i].includes(selected_pan_tilt)){
-      pt_connected_topics.push(topics[i])
-    }
-  }
-    
-    const pt_connected = (pt_connected_topics.indexOf(selected_pan_tilt) !== -1)
-    //console.log('pt_connected: ' + pt_connected)
-    if (status_msg == null || pt_connected === false || namespace == null){
-      return(
 
-        <Columns>
-        <Column>
-
-        </Column>
-        </Columns>
-
-      )
-
-    }
-    else {
-  
 
         return (
           <React.Fragment>
 
-            
-        <Columns>
-        <Column>
 
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-        </Column>
-        <Column>
+          <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+            {"Pan Tilt Settings"}
+          </label>
 
-              <ButtonMenu>
-                <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + '/stop_pan_tilt')}>{"STOP"}</Button>
-              </ButtonMenu>
-
-        </Column>
-        </Columns>
+          {/* <label style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+            {"PT STATE - Angles in ENU frame (Tilt+:Down , Pan+:Left)"}
+          </label> */}
 
 
 
 
 
-            <Label title={""} style={{fontWeight: 'bold'}} align={"left"} textAlign={"left"}>
+            <Label title={""}>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pan"}</div>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Tilt"}</div>
             </Label>
-
-            <Label title={"Enable Auto Scan"}>
-            <div hidden={(hide_scan_pan === true)}>
-              <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                <Toggle style={{justifyContent: "flex-left"}} checked={autoPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_pan_enable",!autoPanEnabled)} />
-              </div>
-              </div>
-
-              <div hidden={(hide_scan_tilt === true)}>
-              <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                <Toggle style={{justifyContent: "flex-right"}} checked={autoTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_tilt_enable",!autoTiltEnabled)} />
-              </div>
-              </div>
-            </Label>
-
-            <div hidden={(this.state.hide_click_controls === true)}>
-              <Label title={"Select Pixel"}>
-                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                  <Toggle style={{justifyContent: "flex-left"}} checked={click_pan_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_pan_click_enable",!click_pan_enabled)} />
-                </div>
-
-
-                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                  <Toggle style={{justifyContent: "flex-right"}} checked={click_tilt_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_tilt_click_enable",!click_tilt_enabled)} />
-                </div>
-              </Label>
-            </div>
-
-
-            <div hidden={track_source_connected == false}>
-              <Label title={"Enable Tracking"}>
-                <div hidden={(hide_track_pan === true)}>
-                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                  <Toggle style={{justifyContent: "flex-left"}} checked={trackPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
-                </div>
-                </div>
-
-                <div hidden={(hide_track_tilt === true)}>
-                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                  <Toggle style={{justifyContent: "flex-right"}} checked={trackTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
-                </div>
-                </div>
-              </Label>
-            </div>
-
-
 
             <Label title={"Min Scan Limits"}>
 
@@ -499,6 +565,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
               
             </Label>
+
 
             <Label title={"Max Scan Limits"}>
 
@@ -522,7 +589,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
             </React.Fragment>
         )
-  }
+  
 }
 
 
