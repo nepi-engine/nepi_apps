@@ -1338,7 +1338,7 @@ class NepiPanTiltAutoApp(object):
                 self.track_pan_error = track_dict['azimuth_deg']
                 if abs(self.track_pan_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track pan error " + str(pan_error))    
-                  pan_to_goal = pan_cur - self.track_pan_error  * self.track_pan_sensitivity
+                  pan_to_goal = pan_cur + self.track_pan_error  * self.track_pan_sensitivity
                   if pan_to_goal != self.goto_position[0]:
                       self.goto_position[0] = pan_to_goal
                       self.pt_connect_if.goto_to_pan_position(pan_to_goal)
@@ -1381,7 +1381,7 @@ class NepiPanTiltAutoApp(object):
                 self.last_track_tilt_time = nepi_utils.get_time()
                 if abs(self.track_tilt_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track tilt error " + str(tilt_error))    
-                  tilt_to_goal = tilt_cur - self.track_tilt_error  * self.track_tilt_sensitivity
+                  tilt_to_goal = tilt_cur + self.track_tilt_error  * self.track_tilt_sensitivity
                   if tilt_to_goal != self.goto_position[1]:
                       self.goto_position[1] = tilt_to_goal
                       self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
