@@ -102,6 +102,7 @@ class NepiAppPTAutoControls extends Component {
 
     this.renderControlPanel = this.renderControlPanel.bind(this)
     this.renderPTControls = this.renderPTControls.bind(this)
+    this.renderTrackControls = this.renderTrackControls.bind(this)
 
     this.onPTUpdateText = this.onPTUpdateText.bind(this)
     this.onPTKeyText = this.onPTKeyText.bind(this)
@@ -577,6 +578,25 @@ componentWillUnmount() {
                 {this.renderPTControls()}
           </div>
 
+            <div style={{ display: 'flex' }} hidden={(show_control !== 'None' && show_control !== 'track')}>
+                <div style={{ width: '60%' }} >
+
+                        <Label title="Show Track Controls">
+                            <Toggle
+                              checked={(show_control === 'track')}
+                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'track') ? 'None' : 'track' )}>
+                            </Toggle>
+                        </Label>
+
+                </div>
+
+                <div style={{ width: '40%' }}>
+                </div>
+
+          </div>
+          <div hidden={(show_control !== 'track')}>
+                {this.renderTrackControls()}
+          </div>
 
             </React.Fragment>
         )
@@ -806,6 +826,45 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                   onKeyDown= {(event) => this.onEnterSendTiltScanRangeWindowValue(event,"/set_scan_tilt_window","max",Number(this.state.scanTiltMin))} />                      
             </Label>
 
+
+
+
+
+            </React.Fragment>
+        )
+  
+}
+
+
+
+  renderTrackControls() {
+
+
+    const namespace = this.getAppNamespace()
+
+    const status_msg = this.state.status_msg
+
+    const selected_pan_tilt = this.state.selected_pan_tilt
+
+   
+
+        return (
+          <React.Fragment>
+
+
+        <Columns>
+            <Column>
+                      <ButtonMenu>
+                        <Button onClick={() => window.open("/ai_detectors_mgr", "_blank")}>{"Open Detectors"}</Button>
+                      </ButtonMenu>
+            </Column>
+
+            <Column>
+                    <ButtonMenu>
+                      <Button onClick={() => window.open("/ai_models_mgr", "_blank")}>{"Open Models"}</Button>
+                    </ButtonMenu>          
+            </Column>
+        </Columns>
 
 
 

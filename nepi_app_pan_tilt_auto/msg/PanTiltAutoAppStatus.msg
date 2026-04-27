@@ -54,7 +54,7 @@ string track_selected_source
 bool track_source_connected
 
 string[] track_available_classes
-string[] track_selected_classes
+string[] track_selected_classes_ordered
 
 float32 track_threshold
 
