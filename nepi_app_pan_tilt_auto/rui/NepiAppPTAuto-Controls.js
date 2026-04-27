@@ -31,7 +31,7 @@ import Styles from "./Styles"
 import Button, { ButtonMenu } from "./Button"
 import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
 
-
+import Nepi_IF_Tracking from "./Nepi_IF_Tracking"
 
 @inject("ros")
 @observer
@@ -850,6 +850,12 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
         return (
           <React.Fragment>
+
+
+          <Nepi_IF_Tracking                        
+            namespace={namespace + '/tracking'}
+            make_section={false}
+          />
 
 
         <Columns>
