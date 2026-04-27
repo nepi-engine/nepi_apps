@@ -316,7 +316,7 @@ class NepiFilePubImgApp(object):
 
     
     nepi_sdk.start_timer_process(self.UPDATER_DELAY_SEC, self.updaterCb)
-    nepi_sdk.start_timer_process(1, self.publishCb, oneshot = True)
+    nepi_sdk.start_timer_process(1, self.imagePublishCb, oneshot = True)
     nepi_sdk.start_timer_process(1.0, self.statusPublishCb)
 
 
@@ -368,42 +368,7 @@ class NepiFilePubImgApp(object):
         pass
       self.initCb(do_updates = do_updates)
 
-  ###################
-  ## Status Publisher
-  def publish_status(self):
-    status_msg = FilePubImgStatus()
-
-    status_msg.home_folder = self.HOME_FOLDER
-    current_folder = self.current_folder 
-    status_msg.current_folder = current_folder
-    if current_folder == self.HOME_FOLDER:
-      selected_folder = 'Home'
-    else:
-      selected_folder = os.path.basename(current_folder)
-    status_msg.selected_folder = selected_folder
-    status_msg.current_folders = self.current_folders
-    status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
-    file = self.current_file
-    status_msg.current_file =  file
-
-    status_msg.paused = self.paused
-
-    status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
-    status_msg.set_size = self.size
-    status_msg.encoding_options_list = self.IMG_PUB_ENCODING_OPTIONS
-    status_msg.set_encoding = self.encoding 
-
-
-    status_msg.file_count = self.file_count
-    status_msg.set_random = self.random 
-    status_msg.set_overlay = self.overlay 
-    status_msg.min_max_rate = [self.MIN_RATE, self.MAX_RATE]
-    status_msg.set_rate = self.rate 
-    status_msg.running = self.running
-    if self.node_if is not None:
-      self.node_if.publish_pub('status_pub', status_msg)
-
-
+ 
 
 
   #############################
@@ -627,7 +592,7 @@ class NepiFilePubImgApp(object):
     
 
 
-  def publishCb(self,timer):
+  def imagePublishCb(self,timer):
     running = self.running
     size = self.size
     encoding = self.encoding
@@ -702,7 +667,7 @@ class NepiFilePubImgApp(object):
           self.cv2_lock.release()
 
           self.publish_img()
-          self.publish_status()
+          #self.publish_status()
 
 
     delay = 0.1
@@ -712,12 +677,12 @@ class NepiFilePubImgApp(object):
     
 
     #self.msg_if.pub_info("Delay: " + str(delay)) 
-    nepi_sdk.start_timer_process(delay, self.publishCb, oneshot = True)
+    nepi_sdk.start_timer_process(delay, self.imagePublishCb, oneshot = True)
 
-  def statusPublishCb(self,timer):
-      self.publish_status()
+
 
   def publish_img(self):
+      #self.msg_if.pub_info("Got pub img request") 
       if self.cv2_img is not None:
         encoding = self.encoding
 
@@ -731,9 +696,47 @@ class NepiFilePubImgApp(object):
         #self.msg_if.pub_info("Published")
 
 
-  
 
-               
+
+  def statusPublishCb(self,timer):
+    self.publish_status()
+
+             ###################
+  ## Status Publisher
+  def publish_status(self):
+    status_msg = FilePubImgStatus()
+
+    status_msg.home_folder = self.HOME_FOLDER
+    current_folder = self.current_folder 
+    status_msg.current_folder = current_folder
+    if current_folder == self.HOME_FOLDER:
+      selected_folder = 'Home'
+    else:
+      selected_folder = os.path.basename(current_folder)
+    status_msg.selected_folder = selected_folder
+    status_msg.current_folders = self.current_folders
+    status_msg.supported_file_types = self.SUPPORTED_FILE_TYPES
+    file = self.current_file
+    status_msg.current_file =  file
+
+    status_msg.paused = self.paused
+
+    status_msg.size_options_list = self.STANDARD_IMAGE_SIZES
+    status_msg.set_size = self.size
+    status_msg.encoding_options_list = self.IMG_PUB_ENCODING_OPTIONS
+    status_msg.set_encoding = self.encoding 
+
+
+    status_msg.file_count = self.file_count
+    status_msg.set_random = self.random 
+    status_msg.set_overlay = self.overlay 
+    status_msg.min_max_rate = [self.MIN_RATE, self.MAX_RATE]
+    status_msg.set_rate = self.rate 
+    status_msg.running = self.running
+    if self.node_if is not None:
+      self.node_if.publish_pub('status_pub', status_msg)
+
+   
     
   #######################
   # Node Cleanup Function

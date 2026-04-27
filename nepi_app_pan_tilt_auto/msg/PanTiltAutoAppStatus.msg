@@ -7,12 +7,11 @@ string[] available_pan_tilts
 string selected_pan_tilt
 bool pt_connected
 string pt_connected_topic
+nepi_interfaces/DevicePTXStatus pt_status_msg
 
 #[pan_deg, tilt_deg], unset values are -999
 float32[] current_position
-float32 goto_position
-float32 goto_min_error
-float32 goto_error
+
 
 ###################
 

@@ -58,7 +58,8 @@ class NepiPanTiltAutoApp(object):
   SCAN_SWITCH_DEG = 5 # If angle withing this bound, switch dir
   SCAN_UPDATE_INTERVAL = .5
 
-  MIN_SCAN_ANGLE = 10
+  MIN_SCAN_ANGLE = 30
+  LIMIT_PADDING = 5
 
   TRACK_MAX_UPDATE_RATE = 0.5
   TRACK_MIN_ERROR_DEG = 10
@@ -93,7 +94,7 @@ class NepiPanTiltAutoApp(object):
 
   pt_connected_topic = None
   pt_connected = False
-  pt_status_msg = DevicePTXStatus()
+
 
   min_pan_softstop_deg = -DEFAULT_MIN_MAX_DEG
   max_pan_softstop_deg = DEFAULT_MIN_MAX_DEG
@@ -446,15 +447,6 @@ class NepiPanTiltAutoApp(object):
             'callback': self.selectTopicCb, 
             'callback_args': ()
         },
-        'stop_pan_tilt': {
-            'namespace': self.node_namespace,
-            'topic': 'stop_pan_tilt',
-            'msg': Empty,
-            'qsize': 1,
-            'callback': self.stopPanTiltCb, 
-            'callback_args': ()
-        },
-
         'set_scan_pan': {
             'namespace': self.node_namespace,
             'topic': 'set_scan_pan_enable',
@@ -593,7 +585,7 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_mouse_click',
             'msg': ImageMouseEvent,
             'qsize': None,
-            'callback': self.clickCb, 
+            'callback': self.mouseClickCb, 
             'callback_args': ()
         },
         'set_topic_1': {
@@ -743,6 +735,9 @@ class NepiPanTiltAutoApp(object):
       self.num_windows = self.node_if.get_param('num_windows')
       self.selected_image_topics = self.node_if.get_param('selected_image_topics')
       self.single_image_topic = self.node_if.get_param('single_image_topic')
+      if self.single_image_topic == 'None' and self.selected_image_topics[0] != 'None':
+         self.single_image_topic = self.selected_image_topics[0]
+         self.node_if.set_param('single_image_topic',self.single_image_topic)
 
     if do_updates == True:
       pass
@@ -846,26 +841,7 @@ class NepiPanTiltAutoApp(object):
   ##############################
   ## Node PT Commands
 
-  def stopPanTiltCb(self, _):
-      self.stopPanTilt()
-
-  def stopPanTilt(self):
-      self.stopMoving() 
-      self.publish_status()
-
-
-  def stopMoving(self,axis = 'All'):       
-        if axis == 'pan' or axis == 'All':
-            self.stopPanControls()
-            self.pt_connect_if.goto_to_pan_position(self.current_position[0])
-        if axis == 'tilt' or axis == 'All':
-            self.stopTiltControls()
-            self.pt_connect_if.goto_to_tilt_position(self.current_position[1])
-        self.publish_status() 
-
-
-
-
+  
   def stopPanControls(self):
       self.scan_pan_enabled = False
       self.scan_pan_track_hold = False
@@ -1216,7 +1192,7 @@ class NepiPanTiltAutoApp(object):
 
             pan_cur = self.current_position[0]
             if self.goto_position[0] != self.scan_pan_min_deg and self.goto_position[0] != self.scan_pan_max_deg:
-                self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
+                #self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
                 self.goto_position[0] = self.scan_pan_min_deg
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)  
               
@@ -1335,7 +1311,7 @@ class NepiPanTiltAutoApp(object):
                 self.scan_pan_track_hold = True
                 self.pan_tracking = True
                 self.last_track_pan_time = nepi_utils.get_time()
-                self.track_pan_error = track_dict['azimuth_deg']
+                self.track_pan_error = round(track_dict['azimuth_deg'],0)
                 if abs(self.track_pan_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track pan error " + str(pan_error))    
                   pan_to_goal = pan_cur + self.track_pan_error  * self.track_pan_sensitivity
@@ -1377,7 +1353,7 @@ class NepiPanTiltAutoApp(object):
             if track_dict is not None:
                 self.scan_tilt_track_hold = True
                 self.tilt_tracking = True
-                self.track_tilt_error = track_dict['elevation_deg']
+                self.track_tilt_error = round(track_dict['elevation_deg'], 0)
                 self.last_track_tilt_time = nepi_utils.get_time()
                 if abs(self.track_tilt_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track tilt error " + str(tilt_error))    
@@ -1437,67 +1413,7 @@ class NepiPanTiltAutoApp(object):
       self.click_tilt_enabled = enabled
       self.publish_status()
 
-  def clickCb(self,msg):
-      
-      click_count = msg.click_count
-
-      if click_count > 1:
-        if self.num_windows == 1:
-           self.setNumWindows(self.last_num_windows)
-        else:
-           image_index = msg.image_index
-           image_topic = msg.image_topic
-           if image_topic != 'None':
-            self.single_image_topic = image_topic
-            self.publish_status()
-            self.setNumWindows(1)
-         
-      else:
-        self.click_position = [0,0]
-        click_pan_enabled = self.getPanClickEnabled()
-        click_tilt_enabled = self.getTiltClickEnabled()
-        image_index = msg.image_index
-        if msg.click_event == True:
-            pixel = [msg.click_pixel.x, msg.click_pixel.y ]
-            status_msg = msg.image_status_msg
-            image_width = status_msg.width_px
-            image_height = status_msg.height_px
-            image_fov_horz = status_msg.width_deg
-            image_fov_vert = status_msg.height_deg
-            image_zoom_ratio = status_msg.zoom_ratio
-            if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
-                object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
-                object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
-                vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
-                horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
-                self.click_position = [horz_angle_deg,vert_angle_deg]
-
-            if click_pan_enabled == True:
-                if self.current_position == None:
-                    pass
-                else:
-                    pan_cur = self.current_position[0]
-                    pan_to_goal = self.click_position[0] + pan_cur
-                    self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#)
-                    self.goto_position[0] = pan_to_goal
-                    self.pt_connect_if.goto_to_pan_position(pan_to_goal)
-            else: 
-                self.msg_if.pub_warn("Pan Click Enabled is False")#)
-
-
-
-            if click_tilt_enabled == True:
-                if self.current_position == None:
-                    pass
-                else:
-                    tilt_cur = self.current_position[1]
-                    tilt_to_goal = self.click_position[1] + tilt_cur
-                    self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#)
-                    self.goto_position[1] = tilt_to_goal
-                    self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
-            else: 
-                self.msg_if.pub_warn("Tilt Click Enabled is False")#)
-
+  
 
   def selectTopicCb(self,msg):
     selected_pan_tilt = msg.data
@@ -1677,6 +1593,68 @@ class NepiPanTiltAutoApp(object):
 ###Image Veiwer
 ##########################
 
+  def mouseClickCb(self,msg):
+      if msg.click_event == True:
+        click_count = msg.click_count
+
+        if click_count > 1:
+            if self.num_windows == 1:
+                self.setNumWindows(self.last_num_windows)
+            else:
+                image_index = msg.image_index
+                image_topic = msg.image_topic
+                if image_topic != 'None':
+                    self.single_image_topic = image_topic
+                    self.publish_status()
+                    self.setNumWindows(1)
+            
+        else:
+            self.click_position = [0,0]
+            click_pan_enabled = self.getPanClickEnabled()
+            click_tilt_enabled = self.getTiltClickEnabled()
+            image_index = msg.image_index
+            
+            pixel = [msg.click.x, msg.click.y ]
+            status_msg = msg.image_status_msg
+            image_width = status_msg.width_px
+            image_height = status_msg.height_px
+            image_fov_horz = status_msg.width_deg
+            image_fov_vert = status_msg.height_deg
+            image_zoom_ratio = status_msg.zoom_ratio
+            if image_width > 10 and image_height > 10 and image_fov_horz > 10 and image_fov_vert > 10 and image_zoom_ratio < 0.1:
+                object_loc_x_ratio_from_center = float(pixel[0] - image_width/2) / float(image_width/2)
+                object_loc_y_ratio_from_center = float(pixel[1] - image_height/2) / float(image_height/2)
+                vert_angle_deg = (object_loc_y_ratio_from_center * float(image_fov_vert/2))
+                horz_angle_deg = - (object_loc_x_ratio_from_center * float(image_fov_horz/2))
+                self.click_position = [horz_angle_deg,vert_angle_deg]
+
+            if click_pan_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    pan_cur = self.current_position[0]
+                    pan_to_goal = self.click_position[0] + pan_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Pan Pos " + str(pan_to_goal))#)
+                    self.goto_position[0] = pan_to_goal
+                    self.pt_connect_if.goto_to_pan_position(pan_to_goal)
+            else: 
+                self.msg_if.pub_warn("Pan Click Enabled is False")#)
+
+
+
+            if click_tilt_enabled == True:
+                if self.current_position == None:
+                    pass
+                else:
+                    tilt_cur = self.current_position[1]
+                    tilt_to_goal = self.click_position[1] + tilt_cur
+                    self.msg_if.pub_warn("Pixel Selected, Going to Tilt Pos " + str(tilt_to_goal))#)
+                    self.goto_position[1] = tilt_to_goal
+                    self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
+            else: 
+                self.msg_if.pub_warn("Tilt Click Enabled is False")#)
+
+
   def setImageTopic1Cb(self,msg):
     self.msg_if.pub_info(str(msg))
     img_index = 0
@@ -1767,10 +1745,10 @@ class NepiPanTiltAutoApp(object):
         limits = self.pt_connect_if.get_pan_tilt_soft_limits()
         #self.msg_if.pub_warn("setting scan limits: " + str(limits))
         if limits is not None:
-            self.min_pan_softstop_deg = limits[0]
-            self.max_pan_softstop_deg = limits[1]
-            self.min_tilt_softstop_deg = limits[2]
-            self.max_tilt_softstop_deg = limits[3]
+            self.min_pan_softstop_deg = round(limits[0], 0) + self.LIMIT_PADDING
+            self.max_pan_softstop_deg = round(limits[1], 0) - self.LIMIT_PADDING
+            self.min_tilt_softstop_deg = round(limits[2], 0) + self.LIMIT_PADDING
+            self.max_tilt_softstop_deg = round(limits[3], 0) - self.LIMIT_PADDING
 
 
     self.publish_status()
@@ -1788,6 +1766,14 @@ class NepiPanTiltAutoApp(object):
        pt_connected_topic = 'None'
     self.status_msg.pt_connected_topic = pt_connected_topic
     self.status_msg.pt_connected = self.pt_connected
+    pt_status_msg = None
+    if self.pt_connect_if is not None:
+       pt_status_msg = self.pt_connect_if.get_status_msg()
+    
+    if pt_status_msg is not None:
+       self.status_msg.pt_status_msg = pt_status_msg
+    else:
+       self.status_msg.pt_status_msg = DevicePTXStatus()
 
     ###
     current_position = [-999,-999]

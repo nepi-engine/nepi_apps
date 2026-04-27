@@ -205,7 +205,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
         namespace + '/set_topic_4'
     ]
 
-    const mouse_event_topics = [
+    const mouse_click_topics = [
         namespace + '/set_mouse_click',
         namespace + '/set_mouse_click',
         namespace + '/set_mouse_click',
@@ -231,7 +231,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               num_windows={num_windows}
                               num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
-                              mouse_event_topics={mouse_event_topics}
+                              mouse_click_topics={mouse_click_topics}
                               custom_selection_options={image_priority_options}
                               custom_selection_callback={set_image_priority_callback}
                               image_filters={image_filters}

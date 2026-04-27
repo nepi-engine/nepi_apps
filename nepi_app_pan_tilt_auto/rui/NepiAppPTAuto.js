@@ -22,6 +22,7 @@ import Styles from "./Styles"
 
 //import {onChangeSwitchStateValue } from "./Utilities"
 
+
 import NepiPTAutoImageViewer from "./NepiAppPTAuto-ImageViewer"
 import NepiAppPTAutoControls from "./NepiAppPTAuto-Controls"
 
@@ -102,6 +103,7 @@ class NepiAppPTAuto extends Component {
       available_pan_tilts: message.available_pan_tilts,
       selected_pan_tilt: message.selected_pan_tilt,
       pt_connected: message.pt_connected,
+      pt_connected_topic: message.pt_connected_topic,
       selected_image_topics: message.image_topics,
       num_windows: message.num_windows
     })
@@ -207,13 +209,42 @@ class NepiAppPTAuto extends Component {
   }
 
 
+  renderConfig(){
+    const namespace = this.getAppNamespace()
+    const ptConnected = this.state.pt_connected
+    const pt_connected_topic = this.state.pt_connected_topic
+    var add_namspaces = []
+    if (ptConnected === true) {
+      add_namspaces = [pt_connected_topic]
+    }
+
+    return (
+  
+    <React.Fragment>
+
+           <NepiIFConfig
+                namespace={namespace}
+                title={"Nepi_IF_Config"}
+                show_save_all={false}
+                add_namspaces={add_namspaces}
+                restricted={false}
+                make_section={false}
+            />
+
+    </React.Fragment>
+
+    )
+}
+
+
+
   renderControls() {
 
     const appNamespace = this.getAppNamespace()
     const selected_pan_tilt = this.state.selected_pan_tilt
     const ptConnected = this.state.pt_connected
     const ptMenuItems = this.createPtMenuOptions()
-    const show_pt_selector = (ptMenuItems.length > 1) ? true : (ptConnected === false)
+    //const show_pt_selector = (ptMenuItems.length > 1) ? true : (ptConnected === false)
     return (
 
 
@@ -228,26 +259,27 @@ class NepiAppPTAuto extends Component {
 
 
 
-            {(show_pt_selector === true) ?
-                  <Label title={"Pan Tilt Device"}>
-                      <Select
-                        onChange={this.onPtDeviceSelected}
-                        value={selected_pan_tilt}
-                      >
-                        {ptMenuItems}
-                      </Select>
-                    </Label>
-            : null }
 
+            <Label title={"Pan Tilt Device"}>
+                <Select
+                  onChange={this.onPtDeviceSelected}
+                  value={selected_pan_tilt}
+                >
+                  {ptMenuItems}
+                </Select>
+          </Label>
+  
             {(ptConnected === false) ?
                   <Label title={"Connecting"}>
                     </Label>
             : null }
 
 
+          { (ptConnected === true) ? 
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+          : null }
 
           { (ptConnected === true) ? 
-
             <NepiAppPTAutoControls
                 namespace={appNamespace}
                 make_section={false}
@@ -306,24 +338,7 @@ class NepiAppPTAuto extends Component {
         }
   }
 
-  renderConfig(){
-    const namespace = this.getAppNamespace()
-    return (
-  
-    <React.Fragment>
 
-           <NepiIFConfig
-                namespace={namespace}
-                title={"Nepi_IF_Config"}
-                show_save_all={false}
-                restricted={false}
-                make_section={false}
-            />
-
-    </React.Fragment>
-
-    )
-}
 
     
   render() {
