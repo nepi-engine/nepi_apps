@@ -317,36 +317,37 @@ componentWillUnmount() {
 
     var panElement = null
     var tiltElement = null
-    if (e.target.id === "PTXPanGoto") 
-      {
-        panElement = document.getElementById("PTXPanGoto")
-        tiltElement = document.getElementById("PTXTiltGoto")                    
-        if (has_sep_pan_tilt === true){
-          onSetPTXGotoPanPos(selected_pan_tilt, Number(panElement.value))
-        }
-        else {
-          onSetPTXGotoPos(selected_pan_tilt, Number(panElement.value),Number(tiltElement.value))
-        }            
-        clearElementStyleModified(panElement)   
-        this.setState({panGoto: null})    
-        
-      }
-      else if  (e.target.id === "PTXTiltGoto")
+    if(e.key === 'Enter'){
+      if (e.target.id === "PTXPanGoto") 
         {
-          
           panElement = document.getElementById("PTXPanGoto")
-          tiltElement = document.getElementById("PTXTiltGoto")
-
+          tiltElement = document.getElementById("PTXTiltGoto")                    
           if (has_sep_pan_tilt === true){
-            onSetPTXGotoTiltPos(selected_pan_tilt, Number(tiltElement.value))
+            onSetPTXGotoPanPos(selected_pan_tilt, Number(panElement.value))
           }
           else {
             onSetPTXGotoPos(selected_pan_tilt, Number(panElement.value),Number(tiltElement.value))
-          }              
-          clearElementStyleModified(tiltElement)
-          this.setState({tiltGoto: null})      
+          }            
+          clearElementStyleModified(panElement)   
+          this.setState({panGoto: null})    
           
+        }
+        else if  (e.target.id === "PTXTiltGoto")
+          {
+            
+            panElement = document.getElementById("PTXPanGoto")
+            tiltElement = document.getElementById("PTXTiltGoto")
 
+            if (has_sep_pan_tilt === true){
+              onSetPTXGotoTiltPos(selected_pan_tilt, Number(tiltElement.value))
+            }
+            else {
+              onSetPTXGotoPos(selected_pan_tilt, Number(panElement.value),Number(tiltElement.value))
+            }              
+            clearElementStyleModified(tiltElement)
+            this.setState({tiltGoto: null})      
+          
+          }
     }
   }
 
@@ -561,7 +562,7 @@ componentWillUnmount() {
             <div style={{ display: 'flex' }} hidden={(show_control !== 'None' && show_control !== 'pantilt')}>
                 <div style={{ width: '60%' }} >
 
-                        <Label title="Show Scan Controls">
+                        <Label title="Show PanTilt Controls">
                             <Toggle
                               checked={(show_control === 'pantilt')}
                               onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'pantilt') ? 'None' : 'pantilt' )}>
