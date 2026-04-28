@@ -155,68 +155,30 @@ class NepiAppPTAutoControls extends Component {
     const tilt_min_scan = round(message.scan_tilt_min_deg, 0)
     const tilt_max_scan = round(message.scan_tilt_max_deg, 0)
 
-    const scan_limits_changed = (last_status_msg == null) ? true : (pan_min_scan !== last_status_msg.scan_pan_min_deg || pan_max_scan !== last_status_msg.scan_pan_max_deg ||
-                              tilt_min_scan !== last_status_msg.scan_tilt_min_deg || tilt_max_scan !== last_status_msg.scan_tilt_max_deg)
-    if (scan_limits_changed === true){
-      this.setState({scanPanMin: pan_min_scan,
-                     scanPanMax: pan_max_scan
-      })
-    }
-    if (scan_limits_changed === true){
-      this.setState({scanTiltMin: tilt_min_scan,
-                     scanTiltMax: tilt_max_scan
-      })
-    }
-
-    const pan_min_track = message.track_pan_min_deg
-    const pan_max_track = message.track_pan_max_deg
-    const tilt_min_track = message.track_tilt_min_deg
-    const tilt_max_track = message.track_tilt_max_deg
-
-    const track_limits_changed = (last_status_msg == null) ? true : (pan_min_track !== last_status_msg.track_pan_min_deg || pan_max_track !== last_status_msg.track_pan_max_deg ||
-                              tilt_min_track !== last_status_msg.track_tilt_min_deg || tilt_max_track !== last_status_msg.track_tilt_max_deg)
-    if (track_limits_changed === true){
-      this.setState({trackPanMin: pan_min_track,
-                     trackPanMax: pan_max_track
-      })
-    }
-    if (track_limits_changed === true){
-      this.setState({trackTiltMin: tilt_min_track,
-                     trackTiltMax: tilt_max_track
-      })
-    }    
-
-    const track_reset_time_sec = message.track_reset_time_sec
-
-    const track_reset_changed = (last_status_msg == null) ? true : (track_reset_time_sec !== last_status_msg.track_reset_time_sec )
-    if (track_reset_changed === true){
-      this.setState({trackPanResetTime: track_reset_time_sec
-      })
-    }
-    if (track_limits_changed === true){
-      this.setState({trackTiltMin: tilt_min_track,
-                     trackTiltMax: tilt_max_track
-      })
-    }    
+    var scan_limits_changed = true
+    if (last_status_msg != null) {
 
 
-    const pan_min_lock = message.lock_pan_min_deg
-    const pan_max_lock = message.lock_pan_max_deg
-    const tilt_min_lock = message.lock_tilt_min_deg
-    const tilt_max_lock = message.lock_tilt_max_deg
+      const last_pan_min_scan = round(message.scan_pan_min_deg, 0)
+      const last_pan_max_scan = round(message.scan_pan_max_deg, 0)
+      const last_tilt_min_scan = round(message.scan_tilt_min_deg, 0)
+      const last_tilt_max_scan = round(message.scan_tilt_max_deg, 0)
 
-    const lock_limits_changed = (last_status_msg == null) ? true : (pan_min_lock !== last_status_msg.lock_pan_min_deg || pan_max_lock !== last_status_msg.lock_pan_max_deg ||
-                              tilt_min_lock !== last_status_msg.lock_tilt_min_deg || tilt_max_lock !== last_status_msg.lock_tilt_max_deg)
-    if (lock_limits_changed === true){
-      this.setState({lockPanMin: pan_min_lock,
-                     lockPanMax: pan_max_lock
-      })
-    }
-    if (lock_limits_changed === true){
-      this.setState({lockTiltMin: tilt_min_lock,
-                     lockTiltMax: tilt_max_lock
-      })
-    }    
+      scan_limits_changed = (pan_min_scan !== last_pan_min_scan || pan_max_scan !== last_pan_max_scan ||
+                                tilt_min_scan !== last_tilt_min_scan || tilt_max_scan !== last_tilt_max_scan)
+      }
+      
+      if (scan_limits_changed === true){
+        this.setState({scanPanMin: pan_min_scan,
+                      scanPanMax: pan_max_scan
+        })
+      }
+      if (scan_limits_changed === true){
+        this.setState({scanTiltMin: tilt_min_scan,
+                      scanTiltMax: tilt_max_scan
+        })
+      }
+
     
   }
 
