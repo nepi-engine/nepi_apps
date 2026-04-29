@@ -13,6 +13,7 @@ nepi_interfaces/DevicePTXStatus pt_status_msg
 float32[] current_position
 
 
+
 ###################
 
 bool pan_scanning
@@ -43,25 +44,9 @@ float32 scan_tilt_sec
 
 ###############
 
+###################
 
 
-
-####### Debug
-#nepi_interfaces/TrackingStatus tracking_status
-
-string[] track_available_sources
-string track_selected_source
-bool track_source_connected
-
-string[] track_available_classes
-string[] track_selected_classes_ordered
-
-float32 track_threshold
-
-string[] track_available_filters
-string[] track_selected_filter
-
-#######
 
 bool track_pan_enabled
 bool track_tilt_enabled
@@ -71,7 +56,11 @@ float32 track_pan_max_deg
 float32 track_tilt_min_deg
 float32 track_tilt_max_deg
 
+float32 track_move_ratio
 float32 track_reset_time_sec
+
+nepi_interfaces/TrackingStatus tracking_status
+
 
 
 ###############

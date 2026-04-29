@@ -27,10 +27,11 @@ import threading
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_targets
+from nepi_sdk import nepi_tracking
 
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
-from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent
+from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
 from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TrackingStatus
 
 
@@ -61,7 +62,7 @@ class NepiPanTiltAutoApp(object):
   MIN_SCAN_ANGLE = 30
   LIMIT_PADDING = 5
 
-  TRACK_MAX_UPDATE_RATE = 0.5
+  TRACK_UPDATE_INTERVAL = 0.5
   TRACK_MIN_ERROR_DEG = 10
   TRACK_DEFAULT_SOURCE = 'targets'
   TRACK_SENSITIVITY = 0.5
@@ -69,15 +70,17 @@ class NepiPanTiltAutoApp(object):
   TRACK_RESET_TIME_SEC = 2
   TRACK_DEFAULT_TARGETS = ['person']
 
-  TARGET_BEST_FILTER_OPTIONS = nepi_targets.TARGET_BEST_FILTER_OPTIONS
+  TARGET_BEST_FILTER_OPTIONS = nepi_targets.BEST_FILTER_OPTIONS
   TARGET_BEST_FILTER_DEFAULT = 'LARGEST'
 
-  LOCK_MAX_UPDATE_RATE = 0.5
+  LOCK_UPDATE_INTERVAL = 0.5
   LOCK_MIN_ERROR_DEG = 5
   LOCK_DEFAULT_SOURCE = 'base_frame'
 
   IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
   IMAGE_PRIORITY_NAMES = ['color_image','detection_image','target_image']
+
+
 
   #####################
   
@@ -168,14 +171,7 @@ class NepiPanTiltAutoApp(object):
   targets_msg = None
   last_targets_time = 0
   
-  track_ordered_list = TRACK_DEFAULT_TARGETS
-  track_max_update_rate = TRACK_MAX_UPDATE_RATE
-  track_best_filter = TARGET_BEST_FILTER_DEFAULT
-  track_min_error_deg = TRACK_MIN_ERROR_DEG
-  track_source_topic = TRACK_DEFAULT_SOURCE
-  track_source_connected_namespace = "None"
-  track_source_connected = False
-  track_source_connecting = False
+
   last_track_pan_time = 0
   last_track_tilt_time = 0
 
@@ -191,26 +187,27 @@ class NepiPanTiltAutoApp(object):
   track_tilt_min_deg = -DEFAULT_MIN_MAX_DEG
   track_tilt_max_deg = DEFAULT_MIN_MAX_DEG
 
+  track_min_error_deg = TRACK_MIN_ERROR_DEG
   track_reset_time_sec = TRACK_RESET_TIME_SEC
+  track_move_ratio = 0.6
 
-  track_selected_source = 'None'
-  track_last_source = 'None'
-  track_if = None
+
+
   track_pan_dict = None
   track_tilt_dict = None
 
   track_num_avg = 1
   track_pan_error = 0
-  track_pan_sensitivity = TRACK_SENSITIVITY
   track_tilt_error = 0
-  track_tilt_sensitivity = TRACK_SENSITIVITY
+
+  track_if = None
 
 
   #####################
   navpose_msg = None
   last_navpose_time = 0
   
-  lock_max_update_rate = LOCK_MAX_UPDATE_RATE
+  lock_max_update_rate = LOCK_UPDATE_INTERVAL
   lock_min_error_deg = LOCK_MIN_ERROR_DEG
   lock_source_topic = LOCK_DEFAULT_SOURCE
   lock_source_connected_namespace = "None"
@@ -248,7 +245,10 @@ class NepiPanTiltAutoApp(object):
   click_tilt_enabled = True
   set_mouse_click = [0,0]
 
-
+  active_nodes = []
+  active_topics = []
+  active_topic_types = []
+  active_services = []
 
   #################
   ### Image Viewer
@@ -269,6 +269,31 @@ class NepiPanTiltAutoApp(object):
 
   available_image_topics = []  
   available_image_dict = dict()
+
+
+
+  ###############
+  # Tracking
+  ###############
+  targets_status_msg = None
+
+  track_source_topic = 'None'
+  track_source_connecting = False
+  track_source_connected = False
+  track_source_connected_namespace = "None"
+  track_last_source = 'None'
+
+  tracking_state = False
+  manages_targeting = True
+
+  track_available_targets = []
+  track_available_images = []
+  track_available_classes = []
+  track_available_best_filters = copy.deepcopy(nepi_tracking.BEST_FILTER_OPTIONS)
+
+  tracking_dict = copy.deepcopy(nepi_tracking.BLANK_TRACKING_DICT)
+
+
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_pan_tilt_scan" # Can be overwitten by luanch command
@@ -287,7 +312,7 @@ class NepiPanTiltAutoApp(object):
 
     ##############################     
     # Initialize Class Variables
-    self.track_selected_source = os.path.join(self.base_namespace,self.track_source_topic)
+
 
     self.scan_pan_times = [0,0,0,0,0]
     self.scan_tilt_times = [0,0,0,0,0]
@@ -384,7 +409,10 @@ class NepiPanTiltAutoApp(object):
             'factory_val': self.track_reset_time_sec
         },      
 
-        
+        'track_move_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.track_move_ratio
+        },    
         'lock_pan_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
@@ -423,7 +451,21 @@ class NepiPanTiltAutoApp(object):
         'num_windows': {
             'namespace': self.node_namespace,
             'factory_val': self.num_windows
+        },
+        #####################
+        ###Tracking
+        #####################
+        'manages_targeting': {
+            'namespace': self.node_namespace,
+            'factory_val': self.manages_targeting
+        },
+        'tracking_dict': {
+            'namespace': self.node_namespace,
+            'factory_val': self.tracking_dict
         }
+
+
+
     }
 
     # Publishers Config Dict ####################
@@ -432,6 +474,23 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'topic': 'status',
             'msg': PanTiltAutoAppStatus,
+            'qsize': 1,
+            'latch': True
+        },
+        #####################
+        ### Tracking
+        #####################
+        'track': {
+            'msg': Target,
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'track',
+            'qsize': 1,
+            'latch': True
+        },
+        'track_status': {
+            'msg': TrackingStatus,
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'status',
             'qsize': 1,
             'latch': True
         }
@@ -480,9 +539,6 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
 
-
-
-
         'set_track_pan_enable': {
             'namespace': self.node_namespace,
             'topic': 'set_track_pan_enable',
@@ -521,6 +577,14 @@ class NepiPanTiltAutoApp(object):
             'msg': Float32,
             'qsize': 1,
             'callback': self.setTrackResetTimeSecCb, 
+            'callback_args': ()
+        },
+        'set_track_move_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_track_move_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setTrackMoveRatioCb, 
             'callback_args': ()
         },
 
@@ -574,6 +638,13 @@ class NepiPanTiltAutoApp(object):
             'qsize': None,
             'callback': self.setTiltClickCb, 
             'callback_args': ()
+        },
+        'system_status': {
+            'msg': MgrSystemStatus,
+            'namespace': self.base_namespace,
+            'topic': 'status',
+            'qsize': 5,
+            'callback': self.systemStatusCb
         },
 
 
@@ -635,7 +706,59 @@ class NepiPanTiltAutoApp(object):
             'qsize': 10,
             'callback': self.setImagePriorityCb, 
             'callback_args': ()
-        }
+        },
+        #####################
+        ### Tracking
+        #####################
+        'set_manages_targeting': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_manages_targeting',
+            'msg': Bool,
+            'qsize': 10,
+            'callback': self.setManagesTargetingCb, 
+            'callback_args': ()
+        },
+        'set_targets_topic': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_targets_topic',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setTargetsTopicCb, 
+            'callback_args': ()
+        },
+        'set_source_topic': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_source_topic',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setSourceTopicCb, 
+            'callback_args': ()
+        },
+        'set_class_filter': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_class_filter',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setClassFilterCb, 
+            'callback_args': ()
+        },
+        'set_threshold_filter': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_threshold_filter',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setThresholdFilterCb, 
+            'callback_args': ()
+        },
+        'set_best_filter': {
+            'namespace': self.node_namespace + '/tracking',
+            'topic': 'set_best_filter',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setBestFilterCb, 
+            'callback_args': ()
+        },
+
     }
 
 
@@ -660,22 +783,20 @@ class NepiPanTiltAutoApp(object):
 
     self.msg_if.pub_warn("Starting status pub")
     nepi_sdk.start_timer_process(1.0, self.publishStatusCb)
-    nepi_sdk.start_timer_process(0.1, self.connectTrackSourceCb, oneshot = True)
-    #nepi_sdk.start_timer_process(self.update_image_subs_interval_sec, self.updateImageSubsThread)
 
     self.msg_if.pub_warn("has_scan_pan: " + str(self.has_scan_pan))
     if self.has_scan_pan:
         # Start Scan Pan Process
         self.msg_if.pub_info("Starting scan pan scanning process")
         nepi_sdk.start_timer_process(self.SCAN_UPDATE_INTERVAL, self.scanPanProcess)
-        nepi_sdk.start_timer_process(self.track_max_update_rate, self.trackPanProcess)
+        nepi_sdk.start_timer_process(self.TRACK_UPDATE_INTERVAL, self.trackPanProcess)
 
 
     if self.has_scan_tilt:
         # Start Scan Pan Process
         self.msg_if.pub_info("Starting scan tilt scanning process")
         nepi_sdk.start_timer_process(self.SCAN_UPDATE_INTERVAL, self.scanTiltProcess)
-        nepi_sdk.start_timer_process(self.track_max_update_rate, self.trackTiltProcess)
+        nepi_sdk.start_timer_process(self.TRACK_UPDATE_INTERVAL, self.trackTiltProcess)
 
 
 
@@ -684,6 +805,10 @@ class NepiPanTiltAutoApp(object):
         #self.msg_if.pub_warn("Starting sin scanning process")
         #nepi_sdk.start_timer_process(.5, self.scanPanSinProcess, oneshot = True)
         #nepi_sdk.start_timer_process(.5, self.scanTiltSinProcess, oneshot = True)
+
+
+    nepi_sdk.start_timer_process(1.0, self.updaterTrackingCb, oneshot = True)
+
 
     ##############################
     ## Initiation Complete
@@ -696,48 +821,70 @@ class NepiPanTiltAutoApp(object):
 #######################
   ### App Config Functions
 
-
+  ####################
+  # Wait for System and Config Statuses Callbacks
+  def systemStatusCb(self,msg):
+        self.active_nodes = msg.active_nodes
+        self.active_topics = msg.active_topics
+        self.active_topic_types = msg.active_topic_types
+        self.active_services = msg.active_services
 
   def initCb(self,do_updates = False):
     if self.node_if is not None:
 
         
-      self.selected_pan_tilt = self.node_if.get_param('selected_pan_tilt')
+        self.selected_pan_tilt = self.node_if.get_param('selected_pan_tilt')
 
-      scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
-      scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
-      self.scan_pan_min_deg = self.node_if.get_param('scan_pan_min_deg')
-      self.scan_pan_max_deg = self.node_if.get_param('scan_pan_max_deg')
-      self.scan_tilt_min_deg = self.node_if.get_param('scan_tilt_min_deg')
-      self.scan_tilt_max_deg = self.node_if.get_param('scan_tilt_max_deg')
-      self.setScanPan(scan_pan_enabled)
-      self.setScanTilt(scan_tilt_enabled)
+        scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
+        scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
+        self.scan_pan_min_deg = self.node_if.get_param('scan_pan_min_deg')
+        self.scan_pan_max_deg = self.node_if.get_param('scan_pan_max_deg')
+        self.scan_tilt_min_deg = self.node_if.get_param('scan_tilt_min_deg')
+        self.scan_tilt_max_deg = self.node_if.get_param('scan_tilt_max_deg')
+        self.setScanPan(scan_pan_enabled)
+        self.setScanTilt(scan_tilt_enabled)
 
-      track_pan_enabled = self.node_if.get_param('track_pan_enabled')
-      track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
-      self.track_pan_min_deg = self.node_if.get_param('track_pan_min_deg')
-      self.track_pan_max_deg = self.node_if.get_param('track_pan_max_deg')
-      self.track_tilt_min_deg = self.node_if.get_param('track_tilt_min_deg')
-      self.track_tilt_max_deg = self.node_if.get_param('track_tilt_max_deg')
-      self.track_reset_time_sec = self.node_if.get_param('track_reset_time_sec')
-      self.setTrackPan(track_pan_enabled)
-      self.setTrackTilt(track_tilt_enabled)
+        track_pan_enabled = self.node_if.get_param('track_pan_enabled')
+        track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
+        self.track_pan_min_deg = self.node_if.get_param('track_pan_min_deg')
+        self.track_pan_max_deg = self.node_if.get_param('track_pan_max_deg')
+        self.track_tilt_min_deg = self.node_if.get_param('track_tilt_min_deg')
+        self.track_tilt_max_deg = self.node_if.get_param('track_tilt_max_deg')
+        self.track_reset_time_sec = self.node_if.get_param('track_reset_time_sec')
+        self.track_move_ratio = self.node_if.get_param('track_move_ratio')
+        self.setTrackPan(track_pan_enabled)
+        self.setTrackTilt(track_tilt_enabled)
 
-      lock_pan_enabled = self.node_if.get_param('lock_pan_enabled')
-      lock_tilt_enabled = self.node_if.get_param('lock_tilt_enabled')
-      self.lock_pan_min_deg = self.node_if.get_param('lock_pan_min_deg')
-      self.lock_pan_max_deg = self.node_if.get_param('lock_pan_max_deg')
-      self.lock_tilt_min_deg = self.node_if.get_param('lock_tilt_min_deg')
-      self.lock_tilt_max_deg = self.node_if.get_param('lock_tilt_max_deg')
-      self.setLockPan(lock_pan_enabled)
-      self.setLockTilt(lock_tilt_enabled)
+        lock_pan_enabled = self.node_if.get_param('lock_pan_enabled')
+        lock_tilt_enabled = self.node_if.get_param('lock_tilt_enabled')
+        self.lock_pan_min_deg = self.node_if.get_param('lock_pan_min_deg')
+        self.lock_pan_max_deg = self.node_if.get_param('lock_pan_max_deg')
+        self.lock_tilt_min_deg = self.node_if.get_param('lock_tilt_min_deg')
+        self.lock_tilt_max_deg = self.node_if.get_param('lock_tilt_max_deg')
+        self.setLockPan(lock_pan_enabled)
+        self.setLockTilt(lock_tilt_enabled)
 
-      self.num_windows = self.node_if.get_param('num_windows')
-      self.selected_image_topics = self.node_if.get_param('selected_image_topics')
-      self.single_image_topic = self.node_if.get_param('single_image_topic')
-      if self.single_image_topic == 'None' and self.selected_image_topics[0] != 'None':
-         self.single_image_topic = self.selected_image_topics[0]
-         self.node_if.set_param('single_image_topic',self.single_image_topic)
+        self.num_windows = self.node_if.get_param('num_windows')
+        self.selected_image_topics = self.node_if.get_param('selected_image_topics')
+        self.single_image_topic = self.node_if.get_param('single_image_topic')
+        if self.single_image_topic == 'None' and self.selected_image_topics[0] != 'None':
+            self.single_image_topic = self.selected_image_topics[0]
+            self.node_if.set_param('single_image_topic',self.single_image_topic)
+
+        #####################
+        ###Tracking
+        #####################
+        self.manages_targeting = self.node_if.get_param('manages_targeting')
+        tracking_dict = self.node_if.get_param('tracking_dict')
+        blank_dict = copy.deepcopy(nepi_tracking.BLANK_TRACKING_DICT)
+        if tracking_dict is not None:
+            for entry in blank_dict.keys():
+                if entry not in tracking_dict.keys():
+                    tracking_dict[entry] = blank_dict[entry]
+        else:
+           tracking_dict = blank_dict
+        self.tracking_dict = tracking_dict
+      
 
     if do_updates == True:
       pass
@@ -771,13 +918,15 @@ class NepiPanTiltAutoApp(object):
       current_position = self.pt_connect_if.get_pan_tilt_position()
       #self.msg_if.pub_warn("current_position: " + str(current_position))
 
-    selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
-    last_available = copy.deepcopy(self.available_pan_tilts)
+
     needs_publish = False
 
     
     ##############
-    topics = nepi_sdk.find_topics_by_msg('DevicePTXStatus')
+    selected_pan_tilt = copy.deepcopy(self.selected_pan_tilt)
+    last_available = copy.deepcopy(self.available_pan_tilts)
+
+    topics = nepi_sdk.find_topics_by_msg('DevicePTXStatus', topics_list = self.active_topics, types_list = self.active_topic_types)
     available_pan_tilts = []
     for topic in topics:
       available_pan_tilts.append(topic.replace('/status',''))
@@ -803,7 +952,7 @@ class NepiPanTiltAutoApp(object):
        self.pt_connected = False
 
     ######################
-    topics = nepi_sdk.find_topics_by_msg('Image')
+    topics = nepi_sdk.find_topics_by_msg('Image', topics_list = self.active_topics, types_list = self.active_topic_types)
     available_image_topics = []
     image_priority_list = []
     for topic in topics:
@@ -823,19 +972,20 @@ class NepiPanTiltAutoApp(object):
     nepi_sdk.start_timer_process(1.0, self.updaterCb, oneshot = True)
 
 
+
+
+
   def get_image_priority_topic(self,image_topic,image_priority):
     priority_topic = image_topic
     if image_priority in self.image_priority_dict.keys():
       base_topic = os.path.dirname(image_topic)
       priority_name = self.image_priority_dict[image_priority]
       check_topic = os.path.join(base_topic,priority_name)
-      topics = nepi_sdk.find_topics_by_msg('Image')
+      topics = nepi_sdk.find_topics_by_msg('Image', topics_list = self.active_topics, types_list = self.active_topic_types)
       if check_topic in  topics:
          priority_topic = check_topic
     return priority_topic
      
-
-
 
 
   ##############################
@@ -1036,7 +1186,6 @@ class NepiPanTiltAutoApp(object):
 
   def setTrackResetTimeSecCb(self, msg):
       reset_time = msg.data
-      
       self.setTrackResetTimeSec(reset_time)
 
 
@@ -1048,7 +1197,23 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('track_reset_time_sec', reset_time)
-       
+            self.node_if.save_config()
+
+  def setTrackMoveRatioCb(self, msg):
+      ratio = msg.data
+      self.setTrackMoveRatio(ratio)
+
+
+  def setTrackMoveRatio(self,ratio):
+        ratio = nepi_utils.check_ratio(ratio)
+        self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.track_move_ratio = ratio
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('track_move_ratio', ratio)
+            #self.node_if.save_config()
+
+
 
   ##########################################
   # Lock
@@ -1056,7 +1221,7 @@ class NepiPanTiltAutoApp(object):
   def setLockPanCb(self, msg):
         enabled = msg.data
         self.msg_if.pub_info("Setting lock pan: " + str(enabled))
-        self.setLockPan(enabled)
+        #self.setLockPan(enabled)
 
 
   def setLockPan(self,enabled):
@@ -1170,9 +1335,95 @@ class NepiPanTiltAutoApp(object):
       self.node_if.set_param('sin_pan_enabled', self.sin_pan_enabled)
       
   '''
+    ##############################
+    # Tracking
+    #############################
+
+
+  def setManagesTargetingCb(self, msg):
+      value = msg.data
+      self.setManagesTargeting(value)
+
+  def setManagesTargeting(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.manages_targeting = value
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('manages_targeting', self.manages_targeting)
+            self.node_if.save_config()
+
+  def setTargetsTopicCb(self, msg):
+      value = msg.data
+      self.setTargetsTopic(value)
+
+  def setTargetsTopic(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.tracking_dict['targets_topic'] = value
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('tracking_dict', self.tracking_dict)
+            self.node_if.save_config()
+
+
+  def setSourceTopicCb(self, msg):
+      value = msg.data
+      self.setSourceTopic(value)
+
+  def setSourceTopic(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.tracking_dict['source_topic'] = value
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('tracking_dict', self.tracking_dict)
+            self.node_if.save_config()
+
+
+  def setClassFilterCb(self, msg):
+      value = msg.data
+      self.setClassFilter(value)
+
+  def setClassFilter(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.tracking_dict['class_filter'] = value
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('tracking_dict', self.tracking_dict)
+            self.node_if.save_config()
+
+
+  def setThresholdFilterCb(self, msg):
+      ratio = msg.data
+      self.setThresholdFilter(ratio)
+
+  def setThresholdFilter(self,ratio):
+        ratio = nepi_utils.check_ratio(ratio)
+        self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        last_val = copy.deepcopy(self.tracking_dict['threshold_filter'])
+        self.tracking_dict['threshold_filter'] = ratio
+        if last_val != ratio:
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('tracking_dict', self.tracking_dict)
+                #self.node_if.save_config()
+
+
+  def setBestFilterCb(self, msg):
+      value = msg.data
+      self.setBestFilter(value)
+
+  def setBestFilter(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.tracking_dict['best_filter'] = value
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('tracking_dict', self.tracking_dict)
+            #self.node_if.save_config()
 
 
 
+    ##############################
+    # Proccesses
+    #############################
 
 
   def scanPanProcess(self,timer):
@@ -1314,7 +1565,7 @@ class NepiPanTiltAutoApp(object):
                 self.track_pan_error = round(track_dict['azimuth_deg'],0)
                 if abs(self.track_pan_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track pan error " + str(pan_error))    
-                  pan_to_goal = pan_cur + self.track_pan_error  * self.track_pan_sensitivity
+                  pan_to_goal = pan_cur + self.track_pan_error  * self.track_move_ratio
                   if pan_to_goal != self.goto_position[0]:
                       self.goto_position[0] = pan_to_goal
                       self.pt_connect_if.goto_to_pan_position(pan_to_goal)
@@ -1357,7 +1608,7 @@ class NepiPanTiltAutoApp(object):
                 self.last_track_tilt_time = nepi_utils.get_time()
                 if abs(self.track_tilt_error) > self.track_min_error_deg:
                   #self.msg_if.pub_warn("Got track tilt error " + str(tilt_error))    
-                  tilt_to_goal = tilt_cur + self.track_tilt_error  * self.track_tilt_sensitivity
+                  tilt_to_goal = tilt_cur + self.track_tilt_error  * self.track_move_ratio
                   if tilt_to_goal != self.goto_position[1]:
                       self.goto_position[1] = tilt_to_goal
                       self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
@@ -1380,6 +1631,40 @@ class NepiPanTiltAutoApp(object):
                 
 
 
+  def filter_by_range_angles(self,targets_dict_list):
+    ################
+    # Filter by min max range and angles
+    filtered_dict_list = []
+    cur_position = copy.deepcopy(self.current_position)
+    if cur_position is not None:
+      [cur_pan,cur_tilt] = [cur_position[0],cur_position[1]]
+      range_min = self.track_range_min_m
+      range_max = self.track_range_max_m
+      pan_min = self.scan_pan_min_deg #track_pan_min_deg
+      pan_max = self.scan_pan_max_deg #track_pan_max_deg
+      tilt_min = self.scan_tilt_min_deg #track_tilt_min_deg
+      tilt_max = self.scan_tilt_max_deg #track_tilt_max_deg
+
+      for target_dict in targets_dict_list:
+          target_valid = True
+          range_m = target_dict['range_m']
+          if (range_m < range_min or range_m > range_max) and range_m != -999:
+            target_valid = False
+          target_pan_angle = target_dict['azimuth_deg']
+          pan_angle =  cur_pan + target_pan_angle
+          if (pan_angle < pan_min or pan_angle > pan_max) and target_pan_angle != -999:
+            target_valid = False
+          target_tilt_angle = cur_pan + target_dict['elevation_deg']
+          tilt_angle =  cur_tilt + target_tilt_angle
+          if (tilt_angle < tilt_min or tilt_angle > tilt_max) and target_tilt_angle != -999:
+            target_valid = False
+          if target_valid == True:
+            filtered_dict_list.append(target_dict)
+          #self.msg_if.pub_warn("Range Angle Filter returned: " + str(target_dict['target_name']) + " : " + str(target_valid) )
+          #self.msg_if.pub_warn(str([range_m,cur_pan,cur_tilt]))
+          #self.msg_if.pub_warn(str([range_m,target_pan_angle,target_tilt_angle]))
+          #self.msg_if.pub_warn(str([range_m,pan_angle,tilt_angle]))
+    return filtered_dict_list  
 
 
 
@@ -1489,104 +1774,8 @@ class NepiPanTiltAutoApp(object):
      #self.msg_if.pub_warn("Got Stop Tilt Cb")
      self.stopTiltControls()  
 
-  def connectTrackSourceCb(self,timer):
-    #self.msg_if.pub_info("connectTrackSourceCb called")
-    track_namespace = copy.deepcopy(self.track_selected_source)
-    if track_namespace != self.track_source_connected_namespace  and self.track_source_connecting == False:
-        if self.track_if is not None:
-            self.track_if = None
-            nepi_sdk.sleep(1)
-        self.track_source_connected = False
-        #self.msg_if.pub_warn("set_track_source connected False")
-        #self.msg_if.pub_warn("track_namespace: " + str(nepi_sdk.find_topic(track_namespace)))
-
-        if nepi_sdk.find_topic(track_namespace) != "": 
-
-            self.track_source_connecting = True                 
-            self.track_if = nepi_sdk.create_subscriber(track_namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (track_namespace), log_name_list = [])
-           
-    
-    nepi_sdk.start_timer_process(1, self.connectTrackSourceCb, oneshot = True)
 
 
-
-  def customFilterCb(self,targets_dict_list):
-     filtered_dict_list = self.filter_by_range_angles(targets_dict_list)
-     return filtered_dict_list
-
-
-  def filter_by_range_angles(self,targets_dict_list):
-    ################
-    # Filter by min max range and angles
-    filtered_dict_list = []
-    cur_position = copy.deepcopy(self.current_position)
-    if cur_position is not None:
-      [cur_pan,cur_tilt] = [cur_position[0],cur_position[1]]
-      range_min = self.track_range_min_m
-      range_max = self.track_range_max_m
-      pan_min = self.track_pan_min_deg
-      pan_max = self.track_pan_max_deg
-      tilt_min = self.track_tilt_min_deg
-      tilt_max = self.track_tilt_max_deg
-
-      for target_dict in targets_dict_list:
-          target_valid = True
-          range_m = target_dict['range_m']
-          if (range_m < range_min or range_m > range_max) and range_m != -999:
-            target_valid = False
-          target_pan_angle = target_dict['azimuth_deg']
-          pan_angle =  cur_pan + target_pan_angle
-          if (pan_angle < pan_min or pan_angle > pan_max) and target_pan_angle != -999:
-            target_valid = False
-          target_tilt_angle = cur_pan + target_dict['elevation_deg']
-          tilt_angle =  cur_tilt + target_tilt_angle
-          if (tilt_angle < tilt_min or tilt_angle > tilt_max) and target_tilt_angle != -999:
-            target_valid = False
-          if target_valid == True:
-            filtered_dict_list.append(target_dict)
-          #self.msg_if.pub_warn("Range Angle Filter returned: " + str(target_dict['target_name']) + " : " + str(target_valid) )
-          #self.msg_if.pub_warn(str([range_m,cur_pan,cur_tilt]))
-          #self.msg_if.pub_warn(str([range_m,target_pan_angle,target_tilt_angle]))
-          #self.msg_if.pub_warn(str([range_m,pan_angle,tilt_angle]))
-    return filtered_dict_list
-
-
-  def targetsCb(self,msg, args):
-    #self.msg_if.pub_info("Targets callback got new targets mgs")
-    target_namespace = args
-    self.track_source_connected = True
-    #self.msg_if.pub_warn("set_track_source connected True")
-    self.track_source_connected_namespace = self.track_selected_source
-    self.track_source_connecting == False
-    self.targets_msg = msg.targets
-    self.last_targets_time = nepi_utils.get_time()
-
-
-    #self.msg_if.pub_warn("Got targets msg list " + str(targets_msg))
-    targets_dict_list = []
-    for target_msg in self.targets_msg:
-        target_dict = nepi_targets.convert_target_msg2dict(target_msg)
-        targets_dict_list.append(target_dict)
-        #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
-    #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
-
-
-    #########################
-    # Filter Targets
-    targets_dict_list = self.customFilterCb(targets_dict_list)
-    targets_dict_list = nepi_targets.filter_by_names(targets_dict_list,self.track_ordered_list)
-    
-    #################
-    # Find Best Target
-    best_target_dict = None
-    if len(targets_dict_list) > 0:
-        #self.msg_if.pub_warn("Processing target list length " + str(len(targets_dict_list)))
-        best_target_dict = nepi_targets.find_best(targets_dict_list, best_filter = self.track_best_filter)
-
-    ##################
-    #self.msg_if.pub_warn("Got track dict" + str(track_dict))
-    self.track_pan_dict = copy.deepcopy(best_target_dict)
-    self.track_tilt_dict = copy.deepcopy(best_target_dict)
 
 
 ##########################
@@ -1730,11 +1919,144 @@ class NepiPanTiltAutoApp(object):
       self.node_if.set_param('selected_image_topics', self.selected_image_topics)
       self.node_if.save_config()
 
-        
-        
-     
 
-  ####################
+##########################
+### Tracking
+##########################  
+
+
+  def updaterTrackingCb(self,timer):
+    #self.msg_if.pub_warn("Tracking Updater Called")
+
+    needs_publish = False
+    tracking_dict = copy.deepcopy(self.tracking_dict)
+    targets_topic =  tracking_dict['targets_topic']
+    source_topic = tracking_dict['source_topic']
+    
+    track_sources = nepi_tracking.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
+    self.track_available_targets = track_sources
+    
+    # #### Purge if needed
+    # do_purge = False
+    # if targets_topic == self.track_source_connected_namespace and 
+    # #self.msg_if.pub_info("connectTrackSourceCb called")
+    # track_namespace = self.track_source_topic
+    # if track_namespace != self.track_source_connected_namespace  and self.track_source_connecting == False:
+    #     if self.track_if is not None:
+    #         self.track_if = None
+    #         nepi_sdk.sleep(1)
+    #     self.track_source_connected = False
+    #     #self.msg_if.pub_warn("set_track_source connected False")
+    #     #self.msg_if.pub_warn("track_namespace: " + str(nepi_sdk.find_topic(track_namespace)))
+
+    #     if nepi_sdk.find_topic(track_namespace) != "": 
+
+    #         self.track_source_connecting = True                 
+    #         self.track_if = nepi_sdk.create_subscriber(track_namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (track_namespace), log_name_list = [])
+
+
+    # ####################
+    # if self.pt_connected_topic is not None:
+    #   if self.pt_connected_topic not in self.available_pan_tilts:
+    #     success = self.unsubscribe_pt_topic()
+    # if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
+    #     self.selected_pan_tilt = self.available_pan_tilts[0]
+    # needs_publish = True
+
+    # if self.selected_pan_tilt in self.available_pan_tilts and self.pt_connected_topic != selected_pan_tilt:
+    #   success = self.subscribe_pt_topic(self.selected_pan_tilt)
+
+    # elif self.pt_connect_if is not None:
+    #    self.pt_connected = self.pt_connect_if.check_connection()
+    #    needs_publish = True
+    # else:
+    #    self.pt_connected = False
+
+    # ######################
+    # topics = nepi_sdk.find_topics_by_msg('Image', topics_list = self.active_topics, types_list = self.active_topic_types)
+    # available_image_topics = []
+    # image_priority_list = []
+    # for topic in topics:
+    #   available_image_topics.append(topic)   
+    #   image_name = os.path.basename(topic)
+    #   for priority_option in self.image_priority_dict.keys(): 
+    #      priority_name = self.image_priority_dict[priority_option]
+    #      if priority_name == image_name and priority_option not in image_priority_list:
+    #         image_priority_list.append(priority_option)
+    # self.available_image_topics = available_image_topics
+    # self.image_priority_list = image_priority_list
+      
+
+
+
+    # track_available_targets = []
+    
+    # if track_source_connected == False:
+    #     tracking_state = False
+
+    #     track_available_images = []
+    #     track_available_classes = []
+    #     track_threshold_filter = []
+    #     track_available_best_filters = []
+
+    ##################
+    # Get settings from param server
+    if needs_publish == True:
+      self.publish_status()
+
+    nepi_sdk.start_timer_process(1.0, self.updaterTrackingCb, oneshot = True)     
+
+
+  def customFilterCb(self,targets_dict_list):
+     filtered_dict_list = self.filter_by_range_angles(targets_dict_list)
+     return filtered_dict_list
+
+
+  def targetsCb(self,msg, args):
+    #self.msg_if.pub_info("Targets callback got new targets mgs")
+    targets_namespace = args
+    self.track_source_connected = True
+    self.track_source_connecting == False
+    self.targets_msg = msg.targets
+    tracking_dict = copy.deepcopy(self.tracking_dict)
+    targets_topic = tracking_dict['targets_topic']
+    source_topic = tracking_dict['source_topic']
+    if targets_topic == msg.process_namespace and source_topic == msg.source_topic:
+        self.last_targets_time = nepi_utils.get_time()
+
+        #self.msg_if.pub_warn("Got targets msg list " + str(targets_msg))
+        targets_dict_list = []
+        for target_msg in self.targets_msg:
+            target_dict = nepi_targets.convert_target_msg2dict(target_msg)
+            targets_dict_list.append(target_dict)
+            #self.msg_if.pub_warn("Added target list for name " + str(target_dict['target_name']))
+        #self.msg_if.pub_warn("Filtering targets with ordered name list " + str(self.track_ordered_list))
+
+
+        #########################
+        # Apply Cutsom Filter Targets
+        if self.customFilterCb is not None:
+            targets_dict_list = self.customFilterCb(targets_dict_list)
+        
+        #################
+        # Find Best Target
+        best_target_dict = nepi_tracking.get_best_from_targets(targets_dict_list,tracking_dict)
+        
+        if best_target_dict is not None:
+            ##################
+            #self.msg_if.pub_warn("Got track dict" + str(track_dict))
+            self.track_pan_dict = copy.deepcopy(best_target_dict)
+            self.track_tilt_dict = copy.deepcopy(best_target_dict)
+
+            track_msg = nepi_targets.convert_target_dict2msg(best_target_dict)
+            if self.node_if is not None:
+                self.node_if.publish_pub('track', self.track_msg) 
+
+
+
+##########################
+### Status
+##########################  
 
  
   
@@ -1803,8 +2125,7 @@ class NepiPanTiltAutoApp(object):
 
 
 
-    self.status_msg.track_selected_source = self.track_selected_source
-    self.status_msg.track_source_connected = self.track_source_connected
+
 
 
     self.status_msg.track_pan_enabled = self.track_pan_enabled
@@ -1833,6 +2154,92 @@ class NepiPanTiltAutoApp(object):
 
     ############
 
+    ###############
+    # Tracking
+    ###############
+    # ################
+    # # Targeting Status
+    targets_status_msg = copy.deepcopy(self.targets_status_msg)
+    tracking_dict = copy.deepcopy(self.tracking_dict)
+
+    tracking_status_msg = TrackingStatus()
+
+    tracking_status_msg.name = self.node_name
+    tracking_status_msg.node_name = self.node_name
+    tracking_status_msg.namespace = self.node_namespace
+
+    #tracking_status_msg.save_data_topic = self.save_data_namespace
+
+    #################
+    tracking_status_msg.enabled = True
+    tracking_status_msg.running = targets_status_msg is not None
+    tracking_status_msg.state = self.tracking_state
+
+    ##############
+    tracking_status_msg.manages_targeting = self.manages_targeting
+
+    targets_sources = copy.deepcopy(self.track_available_targets)
+    tracking_status_msg.available_targets_topics = targets_sources
+    targets_topic = tracking_dict['targets_topic']
+    if targets_topic not in targets_sources:
+       targets_topic = 'None'
+    tracking_status_msg.selected_targets = targets_topic
+    targets_connected = targets_status_msg is not None and targets_topic != 'None' and targets_status_msg is not None
+
+    ################
+    tracking_status_msg.targets_connected = targets_connected
+    if targets_status_msg is not None and targets_connected == True:
+
+        track_sources = targets_status_msg.available_source_topics
+        tracking_status_msg.available_source_topics = track_sources
+        track_sources_selected = targets_status_msg.selected_sources
+        source_topic = tracking_dict['source_topic']
+        if source_topic not in track_sources:
+            source_topic = 'None'
+        tracking_status_msg.selected_targets = source_topic
+        if source_topic != 'None' and source_topic in track_sources_selected:
+            source_ind = track_sources_selected.index(source_topic)
+            if source_ind != -1:
+                try:
+                    tracking_status_msg.source_connected = targets_status_msg.sources_connected[source_ind]
+                    tracking_status_msg.source_have_range = targets_status_msg.sources_have_range[source_ind]
+                    tracking_status_msg.source_fov_horz_degs = targets_status_msg.sources_fov_horz_degs[source_ind]
+                    tracking_status_msg.source_fov_vert_degs = targets_status_msg.sources_fov_vert_degs[source_ind]
+                except:
+                   pass
+        else:
+           ################ NEEDS UPDATE ######################
+           pass
+                
+        ##################
+        track_classes = targets_status_msg.available_classs
+        tracking_status_msg.available_classes = track_classes
+        classes_selected = targets_status_msg.selected_classes
+        class_filter = tracking_dict['class_filter']
+        if class_filter not in track_classes:
+            class_filter = 'None'
+        tracking_status_msg.selected_class = class_filter
+        if class_filter != 'None' and class_filter in classes_selected:    
+            pass
+        else:
+           ################ NEEDS UPDATE ######################
+           pass
+        
+    ##############
+    tracking_status_msg.threshold_filter = tracking_dict['threshold_filter']
+
+    tracking_status_msg.size_min_filter = tracking_dict['size_min_filter']
+    tracking_status_msg.size_max_filter = tracking_dict['size_max_filter']
+
+
+    tracking_status_msg.range_filter_min = tracking_dict['range_min_filter']
+    tracking_status_msg.range_filter_max = tracking_dict['range_max_filter']
+
+    tracking_status_msg.available_best_filters = self.track_available_best_filters
+    tracking_status_msg.selected_best_filter  = tracking_dict['best_filter']
+
+    self.status_msg.tracking_status = tracking_status_msg
+    ############
 
     if self.node_if is not None:
       if self.has_published == False:

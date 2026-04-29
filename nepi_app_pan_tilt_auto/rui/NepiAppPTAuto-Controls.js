@@ -521,8 +521,8 @@ componentWillUnmount() {
 
           <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-            <div style={{ display: 'flex' }} hidden={(show_control !== 'None' && show_control !== 'pantilt')}>
-                <div style={{ width: '60%' }} >
+            <div style={{ display: 'flex' }} >
+                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'pantilt')} >
 
                         <Label title="Show PanTilt Controls">
                             <Toggle
@@ -541,8 +541,8 @@ componentWillUnmount() {
                 {this.renderPTControls()}
           </div>
 
-            <div style={{ display: 'flex' }} hidden={(show_control !== 'None' && show_control !== 'track')}>
-                <div style={{ width: '60%' }} >
+            <div style={{ display: 'flex' }} >
+                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'track')}>
 
                         <Label title="Show Track Controls">
                             <Toggle
@@ -816,7 +816,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 
           <Nepi_IF_Tracking                        
-            namespace={namespace + '/tracking'}
+            namespace={namespace}
+            status_msg={status_msg.tracking_status}
             make_section={false}
           />
 
