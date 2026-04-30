@@ -59,6 +59,8 @@ float32 track_tilt_max_deg
 float32 track_move_ratio
 float32 track_reset_time_sec
 
+bool track_source_connected
+
 nepi_interfaces/TrackingStatus tracking_status
 
 

@@ -32,7 +32,7 @@ from nepi_sdk import nepi_tracking
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
-from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TrackingStatus
+from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TargetingUpdate, TrackingStatus
 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -275,21 +275,34 @@ class NepiPanTiltAutoApp(object):
   ###############
   # Tracking
   ###############
-  targets_status_msg = None
+  BLANK_TARGETS_INFO_DICT = {}
 
-  track_source_topic = 'None'
-  track_source_connecting = False
-  track_source_connected = False
-  track_source_connected_namespace = "None"
-  track_last_source = 'None'
+
+  targets_status_msg = None
+  targets_status_msg_start = None
+  targets_status_time = None
+  targets_timeout = 3
+
+  tracking_enabled = False
+
+  tracking_status_msg = TrackingStatus()
+  tracking_info_dict = None
+  tracking_subpub_dict = None
+  tracking_subpub_lock = threading.Lock()
+
+  tracking_targets_topic = 'None'
+  tracking_targets_connecting = False
+  tracking_targets_connected = False
+  tracking_targets_connected_namespace = "None"
+  tracking_last_targets = 'None'
 
   tracking_state = False
   manages_targeting = True
 
-  track_available_targets = []
-  track_available_images = []
-  track_available_classes = []
-  track_available_best_filters = copy.deepcopy(nepi_tracking.BEST_FILTER_OPTIONS)
+  tracking_available_targets = []
+  tracking_available_images = []
+  tracking_available_classes = []
+  tracking_available_best_filters = copy.deepcopy(nepi_tracking.BEST_FILTER_OPTIONS)
 
   tracking_dict = copy.deepcopy(nepi_tracking.BLANK_TRACKING_DICT)
 
@@ -884,6 +897,7 @@ class NepiPanTiltAutoApp(object):
         else:
            tracking_dict = blank_dict
         self.tracking_dict = tracking_dict
+        self.tracking_targets_topic = tracking_dict['targets_topic']
       
 
     if do_updates == True:
@@ -1117,11 +1131,11 @@ class NepiPanTiltAutoApp(object):
 
   def setTrackPan(self,enabled):
         if enabled == True:
-            
             #self.scan_pan_enabled = False
             self.lock_pan_enabled = False           
         self.track_pan_enabled = enabled
         self.scan_pan_track_hold = enabled
+        self.setTrackingEnable(enabled)
         self.publish_status()
         self.node_if.set_param('track_pan_enabled', self.track_pan_enabled)
 
@@ -1136,6 +1150,7 @@ class NepiPanTiltAutoApp(object):
             self.lock_tilt_enabled = False
         self.track_tilt_enabled = enabled
         self.scan_tilt_track_hold = enabled
+        self.setTrackingEnable(enabled)
         self.publish_status()
         self.node_if.set_param('track_tilt_enabled', self.track_tilt_enabled)
 
@@ -1359,6 +1374,7 @@ class NepiPanTiltAutoApp(object):
   def setTargetsTopic(self,value):
         #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
         self.tracking_dict['targets_topic'] = value
+        self.tracking_targets_topic = value
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_dict', self.tracking_dict)
@@ -1548,7 +1564,7 @@ class NepiPanTiltAutoApp(object):
 
 
   def trackPanProcess(self,timer):
-      if self.track_pan_enabled == False or self.track_source_connected == False:
+      if self.track_pan_enabled == False or self.tracking_targets_connected == False:
            self.pan_tracking = False
       else:
           if self.current_position == None or self.pan_locked == True:
@@ -1591,7 +1607,7 @@ class NepiPanTiltAutoApp(object):
       
 
   def trackTiltProcess(self,timer):
-      if self.track_tilt_enabled == False or self.track_source_connected == False:
+      if self.track_tilt_enabled == False or self.tracking_targets_connected == False:
            self.tilt_tracking = False
       else:
           if self.current_position == None or self.tilt_locked == True:
@@ -1925,6 +1941,18 @@ class NepiPanTiltAutoApp(object):
 ##########################  
 
 
+  def setTrackingEnable(self,enabled):
+      self.tracking_enabled = enabled
+      if enabled == False:
+          msg = copy.deepcopy(self.targets_status_msg_start)
+          if msg is not None:
+            self.sendTargetsMsg('config_pub',msg)
+
+  def checkForTargetsTopic(self,namespace):
+      check_topic = namespace + '/status'
+      found = check_topic in self.active_topics
+      return found
+
   def updaterTrackingCb(self,timer):
     #self.msg_if.pub_warn("Tracking Updater Called")
 
@@ -1934,70 +1962,77 @@ class NepiPanTiltAutoApp(object):
     source_topic = tracking_dict['source_topic']
     
     track_sources = nepi_tracking.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
-    self.track_available_targets = track_sources
+    self.tracking_available_targets = track_sources
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Tracking Updater Purge Check")
+    # self.msg_if.pub_warn("available targets: " + str(self.tracking_available_targets))
+    # self.msg_if.pub_warn("tracking_dict: " + str(tracking_dict))
+    # connect_states = [self.tracking_targets_connected,self.tracking_targets_connecting]
+    # self.msg_if.pub_warn("connect states: " + str(connect_states))
+    # cur_namespace = self.tracking_targets_connected_namespace
+    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
+    # active = self.checkForTargetsTopic(cur_namespace)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+
+    ####################
+    #### Purge if needed
+    do_purge = False
+    if (self.tracking_targets_connected == True or self.tracking_targets_connecting == True):
+        cur_namespace = self.tracking_targets_connected_namespace
+        if self.checkForTargetsTopic(cur_namespace) == False and cur_namespace != 'None' and self.tracking_subpub_dict is not None:
+            self.msg_if.pub_warn("Unsubscribing to Targets self.tracking_targets_connected_namespace: " + str(cur_namespace))
+            success = self.unsubscribeTargets()
+            needs_publish = True
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Tracking Updater Connect Check")
+    # self.msg_if.pub_warn("available targets: " + str(self.tracking_available_targets))
+    # self.msg_if.pub_warn("tracking_dict: " + str(tracking_dict))
+    # connect_states = [self.tracking_targets_connected,self.tracking_targets_connecting]
+    # self.msg_if.pub_warn("connect states: " + str(connect_states))
+    # cur_namespace = self.tracking_targets_connected_namespace
+    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
+    # active = self.checkForTargetsTopic(cur_namespace)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+    # targets_topic =  tracking_dict['targets_topic']
+    # self.msg_if.pub_warn("check_namespace: " + str(targets_topic))
+    # active = self.checkForTargetsTopic(targets_topic)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+
+
+    ####################
+    #### Connect if needed
+    needs_connect = False
+    cur_namespace = self.tracking_targets_connected_namespace
+    if (targets_topic != cur_namespace and self.checkForTargetsTopic(targets_topic) and targets_topic != 'None'):
+        if (self.tracking_targets_connected == False and self.tracking_targets_connecting == False):
+            self.msg_if.pub_warn("Subscribing to Targets topic: " + str(targets_topic) + " does not match current namespace " + str(cur_namespace))
+            needs_connect = True
+            success = self.subscribeTargets(targets_topic)
+            needs_publish = True
     
-    # #### Purge if needed
-    # do_purge = False
-    # if targets_topic == self.track_source_connected_namespace and 
-    # #self.msg_if.pub_info("connectTrackSourceCb called")
-    # track_namespace = self.track_source_topic
-    # if track_namespace != self.track_source_connected_namespace  and self.track_source_connecting == False:
-    #     if self.track_if is not None:
-    #         self.track_if = None
-    #         nepi_sdk.sleep(1)
-    #     self.track_source_connected = False
-    #     #self.msg_if.pub_warn("set_track_source connected False")
-    #     #self.msg_if.pub_warn("track_namespace: " + str(nepi_sdk.find_topic(track_namespace)))
-
-    #     if nepi_sdk.find_topic(track_namespace) != "": 
-
-    #         self.track_source_connecting = True                 
-    #         self.track_if = nepi_sdk.create_subscriber(track_namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (track_namespace), log_name_list = [])
-
-
-    # ####################
-    # if self.pt_connected_topic is not None:
-    #   if self.pt_connected_topic not in self.available_pan_tilts:
-    #     success = self.unsubscribe_pt_topic()
-    # if selected_pan_tilt == 'None' and len(self.available_pan_tilts) > 0:
-    #     self.selected_pan_tilt = self.available_pan_tilts[0]
-    # needs_publish = True
-
-    # if self.selected_pan_tilt in self.available_pan_tilts and self.pt_connected_topic != selected_pan_tilt:
-    #   success = self.subscribe_pt_topic(self.selected_pan_tilt)
-
-    # elif self.pt_connect_if is not None:
-    #    self.pt_connected = self.pt_connect_if.check_connection()
-    #    needs_publish = True
-    # else:
-    #    self.pt_connected = False
-
-    # ######################
-    # topics = nepi_sdk.find_topics_by_msg('Image', topics_list = self.active_topics, types_list = self.active_topic_types)
-    # available_image_topics = []
-    # image_priority_list = []
-    # for topic in topics:
-    #   available_image_topics.append(topic)   
-    #   image_name = os.path.basename(topic)
-    #   for priority_option in self.image_priority_dict.keys(): 
-    #      priority_name = self.image_priority_dict[priority_option]
-    #      if priority_name == image_name and priority_option not in image_priority_list:
-    #         image_priority_list.append(priority_option)
-    # self.available_image_topics = available_image_topics
-    # self.image_priority_list = image_priority_list
       
 
+    ##################
+    # Update status
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Tracking Status Msg Check")
+    # self.msg_if.pub_warn("status_msg is None: " + str(self.targets_status_msg is None))
 
 
-    # track_available_targets = []
-    
-    # if track_source_connected == False:
-    #     tracking_state = False
+    if self.tracking_targets_connected == True:
+        if self.targets_status_time is not None:
+            last_time = nepi_utils.get_time() - self.targets_status_time
+            if last_time > self.targets_timeout:
+                self.msg_if.pub_warn("Clearing targets status message on timeout")
+                self.targets_status_msg = None
+                self.targets_status_time = None
+                needs_publish = True
 
-    #     track_available_images = []
-    #     track_available_classes = []
-    #     track_threshold_filter = []
-    #     track_available_best_filters = []
 
     ##################
     # Get settings from param server
@@ -2005,6 +2040,80 @@ class NepiPanTiltAutoApp(object):
       self.publish_status()
 
     nepi_sdk.start_timer_process(1.0, self.updaterTrackingCb, oneshot = True)     
+
+
+  def sendTargetsMsg(self,msg_name,msg):
+        success = False
+        if self.tracking_subpub_dict is not None:
+            self.tracking_subpub_lock.acquire()
+            try:
+                nepi_sdk.publish_pub(self.tracking_subpub_dict[msg_name],msg)
+                success = True
+            except:
+                pass
+            self.tracking_subpub_lock.release()
+        return success
+
+
+  def subscribeTargets(self,namespace):
+        success = True
+        if self.tracking_subpub_dict is not None:
+            success = self.unsubscribeTargets()
+        if namespace != 'None':
+            self.tracking_targets_connecting = True
+            self.tracking_targets_connected_namespace = namespace
+            self.msg_if.pub_warn("Subscribing to Targets topic: " + str(namespace))
+            tracking_subpub_dict = dict()
+
+            tracking_subpub_dict['targets_sub'] = nepi_sdk.create_subscriber(namespace + '/targets', Targets, self.targetsCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+            tracking_subpub_dict['status_sub'] = nepi_sdk.create_subscriber(namespace + '/status', TargetingStatus, self.targetsStatusCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+            
+            tracking_subpub_dict['enable_pub'] = nepi_sdk.create_publisher(namespace + '/enable', Bool, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['source_pub'] = nepi_sdk.create_publisher(namespace + '/set_source_topic', String, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', TargetingUpdate, queue_size = 10, log_name_list = [])
+
+            self.tracking_subpub_lock.acquire()
+            self.tracking_subpub_dict = tracking_subpub_dict
+            nepi_sdk.sleep(1)
+            self.tracking_subpub_lock.release()
+
+            self.sendTargetsMsg('enable_pub',True)
+
+
+            self.tracking_targets_connected = False
+            
+            self.targets_status_msg = None
+            self.targets_status_msg_start = None  
+        else:
+            self.tracking_targets_connecting = False
+        return success  
+
+  def unsubscribeTargets(self):
+        if self.tracking_subpub_dict is not None:
+            namespace = self.tracking_targets_connected_namespace
+            self.msg_if.pub_info("Unsubscribing to Targets topic: " + str(namespace))
+            self.tracking_subpub_lock.acquire()
+            if self.targets_status_msg_start is not None:
+                try:
+                    nepi_sdk.publish_pub(self.tracking_subpub_dict['config_pub'],self.targets_status_msg_start)
+                except:
+                    pass
+            for subpub in self.tracking_subpub_dict.keys():
+                try:
+                    self.tracking_subpub_dict[subpub].unregister()
+                except:
+                    pass
+            self.tracking_subpub_lock.release()
+            nepi_sdk.sleep(1)
+        self.tracking_targets_connecting = False
+        self.tracking_targets_connected = False
+        self.tracking_targets_connected_namespace = 'None'
+        self.targets_status_msg = None
+        self.targets_status_msg_start = None 
+        self.targets_status_time = None
+        return True
 
 
   def customFilterCb(self,targets_dict_list):
@@ -2015,8 +2124,6 @@ class NepiPanTiltAutoApp(object):
   def targetsCb(self,msg, args):
     #self.msg_if.pub_info("Targets callback got new targets mgs")
     targets_namespace = args
-    self.track_source_connected = True
-    self.track_source_connecting == False
     self.targets_msg = msg.targets
     tracking_dict = copy.deepcopy(self.tracking_dict)
     targets_topic = tracking_dict['targets_topic']
@@ -2052,6 +2159,20 @@ class NepiPanTiltAutoApp(object):
             if self.node_if is not None:
                 self.node_if.publish_pub('track', self.track_msg) 
 
+  def targetsStatusCb(self,msg, args):
+    #self.msg_if.pub_info("Targets callback got new targets mgs")
+    targets_namespace = args
+    status_msg = msg
+    namespace = status_msg.namespace
+
+    self.tracking_targets_connecting = False
+    self.tracking_targets_connected = True
+    self.targets_status_msg = msg
+    if self.targets_status_msg_start is None:
+        #self.msg_if.pub_warn("Got first Status msg from Targers namespace: " + str(namespace) + " : " + str(msg))
+        self.targets_status_msg_start = msg
+    self.targets_status_time = nepi_utils.get_time()
+
 
 
 ##########################
@@ -2071,8 +2192,6 @@ class NepiPanTiltAutoApp(object):
             self.max_pan_softstop_deg = round(limits[1], 0) - self.LIMIT_PADDING
             self.min_tilt_softstop_deg = round(limits[2], 0) + self.LIMIT_PADDING
             self.max_tilt_softstop_deg = round(limits[3], 0) - self.LIMIT_PADDING
-
-
     self.publish_status()
 
 
@@ -2111,6 +2230,7 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.pan_tracking = self.pan_tracking
     self.status_msg.tilt_tracking = self.tilt_tracking
+    self.status_msg.track_source_connected == self.targets_status_msg is not None and self.tracking_targets_connected == True
 
     self.status_msg.pan_locked = self.pan_locked
     self.status_msg.tilt_locked = self.tilt_locked
@@ -2162,83 +2282,93 @@ class NepiPanTiltAutoApp(object):
     targets_status_msg = copy.deepcopy(self.targets_status_msg)
     tracking_dict = copy.deepcopy(self.tracking_dict)
 
-    tracking_status_msg = TrackingStatus()
+    self.tracking_status_msg.name = self.node_name
+    self.tracking_status_msg.node_name = self.node_name
+    self.tracking_status_msg.namespace = self.node_namespace
 
-    tracking_status_msg.name = self.node_name
-    tracking_status_msg.node_name = self.node_name
-    tracking_status_msg.namespace = self.node_namespace
-
-    #tracking_status_msg.save_data_topic = self.save_data_namespace
+    #self.tracking_status_msg.save_data_topic = self.save_data_namespace
 
     #################
-    tracking_status_msg.enabled = True
-    tracking_status_msg.running = targets_status_msg is not None
-    tracking_status_msg.state = self.tracking_state
+    self.tracking_status_msg.enabled = True
+    self.tracking_status_msg.running = targets_status_msg is not None
+    self.tracking_status_msg.state = self.tracking_state
 
     ##############
-    tracking_status_msg.manages_targeting = self.manages_targeting
+    self.tracking_status_msg.manages_targeting = self.manages_targeting
 
-    targets_sources = copy.deepcopy(self.track_available_targets)
-    tracking_status_msg.available_targets_topics = targets_sources
+    targets_sources = copy.deepcopy(self.tracking_available_targets)
+    self.tracking_status_msg.available_targets_topics = targets_sources
     targets_topic = tracking_dict['targets_topic']
+    #self.msg_if.pub_warn("Status checking source against sources: " + str(targets_topic) + " " + str(targets_sources))
     if targets_topic not in targets_sources:
+       #self.msg_if.pub_warn("Status did not find source")
        targets_topic = 'None'
-    tracking_status_msg.selected_targets = targets_topic
-    targets_connected = targets_status_msg is not None and targets_topic != 'None' and targets_status_msg is not None
+    self.tracking_status_msg.selected_targets = targets_topic
+    targets_connected = targets_status_msg is not None and self.tracking_targets_connected == True
+
+    ##############
+    threshold = tracking_dict['threshold_filter']
+    self.tracking_status_msg.threshold_filter = threshold
+    
+
+    self.tracking_status_msg.size_min_filter = tracking_dict['size_min_filter']
+    self.tracking_status_msg.size_max_filter = tracking_dict['size_max_filter']
+
+
+    self.tracking_status_msg.range_filter_min = tracking_dict['range_min_filter']
+    self.tracking_status_msg.range_filter_max = tracking_dict['range_max_filter']
+
+    self.tracking_status_msg.available_best_filters = self.tracking_available_best_filters
+    self.tracking_status_msg.selected_best_filter  = tracking_dict['best_filter']
+
 
     ################
-    tracking_status_msg.targets_connected = targets_connected
+    self.tracking_status_msg.targets_connected = targets_connected
     if targets_status_msg is not None and targets_connected == True:
 
+        if self.tracking_enabled == True and targets_status_msg.enabled == False:
+            self.sendTargetsMsg('enable_pub',True)
+
         track_sources = targets_status_msg.available_source_topics
-        tracking_status_msg.available_source_topics = track_sources
+        self.tracking_status_msg.available_source_topics = track_sources
         track_sources_selected = targets_status_msg.selected_sources
         source_topic = tracking_dict['source_topic']
         if source_topic not in track_sources:
             source_topic = 'None'
-        tracking_status_msg.selected_targets = source_topic
+        self.tracking_status_msg.selected_source = source_topic
         if source_topic != 'None' and source_topic in track_sources_selected:
             source_ind = track_sources_selected.index(source_topic)
             if source_ind != -1:
                 try:
-                    tracking_status_msg.source_connected = targets_status_msg.sources_connected[source_ind]
-                    tracking_status_msg.source_have_range = targets_status_msg.sources_have_range[source_ind]
-                    tracking_status_msg.source_fov_horz_degs = targets_status_msg.sources_fov_horz_degs[source_ind]
-                    tracking_status_msg.source_fov_vert_degs = targets_status_msg.sources_fov_vert_degs[source_ind]
+                    self.tracking_status_msg.source_connected = targets_status_msg.sources_connected[source_ind]
+                    self.tracking_status_msg.source_have_range = targets_status_msg.sources_have_range[source_ind]
+                    self.tracking_status_msg.source_fov_horz_degs = targets_status_msg.sources_fov_horz_degs[source_ind]
+                    self.tracking_status_msg.source_fov_vert_degs = targets_status_msg.sources_fov_vert_degs[source_ind]
                 except:
                    pass
-        else:
-           ################ NEEDS UPDATE ######################
-           pass
+            else:
+                if self.tracking_subpub_dict is not None and self.tracking_enabled == True:
+                    self.sendTargetsMsg('source_pub',source_topic)
                 
         ##################
-        track_classes = targets_status_msg.available_classs
-        tracking_status_msg.available_classes = track_classes
+        track_classes = targets_status_msg.available_classes
+        self.tracking_status_msg.available_classes = track_classes
         classes_selected = targets_status_msg.selected_classes
         class_filter = tracking_dict['class_filter']
         if class_filter not in track_classes:
             class_filter = 'None'
-        tracking_status_msg.selected_class = class_filter
-        if class_filter != 'None' and class_filter in classes_selected:    
-            pass
-        else:
-           ################ NEEDS UPDATE ######################
-           pass
+        self.tracking_status_msg.selected_class = class_filter
+        if class_filter != 'None' and [class_filter] != classes_selected and self.tracking_enabled == True:
+            self.sendTargetsMsg('class_pub',class_filter)
+
+        #################
+        if round(threshold,2) != round(self.targets_status_msg.threshold_filter,2) and self.tracking_enabled == True:
+            self.sendTargetsMsg('threshold_pub',threshold)
+                
         
-    ##############
-    tracking_status_msg.threshold_filter = tracking_dict['threshold_filter']
-
-    tracking_status_msg.size_min_filter = tracking_dict['size_min_filter']
-    tracking_status_msg.size_max_filter = tracking_dict['size_max_filter']
 
 
-    tracking_status_msg.range_filter_min = tracking_dict['range_min_filter']
-    tracking_status_msg.range_filter_max = tracking_dict['range_max_filter']
-
-    tracking_status_msg.available_best_filters = self.track_available_best_filters
-    tracking_status_msg.selected_best_filter  = tracking_dict['best_filter']
-
-    self.status_msg.tracking_status = tracking_status_msg
+    self.status_msg.tracking_status = self.tracking_status_msg
     ############
 
     if self.node_if is not None:

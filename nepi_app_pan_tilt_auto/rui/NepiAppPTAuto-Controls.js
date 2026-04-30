@@ -25,13 +25,17 @@ import Section from "./Section"
 import { Columns, Column } from "./Columns"
 import Select, { Option } from "./Select"
 import { SliderAdjustment } from "./AdjustmentWidgets"
+import BooleanIndicator from "./BooleanIndicator"
 import Label from "./Label"
 import Input from "./Input"
 import Styles from "./Styles"
 import Button, { ButtonMenu } from "./Button"
-import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
 
-import Nepi_IF_Tracking from "./Nepi_IF_Tracking"
+
+import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
+import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists} from "./Utilities"
+
+
 
 @inject("ros")
 @observer
@@ -73,9 +77,7 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: false,
       autoTiltEnabled: false,
 
-      track_available_sources: null,
-      track_selected_source: null,
-      track_source_connected: null,
+      track_source_connected: false,
 
       click_pan_enabled: false,
       click_tilt_enabled: false,
@@ -101,19 +103,21 @@ class NepiAppPTAutoControls extends Component {
     this.onEnterSendTiltScanRangeWindowValue = this.onEnterSendTiltScanRangeWindowValue.bind(this)
 
     this.renderControlPanel = this.renderControlPanel.bind(this)
-    this.renderPTControls = this.renderPTControls.bind(this)
+    this.renderScanControls = this.renderScanControls.bind(this)
+
+    this.onMenuSelection = this.onMenuSelection.bind(this)
     this.renderTrackControls = this.renderTrackControls.bind(this)
 
     this.onPTUpdateText = this.onPTUpdateText.bind(this)
     this.onPTKeyText = this.onPTKeyText.bind(this)
 
-    this.getAppNamespace = this.getAppNamespace.bind(this)
+    this.getNamespace = this.getNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
 
   }
 
-  getAppNamespace(){
+  getNamespace(){
     const { namespacePrefix, deviceId} = this.props.ros
     var namespace = null
     if (namespacePrefix != null && deviceId != null){
@@ -134,8 +138,6 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: message.scan_pan_enabled,
       autoTiltEnabled: message.scan_tilt_enabled,
 
-      track_available_sources: message.track_available_sources,
-      track_selected_source: message.track_selected_source,
       track_source_connected: message.track_source_connected,
 
       trackPanEnabled: message.track_pan_enabled,
@@ -212,7 +214,7 @@ class NepiAppPTAutoControls extends Component {
 // Lifecycle method called when compnent updates.
 // Used to track changes in the topic
 componentDidUpdate(prevProps, prevState, snapshot) {
-  const namespace = this.getAppNamespace()
+  const namespace = this.getNamespace()
   if ((namespace != null && namespace !== this.state.appNamespace) || this.state.needs_update === true){
       this.updateStatusListener(namespace)
   }
@@ -327,7 +329,7 @@ componentWillUnmount() {
 
     //Unused const {sendTriggerMsg} = this.props.ros
 
-    const namespace = this.getAppNamespace()
+    const namespace = this.getNamespace()
 
     const status_msg = this.state.status_msg
     const topics = Object.keys(ptxDevices)
@@ -371,8 +373,8 @@ componentWillUnmount() {
     const hide_scan_pan = ((has_scan_pan === false ))
     const hide_scan_tilt = ((has_scan_tilt === false ))
 
-    const hide_track_pan = ((track_source_connected === false || hide_scan_pan === true))
-    const hide_track_tilt = ((track_source_connected === false || hide_scan_tilt === true))
+    const disable_track_enable = ((track_source_connected === false || hide_scan_pan === true))
+
 
   
       const pt_namespace = status_msg.pt_connected_topic
@@ -420,49 +422,42 @@ componentWillUnmount() {
             <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Tilt"}</div>
           </Label>
 
-            <Label title={"Enable Auto Scan"}>
-            <div hidden={(hide_scan_pan === true)}>
+            <Label title={"Enable Scanning"}>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                <Toggle style={{justifyContent: "flex-left"}} checked={autoPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_pan_enable",!autoPanEnabled)} />
-              </div>
+                <Toggle style={{justifyContent: "flex-left"}} 
+                  checked={autoPanEnabled} 
+                  onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_pan_enable",!autoPanEnabled)} />
               </div>
 
-              <div hidden={(hide_scan_tilt === true)}>
+
               <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                <Toggle style={{justifyContent: "flex-right"}} checked={autoTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_tilt_enable",!autoTiltEnabled)} />
+                <Toggle style={{justifyContent: "flex-right"}} 
+                  checked={autoTiltEnabled} 
+                  onClick={() => sendBoolMsg.bind(this)(namespace + "/set_scan_tilt_enable",!autoTiltEnabled)} />
               </div>
-              </div>
+
             </Label>
 
-            <div hidden={(this.state.hide_click_controls === true)}>
-              <Label title={"Select Pixel"}>
-                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                  <Toggle style={{justifyContent: "flex-left"}} checked={click_pan_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_pan_click_enable",!click_pan_enabled)} />
-                </div>
 
-
-                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                  <Toggle style={{justifyContent: "flex-right"}} checked={click_tilt_enabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_tilt_click_enable",!click_tilt_enabled)} />
-                </div>
-              </Label>
-            </div>
-
-
-            <div hidden={track_source_connected == false}>
               <Label title={"Enable Tracking"}>
-                <div hidden={(hide_track_pan === true)}>
+
                 <div style={{ display: "inline-block", width: "45%", float: "left" }}>
-                  <Toggle style={{justifyContent: "flex-left"}} checked={trackPanEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
-                </div>
+                  <Toggle style={{justifyContent: "flex-left"}} 
+                    disabled={disable_track_enable === true}
+                    checked={trackPanEnabled === true && disable_track_enable === false} 
+                    onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_pan_enable",!trackPanEnabled)} />
                 </div>
 
-                <div hidden={(hide_track_tilt === true)}>
+
                 <div style={{ display: "inline-block", width: "45%", float: "right" }}>
-                  <Toggle style={{justifyContent: "flex-right"}} checked={trackTiltEnabled} onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
+                  <Toggle style={{justifyContent: "flex-right"}} 
+                    disabled={disable_track_enable === true}
+                    checked={trackTiltEnabled === true && disable_track_enable === false} 
+                    onClick={() => sendBoolMsg.bind(this)(namespace + "/set_track_tilt_enable",!trackTiltEnabled)} />
                 </div>
-                </div>
+
               </Label>
-            </div>
+
 
 
           <div hidden={(has_abs_pos === false)}>
@@ -524,7 +519,7 @@ componentWillUnmount() {
             <div style={{ display: 'flex' }} >
                 <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'pantilt')} >
 
-                        <Label title="Show PanTilt Controls">
+                        <Label title="Show Scanning Controls">
                             <Toggle
                               checked={(show_control === 'pantilt')}
                               onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'pantilt') ? 'None' : 'pantilt' )}>
@@ -538,13 +533,13 @@ componentWillUnmount() {
 
           </div>
           <div hidden={(show_control !== 'pantilt')}>
-                {this.renderPTControls()}
+                {this.renderScanControls()}
           </div>
 
             <div style={{ display: 'flex' }} >
                 <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'track')}>
 
-                        <Label title="Show Track Controls">
+                        <Label title="Show Tracking Controls">
                             <Toggle
                               checked={(show_control === 'track')}
                               onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'track') ? 'None' : 'track' )}>
@@ -569,7 +564,7 @@ componentWillUnmount() {
 
 onEnterSendPanScanRangeWindowValue(event, topicName, entryName, other_val) {
   const {publishRangeWindow} = this.props.ros
-  const appnamespace = this.getAppNamespace()
+  const appnamespace = this.getNamespace()
   const topic_namespace = appnamespace + '/' + topicName
   var min = 0
   var max = 0
@@ -609,7 +604,7 @@ onEnterSendPanScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
   const {publishRangeWindow} = this.props.ros
-  const appnamespace = this.getAppNamespace()
+  const appnamespace = this.getNamespace()
   const topic_namespace = appnamespace + '/' + topicName
   var min = 0
   var max = 0
@@ -647,10 +642,10 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 }
 
-  renderPTControls() {
+  renderScanControls() {
 
 
-    const namespace = this.getAppNamespace()
+    const namespace = this.getNamespace()
 
     const status_msg = this.state.status_msg
 
@@ -799,27 +794,231 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 }
 
 
+  onMenuSelection(event){
+    const {sendStringMsg} = this.props.ros
+
+    const value = event.target.value
+    const topic = event.target.id
+    const namespace = this.getNamespace()
+    const sendNamespace = namespace + '/tracking/' +  topic
+    sendStringMsg(sendNamespace,value)
+  }
+
+
+
+
 
   renderTrackControls() {
 
 
-    const namespace = this.getAppNamespace()
+    const namespace = this.getNamespace()
+    const track_namespace = namespace + '/tracking'
 
     const status_msg = this.state.status_msg
+    const track_status_msg = status_msg.tracking_status
 
-    const selected_pan_tilt = this.state.selected_pan_tilt
+    const running = track_status_msg.running
+    const state = track_status_msg.state
 
-   
+    const available_targets = track_status_msg.available_targets_topics
+    const targets_names = createMenuBaseNames(available_targets)
+    const targets_menu = createMenuListFromStrLists(available_targets,targets_names, ['None'], [],'None Available')
+    const selected_targets = track_status_msg.selected_targets
+    const targets_connected = track_status_msg.targets_connected
+
+    
+    const available_sources = track_status_msg.available_source_topics
+    const sources_names = createMenuFirstLastNames(available_sources)
+    const sources_menu = createMenuListFromStrLists(available_sources,sources_names, ['None'], [],'None Available')
+    const selected_source = track_status_msg.selected_source
+    const source_connected = track_status_msg.source_connected
+
+    const available_classes = track_status_msg.available_classes
+    const classes_menu = createMenuListFromStrLists(available_classes,available_classes, ['None'], [],'None Available')
+    const selected_class = track_status_msg.selected_class
+
+    const threshold_filter = track_status_msg.threshold_filter
+
+    const available_best = track_status_msg.available_best_filters
+    const best_menu = createMenuListFromStrLists(available_best,available_best, [], [], '')
+    const best_filter = track_status_msg.selected_best_filter
+
+    const move_ratio = track_status_msg.track_move_ratio
+    const reset_time = track_status_msg.track_reset_time_sec
+
+    const manages_targeting = track_status_msg.manages_targeting
 
         return (
           <React.Fragment>
 
 
-          <Nepi_IF_Tracking                        
-            namespace={namespace}
-            status_msg={status_msg.tracking_status}
-            make_section={false}
-          />
+
+        <div style={{ display: 'flex' }}>
+          <div style={{ width: '80%' }}>
+
+            <Label title={'Select Detector'}>
+              <Select
+                id="set_targets_topic"
+                onChange={this.onMenuSelection}
+                value={selected_targets}
+              >
+                {targets_menu}
+              </Select>
+            </Label>
+
+            </div>
+
+              <div style={{ width: '10%' }}>
+                {}
+              </div>
+
+              <div style={{ width: '10%' }}>
+                
+                {}
+
+              </div>
+      </div>
+
+      <div hidden={selected_targets === 'None'}>
+
+        <div style={{ display: 'flex' }}>
+                      <div style={{ width: '40%' }}>
+
+                      <Label title={"Connected"}>
+                    <BooleanIndicator value={running} />
+                    </Label>
+
+
+                      </div>
+
+                      <div style={{ width: '20%' }}>
+                        {}
+                      </div>
+
+                      <div style={{ width: '40%' }}>
+                          <Label title={"Tracking"}>
+                            <BooleanIndicator value={state} />
+                          </Label>
+                      </div>
+          </div>
+
+        </div>
+
+        <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+
+        <div hidden={selected_targets === 'None' || targets_connected === false}>
+
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '80%' }}>
+
+                    <Label title={'Select Image'}>
+                      <Select
+                        id="set_source_topic"
+                        onChange={this.onMenuSelection}
+                        value={selected_source}
+                      >
+                        {sources_menu}
+                      </Select>
+                    </Label>
+
+                    </div>
+
+                      <div style={{ width: '10%' }}>
+                        {}
+                      </div>
+
+                      <div style={{ width: '10%' }}>
+                        
+                            <BooleanIndicator value={targets_connected} />
+                      </div>
+              </div>
+
+
+
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: '80%' }}>
+
+                    <Label title={'Select Class'}>
+                      <Select
+                        id="set_class_filter"
+                        onChange={this.onMenuSelection}
+                        value={selected_class}
+                      >
+                        {classes_menu}
+                      </Select>
+                    </Label>
+
+                    </div>
+                      <div style={{ width: '10%' }}>
+                        {}
+                      </div>
+
+                      <div style={{ width: '10%' }}>
+                        
+                            <BooleanIndicator value={targets_connected} />
+                      </div>
+              </div>
+
+                  <SliderAdjustment
+                            title={"Threshold"}
+                            msgType={"std_msgs/Float32"}
+                            adjustment={threshold_filter}
+                            topic={track_namespace + "/set_threshold_filter"}
+                            scaled={0.01}
+                            min={0}
+                            max={100}
+                            disabled={false}
+                            tooltip={"Sets target confidence threshold filter"}
+                            unit={"%"}
+                    />
+
+
+
+                    <Label title={'Select Filter'}>
+                      <Select
+                        id="set_best_filter"
+                        onChange={this.onMenuSelection}
+                        value={best_filter}
+                      >
+                        {best_menu}
+                      </Select>
+                    </Label>
+
+
+          {/* <Columns>
+          <Column>
+
+          <Label title="Manage Targeting">
+                <Toggle
+                checked={manages_targeting===true}
+                onClick={() => sendBoolMsg(track_namespace + "/set_manages_targeting",!manages_targeting)}>
+                </Toggle>
+          </Label>
+
+          </Column>
+          <Column>
+
+          </Column>
+          </Columns> */}
+
+
+      </div>
+
+
+                  <SliderAdjustment
+                            title={"Move Sensitivity"}
+                            msgType={"std_msgs/Float32"}
+                            adjustment={move_ratio}
+                            topic={namespace + "/set_track_move_ratio"}
+                            scaled={0.01}
+                            min={0}
+                            max={100}
+                            disabled={false}
+                            tooltip={"Sets target confidence threshold filter"}
+                            unit={"%"}
+                    />
+
 
 
         <Columns>
