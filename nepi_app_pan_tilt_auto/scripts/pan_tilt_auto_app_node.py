@@ -1943,6 +1943,8 @@ class NepiPanTiltAutoApp(object):
 
   def setTrackingEnable(self,enabled):
       self.tracking_enabled = enabled
+      if enabled == True:
+          self.targets_status_msg_last = None
       if enabled == False:
           msg = copy.deepcopy(self.targets_status_msg_start)
           if msg is not None:
@@ -2230,7 +2232,7 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.pan_tracking = self.pan_tracking
     self.status_msg.tilt_tracking = self.tilt_tracking
-    self.status_msg.track_source_connected == self.targets_status_msg is not None and self.tracking_targets_connected == True
+    self.status_msg.track_source_connected = self.targets_status_msg is not None and self.tracking_targets_connected == True
 
     self.status_msg.pan_locked = self.pan_locked
     self.status_msg.tilt_locked = self.tilt_locked
@@ -2299,9 +2301,9 @@ class NepiPanTiltAutoApp(object):
     targets_sources = copy.deepcopy(self.tracking_available_targets)
     self.tracking_status_msg.available_targets_topics = targets_sources
     targets_topic = tracking_dict['targets_topic']
-    #self.msg_if.pub_warn("Status checking source against sources: " + str(targets_topic) + " " + str(targets_sources))
+    #self.msg_if.pub_warn("Status checking target against targets: " + str(targets_topic) + " " + str(targets_sources))
     if targets_topic not in targets_sources:
-       #self.msg_if.pub_warn("Status did not find source")
+       #self.msg_if.pub_warn("Status did not find target")
        targets_topic = 'None'
     self.tracking_status_msg.selected_targets = targets_topic
     targets_connected = targets_status_msg is not None and self.tracking_targets_connected == True
@@ -2336,19 +2338,23 @@ class NepiPanTiltAutoApp(object):
         if source_topic not in track_sources:
             source_topic = 'None'
         self.tracking_status_msg.selected_source = source_topic
-        if source_topic != 'None' and source_topic in track_sources_selected:
-            source_ind = track_sources_selected.index(source_topic)
-            if source_ind != -1:
-                try:
-                    self.tracking_status_msg.source_connected = targets_status_msg.sources_connected[source_ind]
-                    self.tracking_status_msg.source_have_range = targets_status_msg.sources_have_range[source_ind]
-                    self.tracking_status_msg.source_fov_horz_degs = targets_status_msg.sources_fov_horz_degs[source_ind]
-                    self.tracking_status_msg.source_fov_vert_degs = targets_status_msg.sources_fov_vert_degs[source_ind]
-                except:
-                   pass
-            else:
+        #self.msg_if.pub_warn("Status checking source against sources: " + str([source_topic]) + " " + str(track_sources_selected))
+        if source_topic != 'None':
+            if source_topic in track_sources_selected:
+                source_ind = track_sources_selected.index(source_topic)
+                if source_ind != -1:
+                    try:
+                        self.tracking_status_msg.source_connected = targets_status_msg.sources_connected[source_ind]
+                        self.tracking_status_msg.source_have_range = targets_status_msg.sources_have_range[source_ind]
+                        self.tracking_status_msg.source_fov_horz_degs = targets_status_msg.sources_fov_horz_degs[source_ind]
+                        self.tracking_status_msg.source_fov_vert_degs = targets_status_msg.sources_fov_vert_degs[source_ind]
+                    except:
+                        pass
+            if [source_topic] != track_sources_selected:
                 if self.tracking_subpub_dict is not None and self.tracking_enabled == True:
-                    self.sendTargetsMsg('source_pub',source_topic)
+                        #self.msg_if.pub_warn("Status sending source update: " + str([source_topic]))
+                        self.sendTargetsMsg('source_pub',source_topic)
+
                 
         ##################
         track_classes = targets_status_msg.available_classes
@@ -2359,10 +2365,12 @@ class NepiPanTiltAutoApp(object):
             class_filter = 'None'
         self.tracking_status_msg.selected_class = class_filter
         if class_filter != 'None' and [class_filter] != classes_selected and self.tracking_enabled == True:
+            #self.msg_if.pub_warn("Status sending class update: " + str([class_filter]))
             self.sendTargetsMsg('class_pub',class_filter)
 
         #################
         if round(threshold,2) != round(self.targets_status_msg.threshold_filter,2) and self.tracking_enabled == True:
+            #self.msg_if.pub_warn("Status sending threshold update: " + str(threshold))
             self.sendTargetsMsg('threshold_pub',threshold)
                 
         
