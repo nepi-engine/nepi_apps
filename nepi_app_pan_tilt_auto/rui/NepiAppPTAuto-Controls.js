@@ -817,6 +817,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const status_msg = this.state.status_msg
     const track_status_msg = status_msg.tracking_status
 
+    const enabled = track_status_msg.enabled
     const running = track_status_msg.running
     const state = track_status_msg.state
 
@@ -895,7 +896,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                         {}
                       </div>
 
-                      <div style={{ width: '40%' }}>
+                      <div style={{ width: '40%' }} hidden={enabled == false}>
                           <Label title={"Tracking"}>
                             <BooleanIndicator value={state} />
                           </Label>
