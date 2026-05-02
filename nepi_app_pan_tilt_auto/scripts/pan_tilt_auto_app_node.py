@@ -63,10 +63,13 @@ class NepiPanTiltAutoApp(object):
   LIMIT_PADDING = 5
 
   TRACK_UPDATE_INTERVAL = 0.5
-  TRACK_MIN_ERROR_DEG = 10
-  TRACK_DEFAULT_SOURCE = 'targets'
-  TRACK_SENSITIVITY = 0.5
+  TRACK_MOVE_DEG = 2
+  TRACK_GOAL_DEG = 10
 
+  TRACK_DEFAULT_SOURCE = 'targets'
+  TRACK_MOVE_RATIO = 0.8
+
+  TRACK_MAX_RESET_SEC = 5
   TRACK_RESET_TIME_SEC = 2
   TRACK_DEFAULT_TARGETS = ['person']
 
@@ -169,7 +172,7 @@ class NepiPanTiltAutoApp(object):
 
   #####################
   targets_msg = None
-  last_targets_time = 0
+  targets_last_time = 0
   
 
   last_track_pan_time = 0
@@ -187,11 +190,11 @@ class NepiPanTiltAutoApp(object):
   track_tilt_min_deg = -DEFAULT_MIN_MAX_DEG
   track_tilt_max_deg = DEFAULT_MIN_MAX_DEG
 
-  track_min_error_deg = TRACK_MIN_ERROR_DEG
+
+  track_move_deg = TRACK_MOVE_DEG
+  track_goal_deg = TRACK_GOAL_DEG
   track_reset_time_sec = TRACK_RESET_TIME_SEC
-  track_move_ratio = 0.6
-
-
+  track_move_ratio = TRACK_MOVE_RATIO
 
   track_pan_dict = None
   track_tilt_dict = None
@@ -277,12 +280,16 @@ class NepiPanTiltAutoApp(object):
   ###############
   BLANK_TARGETS_INFO_DICT = {}
 
-
+  targeting_topic = 'targets'
   targets_status_msg = None
   targets_status_msg_start = None
   targets_status_last_time = None
   targets_timeout = 3
   targets_last_time = 0
+
+
+  tracking_topic = 'track'
+  tracking_status_msg = TrackingStatus()
 
   tracking_enabled = True
   tracking_running = False
@@ -290,7 +297,7 @@ class NepiPanTiltAutoApp(object):
 
   tracking_manages_targeting = False
 
-  tracking_status_msg = TrackingStatus()
+  
   tracking_info_dict = None
   tracking_subpub_dict = None
   tracking_subpub_lock = threading.Lock()
@@ -314,6 +321,8 @@ class NepiPanTiltAutoApp(object):
   track_dict_check = None
   track_timeout = 3
   track_last_time = 0
+
+  
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_pan_tilt_scan" # Can be overwitten by luanch command
@@ -432,7 +441,15 @@ class NepiPanTiltAutoApp(object):
         'track_move_ratio': {
             'namespace': self.node_namespace,
             'factory_val': self.track_move_ratio
-        },    
+        },
+        'track_goal_deg': {
+            'namespace': self.node_namespace,
+            'factory_val': self.track_goal_deg
+        },
+        'track_move_deg': {
+            'namespace': self.node_namespace,
+            'factory_val': self.track_move_deg
+        },
         'lock_pan_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
@@ -502,14 +519,14 @@ class NepiPanTiltAutoApp(object):
         #####################
         'track': {
             'msg': Target,
-            'namespace': self.node_namespace + '/tracking',
-            'topic': 'track',
+            'namespace': self.node_namespace,
+            'topic': self.tracking_topic,
             'qsize': 1,
             'latch': True
         },
         'track_status': {
             'msg': TrackingStatus,
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'status',
             'qsize': 1,
             'latch': True
@@ -604,7 +621,23 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_track_move_ratio',
             'msg': Float32,
             'qsize': 1,
-            'callback': self.setTrackMoveRatioCb, 
+            'callback': self.setTrackMoveRatioCb,
+            'callback_args': ()
+        },
+        'set_track_goal_deg': {
+            'namespace': self.node_namespace,
+            'topic': 'set_track_goal_deg',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setTrackGoalDegCb,
+            'callback_args': ()
+        },
+        'set_track_move_deg': {
+            'namespace': self.node_namespace,
+            'topic': 'set_track_move_deg',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setTrackMoveDegCb,
             'callback_args': ()
         },
 
@@ -731,7 +764,7 @@ class NepiPanTiltAutoApp(object):
         ### Tracking
         #####################
         'set_tracking_manages_targeting': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_tracking_manages_targeting',
             'msg': Bool,
             'qsize': 10,
@@ -739,7 +772,7 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
         'set_targets_topic': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_targets_topic',
             'msg': String,
             'qsize': 10,
@@ -747,7 +780,7 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
         'set_source_topic': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_source_topic',
             'msg': String,
             'qsize': 10,
@@ -755,7 +788,7 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
         'set_class_filter': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_class_filter',
             'msg': String,
             'qsize': 10,
@@ -763,7 +796,7 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
         'set_threshold_filter': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_threshold_filter',
             'msg': Float32,
             'qsize': 10,
@@ -771,7 +804,7 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
         'set_best_filter': {
-            'namespace': self.node_namespace + '/tracking',
+            'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_best_filter',
             'msg': String,
             'qsize': 10,
@@ -872,6 +905,8 @@ class NepiPanTiltAutoApp(object):
         self.track_tilt_max_deg = self.node_if.get_param('track_tilt_max_deg')
         self.track_reset_time_sec = self.node_if.get_param('track_reset_time_sec')
         self.track_move_ratio = self.node_if.get_param('track_move_ratio')
+        self.track_goal_deg = self.node_if.get_param('track_goal_deg')
+        self.track_move_deg = self.node_if.get_param('track_move_deg')
         self.setTrackPan(track_pan_enabled)
         self.setTrackTilt(track_tilt_enabled)
 
@@ -1212,10 +1247,11 @@ class NepiPanTiltAutoApp(object):
       reset_time = msg.data
       self.setTrackResetTimeSec(reset_time)
 
-
   def setTrackResetTimeSec(self,reset_time):
-        if reset_time < 0:
-            reset_time = -1
+        if reset_time < 1:
+            reset_time = 1
+        if reset_time > self.TRACK_MAX_RESET_SEC:
+            reset_time = self.TRACK_MAX_RESET_SEC
         self.msg_if.pub_info("Setting track reset time to: " + str(reset_time))
         self.track_reset_time_sec = reset_time
         self.publish_status()
@@ -1237,6 +1273,33 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('track_move_ratio', ratio)
             #self.node_if.save_config()
 
+  def setTrackGoalDegCb(self, msg):
+      goal_deg = msg.data
+      self.setTrackGoalDeg(goal_deg)
+
+  def setTrackGoalDeg(self, goal_deg):
+        if goal_deg < 0:
+            goal_deg = 0
+        self.msg_if.pub_info("Setting track goal deg to: " + str(goal_deg))
+        self.track_goal_deg = goal_deg
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('track_goal_deg', goal_deg)
+            self.node_if.save_config()
+
+  def setTrackMoveDegCb(self, msg):
+      move_deg = msg.data
+      self.setTrackMoveDeg(move_deg)
+
+  def setTrackMoveDeg(self, move_deg):
+        if move_deg < 0:
+            move_deg = 0
+        self.msg_if.pub_info("Setting track move deg to: " + str(move_deg))
+        self.track_move_deg = move_deg
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('track_move_deg', move_deg)
+            self.node_if.save_config()
 
 
   ##########################################
@@ -1592,30 +1655,32 @@ class NepiPanTiltAutoApp(object):
                 #self.msg_if.pub_warn("Got target angle " + str(pan_error)) 
                 self.track_pan_error = round(pan_error,1)
                 #self.msg_if.pub_warn("Got track angle " + str(self.track_pan_error)) 
-                if abs(self.track_pan_error) > self.track_min_error_deg:
+                if abs(self.track_pan_error) > self.track_goal_deg:
                   #self.msg_if.pub_warn("Tracking to pan error " + str(self.track_pan_error))    
                   pan_to_goal = round(pan_cur + self.track_pan_error  * self.track_move_ratio, 0)
                   #self.msg_if.pub_warn("Moving to pan position " + str(pan_to_goal))  
-                  if pan_to_goal != self.goto_position[0]:
+                  if abs(pan_to_goal - self.goto_position[0]) > self.track_move_deg:
                       self.goto_position[0] = pan_to_goal
                       self.pt_connect_if.goto_to_pan_position(pan_to_goal)
             else:
-                last_targets_time = nepi_utils.get_time() - self.last_targets_time
-                if last_targets_time > self.track_reset_time_sec:
-                  self.pan_tracking = False
-
-                  if self.scan_pan_enabled == True:
-                      if self.scan_pan_track_hold == True: 
-                          if last_error > 0:
-                              self.goto_position[0] = self.scan_pan_max_deg
-                          else:
-                              self.goto_position[0] = self.scan_pan_min_deg
-                      #self.msg_if.pub_warn("Resetting Pan Scan Process to: " + str(self.goto_position[0]))
-                  elif self.goto_position[0] != 0.0:
-                      self.goto_position[0] = 0.0
-                  self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
-
-                  self.scan_pan_track_hold = False
+                track_last_time = nepi_utils.get_time() - self.track_last_time
+                if track_last_time > self.track_reset_time_sec:
+                    self.pan_tracking = False
+                    self.track_pan_error = 0
+                    goto = None
+                    if self.scan_pan_enabled == True:
+                        if self.scan_pan_track_hold == True:
+                            if last_error > 0:
+                                goto = self.scan_pan_max_deg
+                            else:
+                               goto = self.scan_pan_min_deg
+                    elif self.goto_position[0] != 0:
+                        goto = 0
+                    if goto is not None:
+                        #self.msg_if.pub_warn("Resetting pan Scan Process to: " + str(self.goto_position[1]))
+                        self.goto_position[0] = goto
+                        self.pt_connect_if.goto_to_pan_position(goto)
+                    self.scan_tilt_track_hold = False
       
                 
       
@@ -1637,28 +1702,32 @@ class NepiPanTiltAutoApp(object):
                 tilt_error = track_dict['elevation_deg']
                 self.track_tilt_error = round(tilt_error,1)
                 self.last_track_tilt_time = nepi_utils.get_time()
-                if abs(self.track_tilt_error) > self.track_min_error_deg:
+                if abs(self.track_tilt_error) > self.track_goal_deg:
                   #self.msg_if.pub_warn("Got track tilt error " + str(tilt_error))    
                   tilt_to_goal = round(tilt_cur + self.track_tilt_error  * self.track_move_ratio, 0)
-                  if tilt_to_goal != self.goto_position[1]:
+                  if abs(tilt_to_goal - self.goto_position[1]) > self.track_move_deg:
                       self.goto_position[1] = tilt_to_goal
                       self.pt_connect_if.goto_to_tilt_position(tilt_to_goal)
-            else:
-                last_targets_time = nepi_utils.get_time() - self.last_targets_time
-                if last_targets_time > self.track_reset_time_sec:
-                  self.tilt_tracking = False
-                  if self.scan_tilt_enabled == True:
-                      if self.scan_tilt_track_hold == True:
-                          if last_error > 0:
-                              self.goto_position[1] = self.scan_tilt_max_deg
-                          else:
-                              self.goto_position[1] = self.scan_tilt_min_deg
-                          #self.msg_if.pub_warn("Resetting Tilt Scan Process to: " + str(self.goto_position[1]))
-                  elif self.goto_position[1] != 0.0:
-                      self.goto_position[1] = 0.0
-                  self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
-
-                  self.scan_tilt_track_hold = False
+            else:          
+                track_last_time = nepi_utils.get_time() - self.track_last_time
+                if track_last_time > self.track_reset_time_sec:
+                    self.tilt_tracking = False
+                    self.track_tilt_error = 0
+                    goto = None
+                    if self.scan_tilt_enabled == True:
+                        if self.scan_tilt_track_hold == True:
+                            if last_error > 0:
+                                goto = self.scan_tilt_max_deg
+                            else:
+                               goto = self.scan_tilt_min_deg
+                    elif self.goto_position[1] != 0:
+                        goto = 0
+                    if goto is not None:
+                        #self.msg_if.pub_warn("Resetting Tilt Scan Process to: " + str(self.goto_position[1]))
+                        self.goto_position[1] = goto
+                        self.pt_connect_if.goto_to_tilt_position(goto)
+                    self.scan_tilt_track_hold = False
+                    
                 
 
 
@@ -1994,12 +2063,13 @@ class NepiPanTiltAutoApp(object):
         self.sendTargetsMsg('enable_pub',True)
       if enabled == False:
         self.tracking_enabled = False
+        self.sendTargetsMsg('save_pub',True)
         nepi_sdk.sleep(1)
         self.targets_status_msg = None
         if True: #self.tracking_manages_targeting == False:
             self.sendTargetsConfig()
         nepi_sdk.sleep(1)
-        self.sendTargetsMsg('save_pub',True)
+        
 
   
   
@@ -2120,14 +2190,14 @@ class NepiPanTiltAutoApp(object):
             self.msg_if.pub_warn("Subscribing to Targets topic: " + str(namespace))
             tracking_subpub_dict = dict()
 
-            tracking_subpub_dict['targets_sub'] = nepi_sdk.create_subscriber(namespace + '/targets', Targets, self.targetsCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+            tracking_subpub_dict['targets_sub'] = nepi_sdk.create_subscriber(namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
             tracking_subpub_dict['status_sub'] = nepi_sdk.create_subscriber(namespace + '/status', TargetingStatus, self.targetsStatusCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
             
             tracking_subpub_dict['enable_pub'] = nepi_sdk.create_publisher(namespace + '/enable', Bool, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['source_pub'] = nepi_sdk.create_publisher(namespace + '/set_source_topic', String, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
-            tracking_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_config_save_enable', Bool, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_save_config_enable', Bool, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', TargetingUpdate, queue_size = 10, log_name_list = [])
 
             self.tracking_subpub_lock.acquire()
@@ -2190,7 +2260,7 @@ class NepiPanTiltAutoApp(object):
         targets_topic = tracking_dict['targets_topic']
         source_topic = tracking_dict['source_topic']
         if True: #targets_topic == msg.process_namespace and source_topic == msg.source_topic:
-            self.last_targets_time = nepi_utils.get_time()
+            self.targets_last_time = nepi_utils.get_time()
 
             #self.msg_if.pub_warn("Got targets msg list " + str(targets_msg))
             targets_dict_list = []
@@ -2294,7 +2364,6 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.current_position = current_position
 
-
     self.status_msg.pan_scanning = self.pan_scanning
     self.status_msg.tilt_scanning = self.tilt_scanning
 
@@ -2320,7 +2389,14 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.track_pan_enabled = self.track_pan_enabled
     self.status_msg.track_tilt_enabled = self.track_tilt_enabled
+
+    self.status_msg.track_move_deg = self.track_move_deg
+    self.status_msg.track_goal_deg = self.track_goal_deg
+
+    self.status_msg.track_move_ratio = self.track_move_ratio
     self.status_msg.track_reset_time_sec = self.track_reset_time_sec
+    self.status_msg.track_pan_error = self.track_pan_error
+    self.status_msg.track_tilt_error = self.track_tilt_error
 
     self.status_msg.lock_pan_enabled = self.lock_pan_enabled
     self.status_msg.lock_tilt_enabled = self.lock_tilt_enabled

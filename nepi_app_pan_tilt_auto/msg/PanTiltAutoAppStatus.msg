@@ -11,7 +11,7 @@ nepi_interfaces/DevicePTXStatus pt_status_msg
 
 #[pan_deg, tilt_deg], unset values are -999
 float32[] current_position
-
+float32[] goto_position
 
 
 ###################
@@ -37,7 +37,6 @@ float32 scan_pan_min_deg
 float32 scan_pan_max_deg
 float32 scan_tilt_min_deg
 float32 scan_tilt_max_deg
-float32 scan_speed_ratio
 
 float32 scan_pan_sec
 float32 scan_tilt_sec
@@ -56,13 +55,19 @@ float32 track_pan_max_deg
 float32 track_tilt_min_deg
 float32 track_tilt_max_deg
 
-float32 track_move_ratio
-float32 track_reset_time_sec
+
 
 bool track_source_connected
 
 nepi_interfaces/TrackingStatus tracking_status
 
+float32 track_goal_deg
+float32 track_move_deg
+float32 track_move_ratio
+float32 track_reset_time_sec
+
+float32 track_pan_error
+float32 track_tilt_error
 
 
 ###############

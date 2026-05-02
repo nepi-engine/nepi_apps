@@ -269,14 +269,14 @@ class NepiAppPTAuto extends Component {
                 </Select>
           </Label>
   
-            {(ptConnected === false) ?
+            {/* {(ptConnected === false) ?
                   <Label title={"Connecting"}>
                     </Label>
-            : null }
+            : null } */}
 
 
           { (ptConnected === true) ? 
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+            <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
           : null }
 
           { (ptConnected === true) ? 
