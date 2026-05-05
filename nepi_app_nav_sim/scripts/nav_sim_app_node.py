@@ -6,8 +6,8 @@
 #
 # Nav Sim App: runs NMEA and/or HNav TCP simulator servers that the
 # corresponding NPX driver nodes (npx_nmea_udp_node, npx_hnav_tcu_node)
-# can connect to.  All position/orientation parameters are adjustable via
-# ROS topics and the NEPI RUI.
+# can connect to.  Position/orientation/speed are independently configurable
+# for each simulator via ROS topics and the NEPI RUI.
 
 import copy
 import datetime
@@ -17,7 +17,7 @@ import struct
 import threading
 import time
 
-from std_msgs.msg import Bool, Empty, Float32, Int32
+from std_msgs.msg import Bool, Float32
 
 from nepi_app_nav_sim.msg import NepiAppNavSimStatus
 
@@ -48,7 +48,7 @@ FACTORY_HNAV_PORT    = 16718
 STATUS_RATE_HZ = 1.0
 
 #########################################
-# HNav packet helpers (from npx_hnav_tcu_discovery.py)
+# HNav packet helpers
 #########################################
 
 _PACKET_SIZE     = 67
@@ -65,7 +65,7 @@ _ORIENT_SCALE    = 0.01
 _VEL_SCALE       = 0.001
 _SOUND_VEL_SCALE = 0.1
 _TEMP_SCALE      = 0.01
-_DEFAULT_STATUS  = 0x0002   # hybrid mode; all validity bits clear (= valid)
+_DEFAULT_STATUS  = 0x0002
 _DATA_FMT        = '<BQiiiHhhHhhhhhhHhfHHH'
 
 
@@ -133,7 +133,7 @@ def _build_hnav_packet(lat_deg, lon_deg, depth_m, alt_m,
 
 
 #########################################
-# NMEA sentence helpers (from npx_nmea_udp_discovery.py)
+# NMEA sentence helpers
 #########################################
 
 def _dd_to_nmea(lat, lon):
@@ -195,15 +195,22 @@ class NepiNavSimApp(object):
 
     nmea_sim_enabled = FACTORY_NMEA_ENABLED
     hnav_sim_enabled = FACTORY_HNAV_ENABLED
-    latitude         = FACTORY_LATITUDE
-    longitude        = FACTORY_LONGITUDE
-    altitude_m       = FACTORY_ALTITUDE_M
-    depth_m          = FACTORY_DEPTH_M
-    heading_deg      = FACTORY_HEADING_DEG
-    roll_deg         = FACTORY_ROLL_DEG
-    pitch_deg        = FACTORY_PITCH_DEG
-    speed_ms         = FACTORY_SPEED_MS
+
+    nmea_latitude    = FACTORY_LATITUDE
+    nmea_longitude   = FACTORY_LONGITUDE
+    nmea_altitude_m  = FACTORY_ALTITUDE_M
+    nmea_heading_deg = FACTORY_HEADING_DEG
+    nmea_speed_ms    = FACTORY_SPEED_MS
     nmea_port        = FACTORY_NMEA_PORT
+
+    hnav_latitude    = FACTORY_LATITUDE
+    hnav_longitude   = FACTORY_LONGITUDE
+    hnav_altitude_m  = FACTORY_ALTITUDE_M
+    hnav_depth_m     = FACTORY_DEPTH_M
+    hnav_heading_deg = FACTORY_HEADING_DEG
+    hnav_roll_deg    = FACTORY_ROLL_DEG
+    hnav_pitch_deg   = FACTORY_PITCH_DEG
+    hnav_speed_ms    = FACTORY_SPEED_MS
     hnav_port        = FACTORY_HNAV_PORT
 
     nmea_connected = False
@@ -211,11 +218,11 @@ class NepiNavSimApp(object):
 
     node_if = None
 
-    _lock             = threading.Lock()
-    _nmea_stop        = None
-    _hnav_stop        = None
-    _nmea_navpose_if  = None
-    _hnav_navpose_if  = None
+    _lock            = threading.Lock()
+    _nmea_stop       = None
+    _hnav_stop       = None
+    _nmea_navpose_if = None
+    _hnav_navpose_if = None
 
     def __init__(self):
         nepi_sdk.init_node(name=self.DEFAULT_NODE_NAME)
@@ -235,42 +242,50 @@ class NepiNavSimApp(object):
             'namespace':              self.node_namespace,
         }
 
+        ns = self.node_namespace
         self.PARAMS_DICT = {
-            'nmea_sim_enabled': {'namespace': self.node_namespace, 'factory_val': self.nmea_sim_enabled},
-            'hnav_sim_enabled': {'namespace': self.node_namespace, 'factory_val': self.hnav_sim_enabled},
-            'latitude':         {'namespace': self.node_namespace, 'factory_val': self.latitude},
-            'longitude':        {'namespace': self.node_namespace, 'factory_val': self.longitude},
-            'altitude_m':       {'namespace': self.node_namespace, 'factory_val': self.altitude_m},
-            'depth_m':          {'namespace': self.node_namespace, 'factory_val': self.depth_m},
-            'heading_deg':      {'namespace': self.node_namespace, 'factory_val': self.heading_deg},
-            'roll_deg':         {'namespace': self.node_namespace, 'factory_val': self.roll_deg},
-            'pitch_deg':        {'namespace': self.node_namespace, 'factory_val': self.pitch_deg},
-            'speed_ms':         {'namespace': self.node_namespace, 'factory_val': self.speed_ms},
-            'nmea_port':        {'namespace': self.node_namespace, 'factory_val': self.nmea_port},
-            'hnav_port':        {'namespace': self.node_namespace, 'factory_val': self.hnav_port},
+            'nmea_sim_enabled': {'namespace': ns, 'factory_val': self.nmea_sim_enabled},
+            'hnav_sim_enabled': {'namespace': ns, 'factory_val': self.hnav_sim_enabled},
+            'nmea_latitude':    {'namespace': ns, 'factory_val': self.nmea_latitude},
+            'nmea_longitude':   {'namespace': ns, 'factory_val': self.nmea_longitude},
+            'nmea_altitude_m':  {'namespace': ns, 'factory_val': self.nmea_altitude_m},
+            'nmea_heading_deg': {'namespace': ns, 'factory_val': self.nmea_heading_deg},
+            'nmea_speed_ms':    {'namespace': ns, 'factory_val': self.nmea_speed_ms},
+            'nmea_port':        {'namespace': ns, 'factory_val': self.nmea_port},
+            'hnav_latitude':    {'namespace': ns, 'factory_val': self.hnav_latitude},
+            'hnav_longitude':   {'namespace': ns, 'factory_val': self.hnav_longitude},
+            'hnav_altitude_m':  {'namespace': ns, 'factory_val': self.hnav_altitude_m},
+            'hnav_depth_m':     {'namespace': ns, 'factory_val': self.hnav_depth_m},
+            'hnav_heading_deg': {'namespace': ns, 'factory_val': self.hnav_heading_deg},
+            'hnav_roll_deg':    {'namespace': ns, 'factory_val': self.hnav_roll_deg},
+            'hnav_pitch_deg':   {'namespace': ns, 'factory_val': self.hnav_pitch_deg},
+            'hnav_speed_ms':    {'namespace': ns, 'factory_val': self.hnav_speed_ms},
+            'hnav_port':        {'namespace': ns, 'factory_val': self.hnav_port},
         }
 
         self.PUBS_DICT = {
             'status_pub': {
-                'namespace': self.node_namespace,
-                'topic':     'status',
-                'msg':       NepiAppNavSimStatus,
-                'qsize':     1,
-                'latch':     True,
+                'namespace': ns, 'topic': 'status',
+                'msg': NepiAppNavSimStatus, 'qsize': 1, 'latch': True,
             }
         }
 
         self.SUBS_DICT = {
-            'set_nmea_enabled': {'namespace': self.node_namespace, 'topic': 'set_nmea_enabled', 'msg': Bool,    'qsize': 10, 'callback': self.setNmeaEnabledCb,  'callback_args': ()},
-            'set_hnav_enabled': {'namespace': self.node_namespace, 'topic': 'set_hnav_enabled', 'msg': Bool,    'qsize': 10, 'callback': self.setHnavEnabledCb,  'callback_args': ()},
-            'set_latitude':     {'namespace': self.node_namespace, 'topic': 'set_latitude',     'msg': Float32, 'qsize': 10, 'callback': self.setLatitudeCb,      'callback_args': ()},
-            'set_longitude':    {'namespace': self.node_namespace, 'topic': 'set_longitude',    'msg': Float32, 'qsize': 10, 'callback': self.setLongitudeCb,     'callback_args': ()},
-            'set_altitude':     {'namespace': self.node_namespace, 'topic': 'set_altitude',     'msg': Float32, 'qsize': 10, 'callback': self.setAltitudeCb,      'callback_args': ()},
-            'set_depth':        {'namespace': self.node_namespace, 'topic': 'set_depth',        'msg': Float32, 'qsize': 10, 'callback': self.setDepthCb,         'callback_args': ()},
-            'set_heading':      {'namespace': self.node_namespace, 'topic': 'set_heading',      'msg': Float32, 'qsize': 10, 'callback': self.setHeadingCb,       'callback_args': ()},
-            'set_roll':         {'namespace': self.node_namespace, 'topic': 'set_roll',         'msg': Float32, 'qsize': 10, 'callback': self.setRollCb,          'callback_args': ()},
-            'set_pitch':        {'namespace': self.node_namespace, 'topic': 'set_pitch',        'msg': Float32, 'qsize': 10, 'callback': self.setPitchCb,         'callback_args': ()},
-            'set_speed':        {'namespace': self.node_namespace, 'topic': 'set_speed',        'msg': Float32, 'qsize': 10, 'callback': self.setSpeedCb,         'callback_args': ()},
+            'set_nmea_enabled':   {'namespace': ns, 'topic': 'set_nmea_enabled',   'msg': Bool,    'qsize': 10, 'callback': self.setNmeaEnabledCb,   'callback_args': ()},
+            'set_hnav_enabled':   {'namespace': ns, 'topic': 'set_hnav_enabled',   'msg': Bool,    'qsize': 10, 'callback': self.setHnavEnabledCb,   'callback_args': ()},
+            'set_nmea_latitude':  {'namespace': ns, 'topic': 'set_nmea_latitude',  'msg': Float32, 'qsize': 10, 'callback': self.setNmeaLatitudeCb,  'callback_args': ()},
+            'set_nmea_longitude': {'namespace': ns, 'topic': 'set_nmea_longitude', 'msg': Float32, 'qsize': 10, 'callback': self.setNmeaLongitudeCb, 'callback_args': ()},
+            'set_nmea_altitude':  {'namespace': ns, 'topic': 'set_nmea_altitude',  'msg': Float32, 'qsize': 10, 'callback': self.setNmeaAltitudeCb,  'callback_args': ()},
+            'set_nmea_heading':   {'namespace': ns, 'topic': 'set_nmea_heading',   'msg': Float32, 'qsize': 10, 'callback': self.setNmeaHeadingCb,   'callback_args': ()},
+            'set_nmea_speed':     {'namespace': ns, 'topic': 'set_nmea_speed',     'msg': Float32, 'qsize': 10, 'callback': self.setNmeaSpeedCb,     'callback_args': ()},
+            'set_hnav_latitude':  {'namespace': ns, 'topic': 'set_hnav_latitude',  'msg': Float32, 'qsize': 10, 'callback': self.setHnavLatitudeCb,  'callback_args': ()},
+            'set_hnav_longitude': {'namespace': ns, 'topic': 'set_hnav_longitude', 'msg': Float32, 'qsize': 10, 'callback': self.setHnavLongitudeCb, 'callback_args': ()},
+            'set_hnav_altitude':  {'namespace': ns, 'topic': 'set_hnav_altitude',  'msg': Float32, 'qsize': 10, 'callback': self.setHnavAltitudeCb,  'callback_args': ()},
+            'set_hnav_depth':     {'namespace': ns, 'topic': 'set_hnav_depth',     'msg': Float32, 'qsize': 10, 'callback': self.setHnavDepthCb,     'callback_args': ()},
+            'set_hnav_heading':   {'namespace': ns, 'topic': 'set_hnav_heading',   'msg': Float32, 'qsize': 10, 'callback': self.setHnavHeadingCb,   'callback_args': ()},
+            'set_hnav_roll':      {'namespace': ns, 'topic': 'set_hnav_roll',      'msg': Float32, 'qsize': 10, 'callback': self.setHnavRollCb,      'callback_args': ()},
+            'set_hnav_pitch':     {'namespace': ns, 'topic': 'set_hnav_pitch',     'msg': Float32, 'qsize': 10, 'callback': self.setHnavPitchCb,     'callback_args': ()},
+            'set_hnav_speed':     {'namespace': ns, 'topic': 'set_hnav_speed',     'msg': Float32, 'qsize': 10, 'callback': self.setHnavSpeedCb,     'callback_args': ()},
         }
 
         self.node_if = NodeClassIF(
@@ -308,52 +323,82 @@ class NepiNavSimApp(object):
         self._apply_hnav_state()
         self._save_param('hnav_sim_enabled', self.hnav_sim_enabled)
 
-    def setLatitudeCb(self, msg):
+    def setNmeaLatitudeCb(self, msg):
         with self._lock:
-            self.latitude = float(msg.data)
-        self._save_param('latitude', self.latitude)
+            self.nmea_latitude = float(msg.data)
+        self._save_param('nmea_latitude', self.nmea_latitude)
         self.publish_status()
 
-    def setLongitudeCb(self, msg):
+    def setNmeaLongitudeCb(self, msg):
         with self._lock:
-            self.longitude = float(msg.data)
-        self._save_param('longitude', self.longitude)
+            self.nmea_longitude = float(msg.data)
+        self._save_param('nmea_longitude', self.nmea_longitude)
         self.publish_status()
 
-    def setAltitudeCb(self, msg):
+    def setNmeaAltitudeCb(self, msg):
         with self._lock:
-            self.altitude_m = float(msg.data)
-        self._save_param('altitude_m', self.altitude_m)
+            self.nmea_altitude_m = float(msg.data)
+        self._save_param('nmea_altitude_m', self.nmea_altitude_m)
         self.publish_status()
 
-    def setDepthCb(self, msg):
+    def setNmeaHeadingCb(self, msg):
         with self._lock:
-            self.depth_m = float(msg.data)
-        self._save_param('depth_m', self.depth_m)
+            self.nmea_heading_deg = float(msg.data) % 360.0
+        self._save_param('nmea_heading_deg', self.nmea_heading_deg)
         self.publish_status()
 
-    def setHeadingCb(self, msg):
+    def setNmeaSpeedCb(self, msg):
         with self._lock:
-            self.heading_deg = float(msg.data) % 360.0
-        self._save_param('heading_deg', self.heading_deg)
+            self.nmea_speed_ms = max(0.0, float(msg.data))
+        self._save_param('nmea_speed_ms', self.nmea_speed_ms)
         self.publish_status()
 
-    def setRollCb(self, msg):
+    def setHnavLatitudeCb(self, msg):
         with self._lock:
-            self.roll_deg = float(msg.data)
-        self._save_param('roll_deg', self.roll_deg)
+            self.hnav_latitude = float(msg.data)
+        self._save_param('hnav_latitude', self.hnav_latitude)
         self.publish_status()
 
-    def setPitchCb(self, msg):
+    def setHnavLongitudeCb(self, msg):
         with self._lock:
-            self.pitch_deg = float(msg.data)
-        self._save_param('pitch_deg', self.pitch_deg)
+            self.hnav_longitude = float(msg.data)
+        self._save_param('hnav_longitude', self.hnav_longitude)
         self.publish_status()
 
-    def setSpeedCb(self, msg):
+    def setHnavAltitudeCb(self, msg):
         with self._lock:
-            self.speed_ms = max(0.0, float(msg.data))
-        self._save_param('speed_ms', self.speed_ms)
+            self.hnav_altitude_m = float(msg.data)
+        self._save_param('hnav_altitude_m', self.hnav_altitude_m)
+        self.publish_status()
+
+    def setHnavDepthCb(self, msg):
+        with self._lock:
+            self.hnav_depth_m = float(msg.data)
+        self._save_param('hnav_depth_m', self.hnav_depth_m)
+        self.publish_status()
+
+    def setHnavHeadingCb(self, msg):
+        with self._lock:
+            self.hnav_heading_deg = float(msg.data) % 360.0
+        self._save_param('hnav_heading_deg', self.hnav_heading_deg)
+        self.publish_status()
+
+    def setHnavRollCb(self, msg):
+        with self._lock:
+            self.hnav_roll_deg = float(msg.data)
+        self._save_param('hnav_roll_deg', self.hnav_roll_deg)
+        self.publish_status()
+
+    def setHnavPitchCb(self, msg):
+        with self._lock:
+            self.hnav_pitch_deg = float(msg.data)
+        self._save_param('hnav_pitch_deg', self.hnav_pitch_deg)
+        self.publish_status()
+
+    def setHnavSpeedCb(self, msg):
+        with self._lock:
+            self.hnav_speed_ms = max(0.0, float(msg.data))
+        self._save_param('hnav_speed_ms', self.hnav_speed_ms)
         self.publish_status()
 
 
@@ -365,15 +410,20 @@ class NepiNavSimApp(object):
             with self._lock:
                 self.nmea_sim_enabled = self.node_if.get_param('nmea_sim_enabled')
                 self.hnav_sim_enabled = self.node_if.get_param('hnav_sim_enabled')
-                self.latitude         = float(self.node_if.get_param('latitude'))
-                self.longitude        = float(self.node_if.get_param('longitude'))
-                self.altitude_m       = float(self.node_if.get_param('altitude_m'))
-                self.depth_m          = float(self.node_if.get_param('depth_m'))
-                self.heading_deg      = float(self.node_if.get_param('heading_deg'))
-                self.roll_deg         = float(self.node_if.get_param('roll_deg'))
-                self.pitch_deg        = float(self.node_if.get_param('pitch_deg'))
-                self.speed_ms         = float(self.node_if.get_param('speed_ms'))
+                self.nmea_latitude    = float(self.node_if.get_param('nmea_latitude'))
+                self.nmea_longitude   = float(self.node_if.get_param('nmea_longitude'))
+                self.nmea_altitude_m  = float(self.node_if.get_param('nmea_altitude_m'))
+                self.nmea_heading_deg = float(self.node_if.get_param('nmea_heading_deg'))
+                self.nmea_speed_ms    = float(self.node_if.get_param('nmea_speed_ms'))
                 self.nmea_port        = int(self.node_if.get_param('nmea_port'))
+                self.hnav_latitude    = float(self.node_if.get_param('hnav_latitude'))
+                self.hnav_longitude   = float(self.node_if.get_param('hnav_longitude'))
+                self.hnav_altitude_m  = float(self.node_if.get_param('hnav_altitude_m'))
+                self.hnav_depth_m     = float(self.node_if.get_param('hnav_depth_m'))
+                self.hnav_heading_deg = float(self.node_if.get_param('hnav_heading_deg'))
+                self.hnav_roll_deg    = float(self.node_if.get_param('hnav_roll_deg'))
+                self.hnav_pitch_deg   = float(self.node_if.get_param('hnav_pitch_deg'))
+                self.hnav_speed_ms    = float(self.node_if.get_param('hnav_speed_ms'))
                 self.hnav_port        = int(self.node_if.get_param('hnav_port'))
         if do_updates:
             self._apply_nmea_state()
@@ -403,16 +453,21 @@ class NepiNavSimApp(object):
             msg.hnav_sim_enabled = self.hnav_sim_enabled
             msg.nmea_connected   = self.nmea_connected
             msg.hnav_connected   = self.hnav_connected
-            msg.latitude         = self.latitude
-            msg.longitude        = self.longitude
-            msg.altitude_m       = self.altitude_m
-            msg.depth_m          = self.depth_m
-            msg.heading_deg      = self.heading_deg
-            msg.roll_deg         = self.roll_deg
-            msg.pitch_deg        = self.pitch_deg
-            msg.speed_ms         = self.speed_ms
             msg.nmea_port        = self.nmea_port
             msg.hnav_port        = self.hnav_port
+            msg.nmea_latitude    = self.nmea_latitude
+            msg.nmea_longitude   = self.nmea_longitude
+            msg.nmea_altitude_m  = self.nmea_altitude_m
+            msg.nmea_heading_deg = self.nmea_heading_deg
+            msg.nmea_speed_ms    = self.nmea_speed_ms
+            msg.hnav_latitude    = self.hnav_latitude
+            msg.hnav_longitude   = self.hnav_longitude
+            msg.hnav_altitude_m  = self.hnav_altitude_m
+            msg.hnav_depth_m     = self.hnav_depth_m
+            msg.hnav_heading_deg = self.hnav_heading_deg
+            msg.hnav_roll_deg    = self.hnav_roll_deg
+            msg.hnav_pitch_deg   = self.hnav_pitch_deg
+            msg.hnav_speed_ms    = self.hnav_speed_ms
         if self.node_if is not None:
             self.node_if.publish_pub('status_pub', msg)
 
@@ -520,9 +575,11 @@ class NepiNavSimApp(object):
                     break
                 with self._lock:
                     self.nmea_connected = True
+                self.publish_status()
                 self._serve_nmea_client(conn, stop_evt)
                 with self._lock:
                     self.nmea_connected = False
+                self.publish_status()
         except Exception as e:
             self.msg_if.pub_warn(f"NMEA server error: {e}")
         finally:
@@ -535,12 +592,12 @@ class NepiNavSimApp(object):
         try:
             while not stop_evt.is_set():
                 with self._lock:
-                    lat     = self.latitude
-                    lon     = self.longitude
-                    alt     = self.altitude_m
-                    heading = self.heading_deg
-                    speed   = self.speed_ms
-                sog_kts = speed * 1.944   # m/s → knots
+                    lat     = self.nmea_latitude
+                    lon     = self.nmea_longitude
+                    alt     = self.nmea_altitude_m
+                    heading = self.nmea_heading_deg
+                    speed   = self.nmea_speed_ms
+                sog_kts = speed * 1.944
                 lines = [
                     _make_GGA(lat, lon, alt),
                     _make_RMC(lat, lon, sog_kts, heading),
@@ -549,10 +606,8 @@ class NepiNavSimApp(object):
                 ]
                 payload = ("\r\n".join(lines) + "\r\n").encode("ascii")
                 conn.sendall(payload)
-                # Dead-reckoning update
                 if speed > 0:
-                    dt = 1.0 / 5   # 5 Hz NMEA rate
-                    self._deadReckon(dt)
+                    self._deadReckonNmea(1.0 / 5)
                 time.sleep(1.0 / 5)
         except Exception:
             pass
@@ -582,9 +637,11 @@ class NepiNavSimApp(object):
                     break
                 with self._lock:
                     self.hnav_connected = True
+                self.publish_status()
                 self._serve_hnav_client(conn, stop_evt)
                 with self._lock:
                     self.hnav_connected = False
+                self.publish_status()
         except Exception as e:
             self.msg_if.pub_warn(f"HNav server error: {e}")
         finally:
@@ -599,14 +656,14 @@ class NepiNavSimApp(object):
         try:
             while not stop_evt.is_set():
                 with self._lock:
-                    lat     = self.latitude
-                    lon     = self.longitude
-                    alt     = self.altitude_m
-                    depth   = self.depth_m
-                    heading = self.heading_deg
-                    roll    = self.roll_deg
-                    pitch   = self.pitch_deg
-                    speed   = self.speed_ms
+                    lat     = self.hnav_latitude
+                    lon     = self.hnav_longitude
+                    alt     = self.hnav_altitude_m
+                    depth   = self.hnav_depth_m
+                    heading = self.hnav_heading_deg
+                    roll    = self.hnav_roll_deg
+                    pitch   = self.hnav_pitch_deg
+                    speed   = self.hnav_speed_ms
                 packet = _build_hnav_packet(
                     lat_deg=lat, lon_deg=lon,
                     depth_m=depth, alt_m=alt,
@@ -616,7 +673,7 @@ class NepiNavSimApp(object):
                 )
                 conn.sendall(packet)
                 if speed > 0:
-                    self._deadReckon(period)
+                    self._deadReckonHnav(period)
                 time.sleep(period)
         except Exception:
             pass
@@ -630,20 +687,33 @@ class NepiNavSimApp(object):
     #######################
     ## Dead-Reckoning
 
-    def _deadReckon(self, dt_sec):
-        """Advance lat/lon in the current heading direction by speed * dt."""
+    def _deadReckonNmea(self, dt_sec):
         with self._lock:
-            heading_rad = math.radians(self.heading_deg)
-            speed       = self.speed_ms
-            lat         = self.latitude
-            lon         = self.longitude
+            heading_rad = math.radians(self.nmea_heading_deg)
+            speed       = self.nmea_speed_ms
+            lat         = self.nmea_latitude
+            lon         = self.nmea_longitude
         dist_m = speed * dt_sec
         dlat   = (dist_m / 111320.0) * math.cos(heading_rad)
         dlon   = (dist_m / (111320.0 * max(math.cos(math.radians(lat)), 1e-6))) \
                  * math.sin(heading_rad)
         with self._lock:
-            self.latitude  += dlat
-            self.longitude += dlon
+            self.nmea_latitude  += dlat
+            self.nmea_longitude += dlon
+
+    def _deadReckonHnav(self, dt_sec):
+        with self._lock:
+            heading_rad = math.radians(self.hnav_heading_deg)
+            speed       = self.hnav_speed_ms
+            lat         = self.hnav_latitude
+            lon         = self.hnav_longitude
+        dist_m = speed * dt_sec
+        dlat   = (dist_m / 111320.0) * math.cos(heading_rad)
+        dlon   = (dist_m / (111320.0 * max(math.cos(math.radians(lat)), 1e-6))) \
+                 * math.sin(heading_rad)
+        with self._lock:
+            self.hnav_latitude  += dlat
+            self.hnav_longitude += dlon
 
 
     #######################
@@ -657,33 +727,33 @@ class NepiNavSimApp(object):
 
     def _buildNmeaNavposeDict(self):
         with self._lock:
-            lat     = self.latitude
-            lon     = self.longitude
-            alt     = self.altitude_m
-            heading = self.heading_deg
+            lat     = self.nmea_latitude
+            lon     = self.nmea_longitude
+            alt     = self.nmea_altitude_m
+            heading = self.nmea_heading_deg
         t = nepi_sdk.get_time()
         d = copy.deepcopy(nepi_nav.BLANK_NAVPOSE_DICT)
-        d['has_location']  = True;  d['latitude']    = lat;     d['longitude']   = lon;     d['time_location']  = t
-        d['has_heading']   = True;  d['heading_deg'] = heading;                             d['time_heading']   = t
-        d['has_altitude']  = True;  d['altitude_m']  = alt;                                 d['time_altitude']  = t
+        d['has_location']  = True;  d['latitude']    = lat;     d['longitude']   = lon;  d['time_location']  = t
+        d['has_heading']   = True;  d['heading_deg'] = heading;                          d['time_heading']   = t
+        d['has_altitude']  = True;  d['altitude_m']  = alt;                              d['time_altitude']  = t
         return d
 
     def _buildHnavNavposeDict(self):
         with self._lock:
-            lat     = self.latitude
-            lon     = self.longitude
-            alt     = self.altitude_m
-            depth   = self.depth_m
-            heading = self.heading_deg
-            roll    = self.roll_deg
-            pitch   = self.pitch_deg
+            lat     = self.hnav_latitude
+            lon     = self.hnav_longitude
+            alt     = self.hnav_altitude_m
+            depth   = self.hnav_depth_m
+            heading = self.hnav_heading_deg
+            roll    = self.hnav_roll_deg
+            pitch   = self.hnav_pitch_deg
         t = nepi_sdk.get_time()
         d = copy.deepcopy(nepi_nav.BLANK_NAVPOSE_DICT)
-        d['has_location']    = True;  d['latitude']    = lat;     d['longitude']   = lon;     d['time_location']    = t
-        d['has_heading']     = True;  d['heading_deg'] = heading;                             d['time_heading']     = t
-        d['has_orientation'] = True;  d['roll_deg']    = roll;    d['pitch_deg']   = pitch;   d['yaw_deg'] = heading; d['time_orientation'] = t
-        d['has_altitude']    = True;  d['altitude_m']  = alt;                                 d['time_altitude']    = t
-        d['has_depth']       = True;  d['depth_m']     = depth;                               d['time_depth']       = t
+        d['has_location']    = True;  d['latitude']    = lat;    d['longitude']  = lon;   d['time_location']    = t
+        d['has_heading']     = True;  d['heading_deg'] = heading;                         d['time_heading']     = t
+        d['has_orientation'] = True;  d['roll_deg']    = roll;   d['pitch_deg']  = pitch; d['yaw_deg'] = heading; d['time_orientation'] = t
+        d['has_altitude']    = True;  d['altitude_m']  = alt;                             d['time_altitude']    = t
+        d['has_depth']       = True;  d['depth_m']     = depth;                           d['time_depth']       = t
         return d
 
 
