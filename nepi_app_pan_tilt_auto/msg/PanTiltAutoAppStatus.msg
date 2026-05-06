@@ -45,8 +45,6 @@ float32 scan_tilt_sec
 
 ###################
 
-
-
 bool track_pan_enabled
 bool track_tilt_enabled
 
@@ -83,6 +81,16 @@ float32 lock_pan_min_deg
 float32 lock_pan_max_deg
 float32 lock_tilt_min_deg
 float32 lock_tilt_max_deg
+
+nepi_interfaces/PredictStatus predict_status
+
+float32 lock_goal_deg
+float32 lock_move_deg
+float32 lock_move_ratio
+float32 lock_reset_time_sec
+
+float32 lock_pan_error
+float32 lock_tilt_error
 
 
 #########################

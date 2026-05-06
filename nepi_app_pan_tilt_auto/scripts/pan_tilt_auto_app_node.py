@@ -27,12 +27,17 @@ import threading
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_targets
-from nepi_sdk import nepi_tracking
+from nepi_sdk import nepi_track
+from nepi_sdk import nepi_predict
+from nepi_sdk import nepi_nav
 
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
-from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TargetingUpdate, TrackingStatus
+from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TargetingUpdate
+from nepi_interfaces.msg import Track, TrackingStatus
+from nepi_interfaces.msg import Predict, PredictStatus, NavPose
+from nepi_interfaces.msg import UpdateBool, UpdateFloat
 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -278,7 +283,6 @@ class NepiPanTiltAutoApp(object):
   ###############
   # Tracking
   ###############
-  BLANK_TARGETS_INFO_DICT = {}
 
   targeting_topic = 'targets'
   targets_status_msg = None
@@ -313,15 +317,79 @@ class NepiPanTiltAutoApp(object):
   tracking_available_targets = []
   tracking_available_sources = []
   tracking_available_classes = []
-  tracking_available_best_filters = copy.deepcopy(nepi_tracking.BEST_FILTER_OPTIONS)
+  tracking_available_best_filters = copy.deepcopy(nepi_track.BEST_FILTER_OPTIONS)
 
-  tracking_dict = copy.deepcopy(nepi_tracking.BLANK_TRACKING_DICT)
+  tracking_dict = copy.deepcopy(nepi_track.BLANK_TRACKING_DICT)
 
   track_dict = None
   track_dict_check = None
   track_timeout = 3
   track_last_time = 0
 
+
+
+  ###############
+  # Predict
+  ###############
+
+  PREDICT_MIN_LOG_TIME = 1
+  PREDICT_MAX_LOG_TIME = 100
+  PREDICT_DEFAULT_LOG_TIME = 5
+
+  PREDICT_MIN_LOG_RATE = 1
+  PREDICT_MAX_LOG_RATE = 10
+  PREDICT_DEFAULT_LOG_RATE = 2
+
+  PREDICT_MIN_PREDICT_TIME = 0.1
+  PREDICT_MAX_PREDICT_TIME = 1
+  PREDICT_DEFAULT_PREDICT_TIME = 1
+
+  PREDICT_DEFAULT_QUALITY_FILTER = 0.5
+
+  predict_topic = 'predict'
+  predict_status_msg = PredictStatus()
+
+  predict_enabled = True
+  predict_running = False
+  predict_state = False
+
+  predict_info_dict = None
+  predict_subpub_dict = None
+  predict_subpub_lock = threading.Lock()
+
+  predict_available_sources = []
+
+  predict_source_topic = 'None'
+
+  predict_source_type = 'Time'
+  predict_source_msg = 'NavPose'
+  predict_source_description = 'PanTilt Bar NavPose'
+  predict_source_connecting = False
+  predict_source_connected = False
+  predict_source_connected_namespace = "None"
+
+  predict_source_data_msg = None
+  predict_source_data_dict = None
+  predict_source_last_time= None
+
+
+  predict_data_names = ['heading_deg',
+                        'roll_deg',
+                        'pitch_deg',
+                        'yaw_deg',
+                        'pan_tilt_heading_deg',
+                        'pan_tilt_roll_deg',
+                        'pan_tilt_pitch_deg',
+                        'pan_tilt_yaw_deg']
+
+
+  predict_dict = nepi_predict.create_predict_dict(predict_data_names)
+  predict_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_dict)
+
+  predict_data = nepi_predict.create_datas_dict(predict_dict)
   
   #######################
   ### Node Initialization
@@ -499,7 +567,19 @@ class NepiPanTiltAutoApp(object):
         'tracking_dict': {
             'namespace': self.node_namespace,
             'factory_val': self.tracking_dict
-        }
+        },
+        #####################
+        ###Predict
+        #####################
+        'predict_dict': {
+            'namespace': self.node_namespace,
+            'factory_val': self.predict_dict
+        },
+        'predict_source_topic': {
+            'namespace': self.node_namespace,
+            'factory_val': self.predict_source_topic
+        },
+        
 
 
 
@@ -527,6 +607,23 @@ class NepiPanTiltAutoApp(object):
         'track_status': {
             'msg': TrackingStatus,
             'namespace': self.node_namespace + '/' + self.tracking_topic,
+            'topic': 'status',
+            'qsize': 1,
+            'latch': True
+        },
+        #####################
+        ### Predict
+        #####################
+        'predict': {
+            'msg': Predict,
+            'namespace': self.node_namespace,
+            'topic': self.predict_topic,
+            'qsize': 1,
+            'latch': True
+        },
+        'predict_status': {
+            'msg': PredictStatus,
+            'namespace': self.node_namespace + '/' + self.predict_topic,
             'topic': 'status',
             'qsize': 1,
             'latch': True
@@ -768,50 +865,133 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_tracking_manages_targeting',
             'msg': Bool,
             'qsize': 10,
-            'callback': self.setManagesTargetingCb, 
+            'callback': self.setTrackManagesTargetingCb, 
             'callback_args': ()
         },
-        'set_targets_topic': {
+        'set_tracking_targets_topic': {
             'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_targets_topic',
             'msg': String,
             'qsize': 10,
-            'callback': self.setTargetsTopicCb, 
+            'callback': self.setTrackTargetsTopicCb, 
             'callback_args': ()
         },
-        'set_source_topic': {
+        'set_tracking_source_topic': {
             'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_source_topic',
             'msg': String,
             'qsize': 10,
-            'callback': self.setSourceTopicCb, 
+            'callback': self.setTrackSourceTopicCb, 
             'callback_args': ()
         },
-        'set_class_filter': {
+        'set_tracking_class_filter': {
             'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_class_filter',
             'msg': String,
             'qsize': 10,
-            'callback': self.setClassFilterCb, 
+            'callback': self.setTrackClassFilterCb, 
             'callback_args': ()
         },
-        'set_threshold_filter': {
+        'set_tracking_threshold_filter': {
             'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_threshold_filter',
             'msg': Float32,
             'qsize': 10,
-            'callback': self.setThresholdFilterCb, 
+            'callback': self.setTrackThresholdFilterCb, 
             'callback_args': ()
         },
-        'set_best_filter': {
+        'set_tracking_best_filter': {
             'namespace': self.node_namespace + '/' + self.tracking_topic,
             'topic': 'set_best_filter',
             'msg': String,
             'qsize': 10,
-            'callback': self.setBestFilterCb, 
+            'callback': self.setTrackBestFilterCb, 
             'callback_args': ()
         },
+        #####################
+        ### Predict
+        #####################
 
+        'set_predict_source_topic': {
+            'namespace': self.node_namespace + '/' + self.predict_topic,
+            'topic': 'set_source_topic',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setPredictSourceTopicCb, 
+            'callback_args': ()
+        },
+        'set_predict_max_log_sec': {
+            'namespace': self.node_namespace + '/' + self.predict_topic,
+            'topic': 'set_max_log_sec',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setPredictMaxLogTimeCb, 
+            'callback_args': ()
+        },
+        'set_predict_max_log_hz': {
+            'namespace': self.node_namespace + '/' + self.predict_topic,
+            'topic': 'set_max_log_hz',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setPredictMaxLogRateCb, 
+            'callback_args': ()
+        },
+        'set_predict_predict_time': {
+            'namespace': self.node_namespace + '/' + self.predict_topic,
+            'topic': 'set_predict_time',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setPredictTimeCb, 
+            'callback_args': ()
+        },
+        'set_predict_quality_filter': {
+            'namespace': self.node_namespace + '/' + self.predict_topic,
+            'topic': 'set_quality_filter',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setPredictQualityFilterCb, 
+            'callback_args': ()
+        },
+        # 'update_line_enable': {
+        #     'namespace': self.node_namespace,
+        #     'topic': 'update_line_enable',
+        #     'msg': Bool,
+        #     'qsize': 10,
+        #     'callback': self.updateLineEnableCb, 
+        #     'callback_args': ()
+        # },
+        # 'update_line_h_ratio': {
+        #     'namespace': self.node_namespace,
+        #     'topic': 'update_line_h_ratio',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.updateLineHRatioCb, 
+        #     'callback_args': ()
+        # },
+        # 'update_line_s_ratio': {
+        #     'namespace': self.node_namespace,
+        #     'topic': 'update_line_s_ratio',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.updateLineSRatioCb, 
+        #     'callback_args': ()
+        # },
+        # 'update_line_v_ratio': {
+        #     'namespace': self.node_namespace,
+        #     'topic': 'update_line_v_ratio',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.updateLineVRatioCb, 
+        #     'callback_args': ()
+        # },
+        # 'update_detect_sensitivity': {
+        #     'namespace': self.node_namespace,
+        #     'topic': 'update_detect_sensitivity',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.updateDetectSensitivityCb, 
+        #     'callback_args': ()
+        # },
     }
 
 
@@ -931,16 +1111,40 @@ class NepiPanTiltAutoApp(object):
         #####################
         self.tracking_manages_targeting = self.node_if.get_param('tracking_manages_targeting')
         tracking_dict = self.node_if.get_param('tracking_dict')
-        blank_dict = copy.deepcopy(nepi_tracking.BLANK_TRACKING_DICT)
+        blank_dict = copy.deepcopy(nepi_track.BLANK_TRACKING_DICT)
         if tracking_dict is not None:
-            for entry in blank_dict.keys():
-                if entry not in tracking_dict.keys():
-                    tracking_dict[entry] = blank_dict[entry]
+            for key in blank_dict.keys():
+                if key not in tracking_dict.keys():
+                    tracking_dict[key] = blank_dict[key]
         else:
            tracking_dict = blank_dict
         self.tracking_dict = tracking_dict
         self.tracking_targets_topic = tracking_dict['targets_topic']
-      
+
+        #####################
+        ###Predict
+        #####################
+        self.predict_source_topic = self.node_if.get_param('predict_source_topic')
+        predict_dict = self.node_if.get_param('predict_dict')
+        
+        if predict_dict is not None:
+            blank_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
+            for key in blank_dict.keys():
+                if key not in predict_dict.keys():
+                    predict_dict[key] = blank_dict[key]
+            process_list = list(predict_dict['process_dict'].keys())
+            blank_dict = copy.deepcopy(nepi_predict.BLANK_PROCESS_DICT)
+            for process_name in process_list:
+                for key in blank_dict.keys():
+                    if key not in predict_dict['process_dict'][process_name].keys():
+                        predict_dict['process_dict'][process_name][key] = blank_dict[key]
+        else:
+           predict_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
+        self.predict_dict = predict_dict
+
+
+
+
 
     if do_updates == True:
       pass
@@ -1427,24 +1631,24 @@ class NepiPanTiltAutoApp(object):
     #############################
 
 
-  def setManagesTargetingCb(self, msg):
+  def setTrackManagesTargetingCb(self, msg):
       value = msg.data
-      self.setManagesTargeting(value)
+      self.setTrackManagesTargeting(value)
 
-  def setManagesTargeting(self,value):
-        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+  def setTrackManagesTargeting(self,value):
+        self.msg_if.pub_info("Setting track move ratio to: " + str(value))
         self.tracking_manages_targeting = value
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_manages_targeting', self.tracking_manages_targeting)
             self.node_if.save_config()
 
-  def setTargetsTopicCb(self, msg):
+  def setTrackTargetsTopicCb(self, msg):
       value = msg.data
-      self.setTargetsTopic(value)
+      self.setTrackTargetsTopic(value)
 
-  def setTargetsTopic(self,value):
-        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+  def setTrackTargetsTopic(self,value):
+        self.msg_if.pub_info("Setting track targets topic to: " + str(value))
         self.tracking_dict['targets_topic'] = value
         self.tracking_targets_topic = value
         self.publish_status()
@@ -1453,12 +1657,12 @@ class NepiPanTiltAutoApp(object):
             self.node_if.save_config()
 
 
-  def setSourceTopicCb(self, msg):
+  def setTrackSourceTopicCb(self, msg):
       value = msg.data
-      self.setSourceTopic(value)
+      self.setTrackSourceTopic(value)
 
-  def setSourceTopic(self,value):
-        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+  def setTrackSourceTopic(self,value):
+        self.msg_if.pub_info("Setting track source ratio to: " + str(value))
         self.tracking_dict['source_topic'] = value
         self.publish_status()
         if self.node_if is not None:
@@ -1466,12 +1670,12 @@ class NepiPanTiltAutoApp(object):
             self.node_if.save_config()
 
 
-  def setClassFilterCb(self, msg):
+  def setTrackClassFilterCb(self, msg):
       value = msg.data
-      self.setClassFilter(value)
+      self.setTrackClassFilter(value)
 
-  def setClassFilter(self,value):
-        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+  def setTrackClassFilter(self,value):
+        self.msg_if.pub_info("Setting track class filter to: " + str(value))
         self.tracking_dict['class_filter'] = value
         self.publish_status()
         if self.node_if is not None:
@@ -1479,13 +1683,13 @@ class NepiPanTiltAutoApp(object):
             self.node_if.save_config()
 
 
-  def setThresholdFilterCb(self, msg):
+  def setTrackThresholdFilterCb(self, msg):
       ratio = msg.data
-      self.setThresholdFilter(ratio)
+      self.setTrackThresholdFilter(ratio)
 
-  def setThresholdFilter(self,ratio):
+  def setTrackThresholdFilter(self,ratio):
         ratio = nepi_utils.check_ratio(ratio)
-        self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        #self.msg_if.pub_info("Setting track threshold ratio to: " + str(ratio))
         last_val = copy.deepcopy(self.tracking_dict['threshold_filter'])
         self.tracking_dict['threshold_filter'] = ratio
         if last_val != ratio:
@@ -1495,11 +1699,11 @@ class NepiPanTiltAutoApp(object):
                 #self.node_if.save_config()
 
 
-  def setBestFilterCb(self, msg):
+  def setTrackBestFilterCb(self, msg):
       value = msg.data
-      self.setBestFilter(value)
+      self.setTrackBestFilter(value)
 
-  def setBestFilter(self,value):
+  def setTrackBestFilter(self,value):
         #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
         self.tracking_dict['best_filter'] = value
         self.publish_status()
@@ -1507,7 +1711,97 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('tracking_dict', self.tracking_dict)
             #self.node_if.save_config()
 
+    ##############################
+    # Predict
+    #############################
 
+
+ 
+  def setPredictSourceTopicCb(self, msg):
+      value = msg.data
+      self.setPredictSourceTopic(value)
+
+  def setPredictSourceTopic(self,value):
+        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+        self.predict_dict.update_predict_dict('source_topic', value, self.predict_dict)
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('predict_dict', self.predict_dict)
+            self.node_if.save_config()
+
+
+  def setPredictMaxLogTimeCb(self, msg):
+      max_time = msg.data
+      self.setPredictTime(max_time)
+
+  def setPredictMaxLogTime(self,max_time):
+        if max_time < self.PREDICT_MIN_LOG_TIME:
+            max_time = self.PREDICT_MIN_LOG_TIME
+        if max_time > self.PREDICT_MAX_LOG_TIME:
+            max_time = self.PREDICT_MAX_LOG_TIME
+
+        self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
+        last_val = copy.deepcopy(self.predict_dict['max_log_sec'])
+        self.predict_dict.update_predict_dict('max_log_sec', max_time, self.predict_dict)
+        if last_val != max_time:
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('predict_dict', self.predict_dict)
+                #self.node_if.save_config()
+
+
+  def setPredictMaxLogRateCb(self, msg):
+      max_rate = msg.data
+      self.setPredictRate(max_rate)
+
+  def setPredictMaxLogRate(self,max_rate):
+        if max_rate < self.PREDICT_MIN_LOG_RATE:
+            max_rate = self.PREDICT_MIN_LOG_RATE
+        if max_rate > self.PREDICT_MAX_LOG_RATE:
+            max_rate = self.PREDICT_MAX_LOG_RATE
+        self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
+        last_val = copy.deepcopy(self.predict_dict['max_log_rate'])
+        self.predict_dict.update_predict_dict('max_log_rate', max_rate, self.predict_dict)
+        if last_val != max_rate:
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('predict_dict', self.predict_dict)
+                #self.node_if.save_config()
+
+
+  def setPredictQualityFilterCb(self, msg):
+      ratio = msg.data
+      self.setPredictQualityFilter(ratio)
+
+  def setPredictQualityFilter(self,ratio):
+        ratio = nepi_utils.check_ratio(ratio)
+        self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
+        last_val = copy.deepcopy(self.predict_dict['quality_filter'])
+        self.predict_dict.update_predict_dict('quality_filter', ratio, self.predict_dict)
+        if last_val != ratio:
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('predict_dict', self.predict_dict)
+                #self.node_if.save_config()
+
+
+  def setPredictTimeCb(self, msg):
+      predict_time = msg.data
+      self.setPredictTime(predict_time)
+
+  def setPredictTime(self,predict_time):
+        if max_time < self.PREDICT_MIN_PREDICT_TIME:
+            max_time = self.PREDICT_MIN_PREDICT_TIME
+        if max_time > self.PREDICT_MAX_PREDICT_TIME:
+            max_time = self.PREDICT_MAX_PREDICT_TIME
+        self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
+        last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
+        self.predict_dict.update_predict_dict('predict_time_sec', predict_time, self.predict_dict)
+        if last_val != predict_time:
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('predict_dict', self.predict_dict)
+                #self.node_if.save_config()
 
     ##############################
     # Proccesses
@@ -2088,7 +2382,7 @@ class NepiPanTiltAutoApp(object):
     targets_topic =  tracking_dict['targets_topic']
     source_topic = tracking_dict['source_topic']
     
-    track_sources = nepi_tracking.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
+    track_sources = nepi_track.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
     self.tracking_available_targets = track_sources
 
     # self.msg_if.pub_warn("")
@@ -2280,7 +2574,7 @@ class NepiPanTiltAutoApp(object):
             #################
             # Find Best Target
             #self.msg_if.pub_warn("Applying best target filter dict " + str(tracking_dict))
-            [best_target_dict,tracking_dict] = nepi_tracking.get_best_from_targets(targets_dict_list,tracking_dict)
+            [best_target_dict,tracking_dict] = nepi_track.get_best_from_targets(targets_dict_list,tracking_dict)
             #self.msg_if.pub_warn("Got best targets " + str(best_target_dict))
             if best_target_dict is not None:
                 self.track_last_time = nepi_utils.get_time()
@@ -2470,6 +2764,12 @@ class NepiPanTiltAutoApp(object):
 
     ################
     self.tracking_status_msg.targets_connected = targets_connected
+
+    self.tracking_status_msg.available_source_topics = []
+    self.tracking_status_msg.selected_source = 'None'
+    self.tracking_status_msg.available_classes = []
+    self.tracking_status_msg.selected_class = 'None'
+
     if targets_status_msg is not None and targets_connected == True:
 
         if self.tracking_enabled == True and targets_status_msg.enabled == False:
