@@ -28,9 +28,10 @@ from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_targets
 from nepi_sdk import nepi_track
+from nepi_sdk import nepi_predict
 from nepi_sdk import nepi_nav
+from nepi_sdk import nepi_stab
 
-import nepi_stab
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
@@ -378,13 +379,13 @@ class NepiPanTiltAutoApp(object):
                         'pan_tilt_pitch_deg']
 
 
-  predict_dict = nepi_stab.create_predict_dict(predict_data_names)
-  predict_dict = nepi_stab.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_dict)
-  predict_dict = nepi_stab.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_dict)
-  predict_dict = nepi_stab.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_dict)
-  predict_dict = nepi_stab.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_dict)
+  predict_dict = nepi_predict.create_predict_dict(predict_data_names)
+  predict_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_dict)
+  predict_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_dict)
 
-  predict_data = nepi_stab.create_datas_dict(predict_dict)
+  predict_data = nepi_predict.create_datas_dict(predict_dict)
   
   #######################
   ### Node Initialization
@@ -1107,18 +1108,18 @@ class NepiPanTiltAutoApp(object):
         predict_dict = self.node_if.get_param('predict_dict')
         
         if predict_dict is not None:
-            blank_dict = copy.deepcopy(nepi_stab.BLANK_PREDICT_DICT)
+            blank_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
             for key in blank_dict.keys():
                 if key not in predict_dict.keys():
                     predict_dict[key] = blank_dict[key]
             process_list = list(predict_dict['process_dict'].keys())
-            blank_dict = copy.deepcopy(nepi_stab.BLANK_PROCESS_DICT)
+            blank_dict = copy.deepcopy(nepi_predict.BLANK_PROCESS_DICT)
             for process_name in process_list:
                 for key in blank_dict.keys():
                     if key not in predict_dict['process_dict'][process_name].keys():
                         predict_dict['process_dict'][process_name][key] = blank_dict[key]
         else:
-           predict_dict = copy.deepcopy(nepi_stab.BLANK_PREDICT_DICT)
+           predict_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
         self.predict_dict = predict_dict
 
 
@@ -1715,7 +1716,7 @@ class NepiPanTiltAutoApp(object):
 
   def setPredictSourceTopic(self,value):
         #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
-        self.predict_dict = nepi_stab.update_predict_dict('source_topic', value, self.predict_dict)
+        self.predict_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_dict)
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('predict_dict', self.predict_dict)
@@ -1734,7 +1735,7 @@ class NepiPanTiltAutoApp(object):
 
         self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
         last_val = copy.deepcopy(self.predict_dict['max_log_sec'])
-        self.predict_dict = nepi_stab.update_predict_dict('max_log_sec', max_time, self.predict_dict)
+        self.predict_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_dict)
         if last_val != max_time:
             self.publish_status()
             if self.node_if is not None:
@@ -1753,7 +1754,7 @@ class NepiPanTiltAutoApp(object):
             max_rate = self.PREDICT_MAX_LOG_RATE
         self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
         last_val = copy.deepcopy(self.predict_dict['max_log_rate'])
-        self.predict_dict = nepi_stab.update_predict_dict('max_log_rate', max_rate, self.predict_dict)
+        self.predict_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_dict)
         if last_val != max_rate:
             self.publish_status()
             if self.node_if is not None:
@@ -1769,7 +1770,7 @@ class NepiPanTiltAutoApp(object):
         ratio = nepi_utils.check_ratio(ratio)
         self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
         last_val = copy.deepcopy(self.predict_dict['quality_filter'])
-        self.predict_dict = nepi_stab.update_predict_dict('quality_filter', ratio, self.predict_dict)
+        self.predict_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_dict)
         if last_val != ratio:
             self.publish_status()
             if self.node_if is not None:
@@ -1788,7 +1789,7 @@ class NepiPanTiltAutoApp(object):
             max_time = self.PREDICT_MAX_PREDICT_TIME
         self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
         last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
-        self.predict_dict = nepi_stab.update_predict_dict('predict_time_sec', predict_time, self.predict_dict)
+        self.predict_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_dict)
         if last_val != predict_time:
             self.publish_status()
             if self.node_if is not None:
@@ -1809,7 +1810,7 @@ class NepiPanTiltAutoApp(object):
         self.msg_if.pub_info("Setting predict process to: " + str(value))
         predict_dict = copy.deepcopy(self.predict_dict)
         if arg_name is None:
-            self.predict_dict = nepi_stab.update_process_dict(process,key_name,value, predict_dict)
+            self.predict_dict = nepi_predict.update_process_dict(process,key_name,value, predict_dict)
         if predict_dict != self.predict_dict:
             self.publish_status()
             if self.node_if is not None:
