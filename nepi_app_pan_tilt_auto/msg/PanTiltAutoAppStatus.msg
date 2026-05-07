@@ -22,16 +22,14 @@ bool tilt_scanning
 bool pan_tracking
 bool tilt_tracking
 
-bool pan_locked
-bool tilt_locked
+bool pan_stabing
+bool tilt_stabing
 
 #################
 
 bool scan_pan_enabled
-bool sin_pan_enabled
-
 bool scan_tilt_enabled
-bool sin_tilt_enabled
+
 
 float32 scan_pan_min_deg
 float32 scan_pan_max_deg
@@ -53,8 +51,6 @@ float32 track_pan_max_deg
 float32 track_tilt_min_deg
 float32 track_tilt_max_deg
 
-
-
 bool track_source_connected
 
 nepi_interfaces/TrackingStatus tracking_status
@@ -69,28 +65,36 @@ float32 track_tilt_error
 
 
 ###############
-string[] available_lock_source_namespaces
-string[] lock_source_namespaces
-string lock_source_namespace
-bool lock_source_connected
+string[] available_stab_source_namespaces
+string selected_stab_source
+bool stab_source_connected
 
-bool lock_pan_enabled
-bool lock_tilt_enabled
+bool stab_pan_enabled
+bool stab_tilt_enabled
 
-float32 lock_pan_min_deg
-float32 lock_pan_max_deg
-float32 lock_tilt_min_deg
-float32 lock_tilt_max_deg
+float32 stab_pan_min_deg
+float32 stab_pan_max_deg
+float32 stab_tilt_min_deg
+float32 stab_tilt_max_deg
 
 nepi_interfaces/PredictStatus predict_status
 
-float32 lock_goal_deg
-float32 lock_move_deg
-float32 lock_move_ratio
-float32 lock_reset_time_sec
+float32 stab_goal_deg
+float32 stab_move_deg
+float32 stab_move_ratio
+float32 stab_reset_time_sec
 
-float32 lock_pan_error
-float32 lock_tilt_error
+float32 stab_roll_deg
+float32 stab_roll_error
+
+float32 stab_pitch_deg
+float32 stab_pitch_error
+
+float32 stab_heading_deg
+float32 stab_heading_error
+
+float32 stab_pan_error
+float32 stab_tilt_error
 
 
 #########################
