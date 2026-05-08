@@ -1030,17 +1030,17 @@ class NepiPanTiltAutoApp(object):
         
         self.selected_pan_tilt = self.node_if.get_param('selected_pan_tilt')
 
-        scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
-        scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
+        # scan_pan_enabled = self.node_if.get_param('scan_pan_enabled')
+        # scan_tilt_enabled = self.node_if.get_param('scan_tilt_enabled')
         self.scan_pan_min_deg = self.node_if.get_param('scan_pan_min_deg')
         self.scan_pan_max_deg = self.node_if.get_param('scan_pan_max_deg')
         self.scan_tilt_min_deg = self.node_if.get_param('scan_tilt_min_deg')
         self.scan_tilt_max_deg = self.node_if.get_param('scan_tilt_max_deg')
-        self.setScanPan(scan_pan_enabled)
-        self.setScanTilt(scan_tilt_enabled)
+        # self.setScanPan(scan_pan_enabled)
+        # self.setScanTilt(scan_tilt_enabled)
 
-        track_pan_enabled = self.node_if.get_param('track_pan_enabled')
-        track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
+        # track_pan_enabled = self.node_if.get_param('track_pan_enabled')
+        # track_tilt_enabled = self.node_if.get_param('track_tilt_enabled')
         self.track_pan_min_deg = self.node_if.get_param('track_pan_min_deg')
         self.track_pan_max_deg = self.node_if.get_param('track_pan_max_deg')
         self.track_tilt_min_deg = self.node_if.get_param('track_tilt_min_deg')
@@ -1049,8 +1049,8 @@ class NepiPanTiltAutoApp(object):
         self.track_move_ratio = self.node_if.get_param('track_move_ratio')
         self.track_goal_deg = self.node_if.get_param('track_goal_deg')
         self.track_move_deg = self.node_if.get_param('track_move_deg')
-        self.setTrackPan(track_pan_enabled)
-        self.setTrackTilt(track_tilt_enabled)
+        # self.setTrackPan(track_pan_enabled)
+        # self.setTrackTilt(track_tilt_enabled)
 
 
         # stab_settings_dict = self.node_if.get_param('stab_settings_dict')
@@ -1058,10 +1058,10 @@ class NepiPanTiltAutoApp(object):
         #     if key not in stab_settings_dict.keys():
         #         stab_settings_dict[key] = self.stab_settings_dict[key]
         # self.stab_settings_dict = stab_settings_dict
-        stab_pan_enabled = self.node_if.get_param('stab_pan_enabled')
-        stab_tilt_enabled = self.node_if.get_param('stab_tilt_enabled')
-        self.setStabPan(stab_pan_enabled)
-        self.setStabTilt(stab_tilt_enabled)
+        # stab_pan_enabled = self.node_if.get_param('stab_pan_enabled')
+        # stab_tilt_enabled = self.node_if.get_param('stab_tilt_enabled')
+        # self.setStabPan(stab_pan_enabled)
+        # self.setStabTilt(stab_tilt_enabled)
 
         self.num_windows = self.node_if.get_param('num_windows')
         self.selected_image_topics = self.node_if.get_param('selected_image_topics')
@@ -3153,6 +3153,15 @@ class NepiPanTiltAutoApp(object):
 
 
         self.stab_data_dict = stab_data_dict
+
+        pan_adjs = stab_data_dict['pan_adjs']
+        pan_adj = stab_data_dict['pan_adj']
+        tilt_adjs = stab_data_dict['tilt_adjs']
+        tilt_adj = stab_data_dict['tilt_adj']
+
+        # self.msg_if.pub_warn("Stabs Calc at Pan angle: " + str(pos_pan_tilt[0]))
+        # self.msg_if.pub_warn("Stabs Got tilt adj: " + str(tilt_adj))
+
     stop_time = nepi_utils.get_time()
     stab_update_time = float(1)/stab_update_rate - (stop_time - start_time)
     if stab_update_time < 0.1:
