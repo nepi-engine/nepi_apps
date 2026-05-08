@@ -30,7 +30,6 @@ bool tilt_stabing
 bool scan_pan_enabled
 bool scan_tilt_enabled
 
-
 float32 scan_pan_min_deg
 float32 scan_pan_max_deg
 float32 scan_tilt_min_deg
@@ -72,29 +71,36 @@ bool stab_source_connected
 bool stab_pan_enabled
 bool stab_tilt_enabled
 
-float32 stab_pan_min_deg
-float32 stab_pan_max_deg
-float32 stab_tilt_min_deg
-float32 stab_tilt_max_deg
-
-nepi_interfaces/PredictStatus predict_status
-
+float32 stab_update_rate
 float32 stab_goal_deg
 float32 stab_move_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
 
+float32 pantilt_speed_dps
+float32 pantilt_avg_move_delay
+
+nepi_interfaces/PredictStatus predict_status
+
 float32 stab_roll_deg
-float32 stab_roll_error
+float32 stab_roll_est
+
 
 float32 stab_pitch_deg
-float32 stab_pitch_error
+float32 stab_pitch_est
+
 
 float32 stab_heading_deg
-float32 stab_heading_error
+float32 stab_heading_est
 
-float32 stab_pan_error
-float32 stab_tilt_error
+
+float32 stab_pan_dps
+float32 stab_pan_deg
+float32 stab_pan_adj
+
+float32 stab_tilt_dps
+float32 stab_tilt_deg
+float32 stab_tilt_adj
 
 
 #########################

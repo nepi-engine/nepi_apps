@@ -82,24 +82,6 @@ class NepiPanTiltAutoApp(object):
   TARGET_BEST_FILTER_OPTIONS = nepi_targets.BEST_FILTER_OPTIONS
   TARGET_BEST_FILTER_DEFAULT = 'LARGEST'
 
-
-
-
-  STAB_UPDATE_INTERVAL = 0.5
-  STAB_MIN_ERROR_DEG = 5
-  STAB_DEFAULT_SOURCE = nepi_sdk.get_base_namespace() + '/pan_tilt_frame'
-
-
-  STAB_UPDATE_INTERVAL = 0.5
-  STAB_MOVE_DEG = 2
-  STAB_GOAL_DEG = 10
-
-  STAB_MOVE_RATIO = 0.8
-  STAB_MAX_RESET_SEC = 5
-  STAB_RESET_TIME_SEC = 2
-
-
-
   IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
   IMAGE_PRIORITY_NAMES = ['color_image','detection_image','target_image']
 
@@ -230,44 +212,23 @@ class NepiPanTiltAutoApp(object):
   #####################
   navpose_msg = None
   last_navpose_time = 0
-  
-  
-  stab_max_update_rate = STAB_UPDATE_INTERVAL
-  stab_min_error_deg = STAB_MIN_ERROR_DEG
 
-
-  available_stab_source_namespaces = [STAB_DEFAULT_SOURCE]
-  selected_stab_source = STAB_DEFAULT_SOURCE
-  stab_source_connected_namespace = "None"
-  stab_source_connecting = False
-  stab_source_connected = False
-  last_stab_source_time = 0
-
-  stab_subpub_dict = None
+  stab_timeout = 2
 
   stab_pan_enabled = False
   stab_tilt_enabled = False
-
-  stab_move_deg = STAB_MOVE_DEG
-  stab_goal_deg = STAB_GOAL_DEG
-  stab_reset_time_sec = STAB_RESET_TIME_SEC
-  stab_move_ratio = STAB_MOVE_RATIO
   
+  available_stab_source_namespaces = [nepi_stab.STAB_DEFAULT_SOURCE]
+  selected_stab_source = nepi_stab.STAB_DEFAULT_SOURCE
+  stab_source_connected_namespace = "None"
+  stab_source_connecting = False
+  stab_source_connected = False
+  last_stab_source_time = None
 
-  stab_roll_deg = -999
-  stab_roll_error = -999
-
-  stab_pitch_deg = -999
-  stab_pitch_error = -999
-
-  stab_heading_deg = -999
-  stab_heading_error = -999
-
-  stab_num_avg = 1
-  stab_pan_error = 0
-  stab_tilt_error = 0
-
-
+  stab_subpub_dict = None
+  stab_subpub_lock = threading.Lock()
+  stab_settings_dict = nepi_stab.get_blank_stab_settings_dict()
+  stab_data_dict = nepi_stab.get_blank_stab_data_dict()
 
   ############
 
@@ -326,7 +287,7 @@ class NepiPanTiltAutoApp(object):
   
   tracking_info_dict = None
   tracking_subpub_dict = None
-  tracking_subpub_stab = threading.Stab()
+  tracking_subpub_lock = threading.Lock()
 
   tracking_targets_topic = 'None'
   tracking_targets_connecting = False
@@ -371,21 +332,18 @@ class NepiPanTiltAutoApp(object):
   predict_topic = 'predict'
   predict_status_msg = PredictStatus()
 
-  predict_data_names = ['heading_deg',
-                        'roll_deg',
-                        'pitch_deg',
-                        'pan_tilt_heading_deg',
-                        'pan_tilt_roll_deg',
-                        'pan_tilt_pitch_deg']
+  predict_data_names = copy.deepcopy(nepi_stab.STAB_DATA_NAMES)
 
 
-  predict_dict = nepi_predict.create_predict_dict(predict_data_names)
-  predict_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_dict)
-  predict_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_dict)
-  predict_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_dict)
-  predict_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_dict)
+  predict_settings_dict = nepi_predict.create_predict_dict(predict_data_names)
+  predict_settings_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_settings_dict)
+  predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_settings_dict)
+  predict_settings_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_settings_dict)
+  predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_settings_dict)
+  
+  predict_data_dict = nepi_predict.create_datas_dict(predict_settings_dict)
+  predict_data_lock = threading.Lock()
 
-  predict_data = nepi_predict.create_datas_dict(predict_dict)
   
   #######################
   ### Node Initialization
@@ -439,6 +397,11 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val': self.selected_pan_tilt
         },
+
+        #####################
+        ###Scan
+        #####################
+
         'scan_pan_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
@@ -472,6 +435,10 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val': False
         },
+
+        #####################
+        ###Track
+        #####################
 
         'track_pan_enabled': {
             'namespace': self.node_namespace,
@@ -515,6 +482,14 @@ class NepiPanTiltAutoApp(object):
             'factory_val': self.track_move_deg
         },
 
+        #####################
+        ###Stab
+        #####################
+
+        'stab_settings_dict': {
+            'namespace': self.node_namespace,
+            'factory_val': self.stab_settings_dict
+        },
         'stab_pan_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
@@ -522,27 +497,12 @@ class NepiPanTiltAutoApp(object):
         'stab_tilt_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
-        },          
-        'stab_reset_time_sec': {
-            'namespace': self.node_namespace,
-            'factory_val': self.stab_reset_time_sec
-        },      
+        },   
 
-        'stab_move_ratio': {
-            'namespace': self.node_namespace,
-            'factory_val': self.stab_move_ratio
-        },
-        'stab_goal_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': self.stab_goal_deg
-        },
-        'stab_move_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': self.stab_move_deg
-        },
         #####################
         ###Image Viewer
         #####################
+
         'single_image_topic': {
             'namespace': self.node_namespace,
             'factory_val': self.single_image_topic
@@ -555,9 +515,11 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val': self.num_windows
         },
+
         #####################
         ###Tracking
         #####################
+
         'tracking_manages_targeting': {
             'namespace': self.node_namespace,
             'factory_val': self.tracking_manages_targeting
@@ -566,12 +528,13 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val': self.tracking_dict
         },
+
         #####################
         ###Predict
         #####################
-        'predict_dict': {
+        'predict_settings_dict': {
             'namespace': self.node_namespace,
-            'factory_val': self.predict_dict
+            'factory_val': self.predict_settings_dict
         },
         
 
@@ -634,6 +597,11 @@ class NepiPanTiltAutoApp(object):
             'callback': self.selectTopicCb, 
             'callback_args': ()
         },
+
+        #####################
+        ###Scan
+        #####################
+
         'set_scan_pan': {
             'namespace': self.node_namespace,
             'topic': 'set_scan_pan_enable',
@@ -666,6 +634,10 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setScanTiltWindowCb, 
             'callback_args': ()
         },
+
+        #####################
+        ###Track
+        #####################
 
         'set_track_pan_enable': {
             'namespace': self.node_namespace,
@@ -733,6 +705,10 @@ class NepiPanTiltAutoApp(object):
         },
 
 
+        #####################
+        ###Stab
+        #####################
+
         'set_stab_pan_enable': {
             'namespace': self.node_namespace,
             'topic': 'set_stab_pan_enable',
@@ -782,6 +758,9 @@ class NepiPanTiltAutoApp(object):
             'callback_args': ()
         },
 
+        #####################
+        ###Misc
+        #####################
 
         'set_pan_click_enable': {
             'namespace': self.node_namespace,
@@ -1021,6 +1000,9 @@ class NepiPanTiltAutoApp(object):
 
     nepi_sdk.start_timer_process(1.0, self.updaterTrackingCb, oneshot = True)
     nepi_sdk.start_timer_process(1.0, self.updaterStabCb, oneshot = True)
+    nepi_sdk.start_timer_process(1.0, self.updaterStabSolutionCb, oneshot = True)  
+
+
 
 
     ##############################
@@ -1070,12 +1052,14 @@ class NepiPanTiltAutoApp(object):
         self.setTrackPan(track_pan_enabled)
         self.setTrackTilt(track_tilt_enabled)
 
+
+        # stab_settings_dict = self.node_if.get_param('stab_settings_dict')
+        # for key in self.stab_settings_dict.keys():
+        #     if key not in stab_settings_dict.keys():
+        #         stab_settings_dict[key] = self.stab_settings_dict[key]
+        # self.stab_settings_dict = stab_settings_dict
         stab_pan_enabled = self.node_if.get_param('stab_pan_enabled')
         stab_tilt_enabled = self.node_if.get_param('stab_tilt_enabled')
-        self.stab_reset_time_sec = self.node_if.get_param('stab_reset_time_sec')
-        self.stab_move_ratio = self.node_if.get_param('stab_move_ratio')
-        self.stab_goal_deg = self.node_if.get_param('stab_goal_deg')
-        self.stab_move_deg = self.node_if.get_param('stab_move_deg')
         self.setStabPan(stab_pan_enabled)
         self.setStabTilt(stab_tilt_enabled)
 
@@ -1105,22 +1089,22 @@ class NepiPanTiltAutoApp(object):
         ###Predict
         #####################
         self.predict_source_topic = self.node_if.get_param('predict_source_topic')
-        predict_dict = self.node_if.get_param('predict_dict')
+        # predict_settings_dict = self.node_if.get_param('predict_settings_dict')
         
-        if predict_dict is not None:
-            blank_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
-            for key in blank_dict.keys():
-                if key not in predict_dict.keys():
-                    predict_dict[key] = blank_dict[key]
-            process_list = list(predict_dict['process_dict'].keys())
-            blank_dict = copy.deepcopy(nepi_predict.BLANK_PROCESS_DICT)
-            for process_name in process_list:
-                for key in blank_dict.keys():
-                    if key not in predict_dict['process_dict'][process_name].keys():
-                        predict_dict['process_dict'][process_name][key] = blank_dict[key]
-        else:
-           predict_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
-        self.predict_dict = predict_dict
+        # if predict_settings_dict is not None:
+        #     blank_dict = copy.deepcopy(nepi_predict.PREDICT_DICT)
+        #     for key in blank_dict.keys():
+        #         if key not in predict_settings_dict.keys():
+        #             predict_settings_dict[key] = blank_dict[key]
+        #     process_list = list(predict_settings_dict['process_dict'].keys())
+        #     blank_dict = copy.deepcopy(nepi_predict.BLANK_PROCESS_DICT)
+        #     for process_name in process_list:
+        #         for key in blank_dict.keys():
+        #             if key not in predict_settings_dict['process_dict'][process_name].keys():
+        #                 predict_settings_dict['process_dict'][process_name][key] = blank_dict[key]
+        # else:
+        #    predict_settings_dict = copy.deepcopy(nepi_predict.BLANK_PREDICT_DICT)
+        # self.predict_settings_dict = predict_settings_dict
 
 
 
@@ -1441,7 +1425,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('track_reset_time_sec', reset_time)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
   def setTrackMoveRatioCb(self, msg):
       ratio = msg.data
@@ -1455,7 +1439,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('track_move_ratio', ratio)
-            #self.node_if.save_config()
+            ##self.node_if.save_config()
 
   def setTrackGoalDegCb(self, msg):
       goal_deg = msg.data
@@ -1469,7 +1453,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('track_goal_deg', goal_deg)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
   def setTrackMoveDegCb(self, msg):
       move_deg = msg.data
@@ -1483,7 +1467,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('track_move_deg', move_deg)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
 
   ##########################################
@@ -1513,7 +1497,8 @@ class NepiPanTiltAutoApp(object):
             
         self.stab_pan_enabled = enabled
         self.publish_status()
-        self.node_if.set_param('stab_pan_enabled', self.stab_pan_enabled)
+        if self.node_if is not None:
+            self.node_if.set_param('stab_pan_enabled', self.stab_pan_enabled)
 
   def setStabTiltCb(self, msg):
         enabled = msg.data
@@ -1538,7 +1523,8 @@ class NepiPanTiltAutoApp(object):
             
         self.stab_tilt_enabled = enabled
         self.publish_status()
-        self.node_if.set_param('stab_tilt_enabled', self.stab_tilt_enabled)
+        if self.node_if is not None:
+            self.node_if.set_param('stab_tilt_enabled', self.stab_tilt_enabled)
 
 
   def setStabResetTimeSecCb(self, msg):
@@ -1551,11 +1537,11 @@ class NepiPanTiltAutoApp(object):
         if reset_time > self.STAB_MAX_RESET_SEC:
             reset_time = self.STAB_MAX_RESET_SEC
         self.msg_if.pub_info("Setting stab reset time to: " + str(reset_time))
-        self.stab_reset_time_sec = reset_time
+        self.stab_settings_dict['stab_reset_time_sec'] = reset_time
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('stab_reset_time_sec', reset_time)
-            self.node_if.save_config()
+            self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
+            #self.node_if.save_config()
 
   def setStabMoveRatioCb(self, msg):
       ratio = msg.data
@@ -1565,10 +1551,10 @@ class NepiPanTiltAutoApp(object):
   def setStabMoveRatio(self,ratio):
         ratio = nepi_utils.check_ratio(ratio)
         self.msg_if.pub_info("Setting stab move ratio to: " + str(ratio))
-        self.stab_move_ratio = ratio
+        self.stab_settings_dict['stab_move_ratio'] = ratio
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('stab_move_ratio', ratio)
+            self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
             #self.node_if.save_config()
 
   def setStabGoalDegCb(self, msg):
@@ -1579,11 +1565,11 @@ class NepiPanTiltAutoApp(object):
         if goal_deg < 0:
             goal_deg = 0
         self.msg_if.pub_info("Setting stab goal deg to: " + str(goal_deg))
-        self.stab_goal_deg = goal_deg
+        self.stab_settings_dict['stab_goal_deg'] = goal_deg
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('stab_goal_deg', goal_deg)
-            self.node_if.save_config()
+            self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
+            #self.node_if.save_config()
 
   def setStabMoveDegCb(self, msg):
       move_deg = msg.data
@@ -1593,11 +1579,11 @@ class NepiPanTiltAutoApp(object):
         if move_deg < 0:
             move_deg = 0
         self.msg_if.pub_info("Setting stab move deg to: " + str(move_deg))
-        self.stab_move_deg = move_deg
+        self.stab_settings_dict['stab_move_deg'] = move_deg
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('stab_move_deg', move_deg)
-            self.node_if.save_config()
+            self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
+            #self.node_if.save_config()
 
 
 
@@ -1634,7 +1620,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_manages_targeting', self.tracking_manages_targeting)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
   def setTrackTargetsTopicCb(self, msg):
       value = msg.data
@@ -1647,7 +1633,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_dict', self.tracking_dict)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
 
   def setTrackSourceTopicCb(self, msg):
@@ -1660,7 +1646,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_dict', self.tracking_dict)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
 
   def setTrackClassFilterCb(self, msg):
@@ -1673,7 +1659,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_dict', self.tracking_dict)
-            self.node_if.save_config()
+            #self.node_if.save_config()
 
 
   def setTrackThresholdFilterCb(self, msg):
@@ -1689,7 +1675,7 @@ class NepiPanTiltAutoApp(object):
             self.publish_status()
             if self.node_if is not None:
                 self.node_if.set_param('tracking_dict', self.tracking_dict)
-                #self.node_if.save_config()
+                ##self.node_if.save_config()
 
 
   def setTrackBestFilterCb(self, msg):
@@ -1702,7 +1688,7 @@ class NepiPanTiltAutoApp(object):
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tracking_dict', self.tracking_dict)
-            #self.node_if.save_config()
+            ##self.node_if.save_config()
 
     ##############################
     # Predict
@@ -1716,11 +1702,11 @@ class NepiPanTiltAutoApp(object):
 
   def setPredictSourceTopic(self,value):
         #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
-        self.predict_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_dict)
+        self.predict_settings_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_settings_dict)
         self.publish_status()
         if self.node_if is not None:
-            self.node_if.set_param('predict_dict', self.predict_dict)
-            self.node_if.save_config()
+            self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+            #self.node_if.save_config()
 
 
   def setPredictMaxLogTimeCb(self, msg):
@@ -1734,13 +1720,13 @@ class NepiPanTiltAutoApp(object):
             max_time = self.PREDICT_MAX_LOG_TIME
 
         self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
-        last_val = copy.deepcopy(self.predict_dict['max_log_sec'])
-        self.predict_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_dict)
+        last_val = copy.deepcopy(self.predict_settings_dict['max_log_sec'])
+        self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_settings_dict)
         if last_val != max_time:
             self.publish_status()
             if self.node_if is not None:
-                self.node_if.set_param('predict_dict', self.predict_dict)
-                self.node_if.save_config()
+                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+                #self.node_if.save_config()
 
 
   def setPredictMaxLogRateCb(self, msg):
@@ -1753,13 +1739,13 @@ class NepiPanTiltAutoApp(object):
         if max_rate > self.PREDICT_MAX_LOG_RATE:
             max_rate = self.PREDICT_MAX_LOG_RATE
         self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
-        last_val = copy.deepcopy(self.predict_dict['max_log_rate'])
-        self.predict_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_dict)
+        last_val = copy.deepcopy(self.predict_settings_dict['max_log_rate'])
+        self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_settings_dict)
         if last_val != max_rate:
             self.publish_status()
             if self.node_if is not None:
-                self.node_if.set_param('predict_dict', self.predict_dict)
-                self.node_if.save_config()
+                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+                #self.node_if.save_config()
 
 
   def setPredictQualityFilterCb(self, msg):
@@ -1769,13 +1755,13 @@ class NepiPanTiltAutoApp(object):
   def setPredictQualityFilter(self,ratio):
         ratio = nepi_utils.check_ratio(ratio)
         self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
-        last_val = copy.deepcopy(self.predict_dict['quality_filter'])
-        self.predict_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_dict)
+        last_val = copy.deepcopy(self.predict_settings_dict['quality_filter'])
+        self.predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_settings_dict)
         if last_val != ratio:
             self.publish_status()
             if self.node_if is not None:
-                self.node_if.set_param('predict_dict', self.predict_dict)
-                self.node_if.save_config()
+                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+                #self.node_if.save_config()
 
 
   def setPredictTimeCb(self, msg):
@@ -1789,12 +1775,12 @@ class NepiPanTiltAutoApp(object):
             max_time = self.PREDICT_MAX_PREDICT_TIME
         self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
         last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
-        self.predict_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_dict)
+        self.predict_settings_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_settings_dict)
         if last_val != predict_time:
             self.publish_status()
             if self.node_if is not None:
-                self.node_if.set_param('predict_dict', self.predict_dict)
-                self.node_if.save_config()
+                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+                #self.node_if.save_config()
 
   def setPredictProcessValueCb(self, msg):
       process = msg.name
@@ -1808,14 +1794,14 @@ class NepiPanTiltAutoApp(object):
 
   def setPredictProcessValue(self,process,key_name,value,arg_name = None):
         self.msg_if.pub_info("Setting predict process to: " + str(value))
-        predict_dict = copy.deepcopy(self.predict_dict)
+        predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
         if arg_name is None:
-            self.predict_dict = nepi_predict.update_process_dict(process,key_name,value, predict_dict)
-        if predict_dict != self.predict_dict:
+            self.predict_settings_dict = nepi_predict.update_process_dict(process,key_name,value, predict_settings_dict)
+        if predict_settings_dict != self.predict_settings_dict:
             self.publish_status()
             if self.node_if is not None:
-                self.node_if.set_param('predict_dict', self.predict_dict)
-                self.node_if.save_config()
+                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+                #self.node_if.save_config()
 
     ##############################
     # Proccesses
@@ -2264,7 +2250,7 @@ class NepiPanTiltAutoApp(object):
     self.publish_status()
     if self.node_if is not None:
         self.node_if.set_param('selected_image_topics', self.selected_image_topics)
-        self.node_if.save_config()
+        #self.node_if.save_config()
 
   def setImageTopic2Cb(self,msg):
     self.msg_if.pub_info(str(msg))
@@ -2275,7 +2261,7 @@ class NepiPanTiltAutoApp(object):
       self.publish_status()
       if self.node_if is not None:
         self.node_if.set_param('selected_image_topics', self.selected_image_topics)
-        self.node_if.save_config()
+        #self.node_if.save_config()
 
   def setImageTopic3Cb(self,msg):
     self.msg_if.pub_info(str(msg))
@@ -2286,7 +2272,7 @@ class NepiPanTiltAutoApp(object):
       self.publish_status()
       if self.node_if is not None:
         self.node_if.set_param('selected_image_topics', self.selected_image_topics)
-        self.node_if.save_config()
+        #self.node_if.save_config()
 
   def setImageTopic4Cb(self,msg):
     self.msg_if.pub_info(str(msg))
@@ -2297,7 +2283,7 @@ class NepiPanTiltAutoApp(object):
       self.publish_status()
       if self.node_if is not None:
         self.node_if.set_param('selected_image_topics', self.selected_image_topics)
-        self.node_if.save_config()
+        #self.node_if.save_config()
       
   def setNumWindowsCb(self,msg):
     self.msg_if.pub_info(str(msg))
@@ -2312,7 +2298,7 @@ class NepiPanTiltAutoApp(object):
       self.publish_status()
       if self.node_if is not None:
         self.node_if.set_param('num_windows', self.num_windows)
-        self.node_if.save_config()
+        #self.node_if.save_config()
 
   def setImagePriorityCb(self,msg):
     image_priority = msg.data
@@ -2325,7 +2311,7 @@ class NepiPanTiltAutoApp(object):
     if self.node_if is not None:
       self.node_if.set_param('single_image_topic', self.single_image_topic)
       self.node_if.set_param('selected_image_topics', self.selected_image_topics)
-      self.node_if.save_config()
+      #self.node_if.save_config()
 
 
 ##########################
@@ -2335,13 +2321,13 @@ class NepiPanTiltAutoApp(object):
   def sendTargetsMsg(self,msg_name,msg):
         success = False
         if self.tracking_subpub_dict is not None:
-            self.tracking_subpub_stab.acquire()
+            self.tracking_subpub_lock.acquire()
             try:
                 nepi_sdk.publish_pub(self.tracking_subpub_dict[msg_name],msg)
                 success = True
             except:
                 pass
-            self.tracking_subpub_stab.release()
+            self.tracking_subpub_lock.release()
         return success
 
   def sendTargetsConfig(self):
@@ -2499,19 +2485,19 @@ class NepiPanTiltAutoApp(object):
             tracking_subpub_dict = dict()
 
             tracking_subpub_dict['targets_sub'] = nepi_sdk.create_subscriber(namespace, Targets, self.targetsCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
-            # tracking_subpub_dict['status_sub'] = nepi_sdk.create_subscriber(namespace + '/status', TargetingStatus, self.targetsStatusCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+            tracking_subpub_dict['status_sub'] = nepi_sdk.create_subscriber(namespace + '/status', TargetingStatus, self.targetsStatusCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
             
-            # tracking_subpub_dict['enable_pub'] = nepi_sdk.create_publisher(namespace + '/enable', Bool, queue_size = 10, log_name_list = [])
-            # tracking_subpub_dict['source_pub'] = nepi_sdk.create_publisher(namespace + '/set_source_topic', String, queue_size = 10, log_name_list = [])
-            # tracking_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
-            # tracking_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
-            # tracking_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_save_config_enable', Bool, queue_size = 10, log_name_list = [])
-            # tracking_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', TargetingUpdate, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['enable_pub'] = nepi_sdk.create_publisher(namespace + '/enable', Bool, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['source_pub'] = nepi_sdk.create_publisher(namespace + '/set_source_topic', String, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_save_config_enable', Bool, queue_size = 10, log_name_list = [])
+            tracking_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', TargetingUpdate, queue_size = 10, log_name_list = [])
 
-            self.tracking_subpub_stab.acquire()
+            self.tracking_subpub_lock.acquire()
             self.tracking_subpub_dict = tracking_subpub_dict
             nepi_sdk.sleep(1)
-            self.tracking_subpub_stab.release()
+            self.tracking_subpub_lock.release()
 
             self.sendTargetsMsg('enable_pub',True)
 
@@ -2534,13 +2520,13 @@ class NepiPanTiltAutoApp(object):
             nepi_sdk.sleep(1)
             self.sendTargetsMsg('save_pub',True)
 
-            self.tracking_subpub_stab.acquire()
+            self.tracking_subpub_lock.acquire()
             for subpub in self.tracking_subpub_dict.keys():
                 try:
                     self.tracking_subpub_dict[subpub].unregister()
                 except:
                     pass
-            self.tracking_subpub_stab.release()
+            self.tracking_subpub_lock.release()
             nepi_sdk.sleep(1)
         self.tracking_targets_connecting = False
         self.tracking_targets_connected = False
@@ -2623,263 +2609,8 @@ class NepiPanTiltAutoApp(object):
 
 
 
+ 
 
-##########################
-### Stab
-##########################  
-            
-
-  def setStabEnable(self,enabled):
-    #   if enabled == True:
-    #     self.stab_status_msg_start = None
-    #     nepi_sdk.sleep(1)
-    #     self.stab_enabled = True
-    #     #self.sendStabMsg('save_pub',self.stab_manages_stabing)
-    #     self.sendStabMsg('save_pub',False)
-    #     nepi_sdk.sleep(1)
-    #     self.sendStabMsg('enable_pub',True)
-    #   if enabled == False:
-    #     self.stab_enabled = False
-    #     self.sendStabMsg('save_pub',True)
-    #     nepi_sdk.sleep(1)
-    #     self.stab_status_msg = None
-    #     if True: #self.stab_manages_stabing == False:
-    #         self.sendStabConfig()
-    #     nepi_sdk.sleep(1)
-    pass
-        
-
-  
-  
-
-
-  def checkForStabSourceTopic(self,namespace):
-      check_topic = namespace
-      found = check_topic in self.active_topics
-      return found
-
-  def updaterStabCb(self,timer):
-    #self.msg_if.pub_warn("Stab Updater Called")
-
-    needs_publish = False
-    stab_dict = copy.deepcopy(self.stab_dict)
-    stab_topic =  stab_dict['stab_topic']
-    source_topic = stab_dict['source_topic']
-    
-    track_sources = nepi_track.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
-    self.stab_available_stab = track_sources
-
-    # self.msg_if.pub_warn("")
-    # self.msg_if.pub_warn("")
-    # self.msg_if.pub_warn("")
-    # self.msg_if.pub_warn("Starting Stab Updater Purge Check")
-    # self.msg_if.pub_warn("available stab: " + str(self.stab_available_stab))
-    # self.msg_if.pub_warn("stab_dict: " + str(stab_dict))
-    # connect_states = [self.stab_source_connected,self.stab_source_connecting]
-    # self.msg_if.pub_warn("connect states: " + str(connect_states))
-    # cur_namespace = self.stab_source_connected_namespace
-    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
-    # active = self.checkForStabTopic(cur_namespace)
-    # self.msg_if.pub_warn("is active topic: " + str(active))
-
-    ####################
-    #### Purge if needed
-    do_purge = False
-    if (self.stab_source_connected == True or self.stab_source_connecting == True):
-        cur_namespace = self.stab_source_connected_namespace
-        if self.checkForStabSourceTopic(cur_namespace) == False and cur_namespace != 'None' and self.stab_subpub_dict is not None:
-            self.msg_if.pub_warn("Unsubscribing to Stab self.stab_source_connected_namespace: " + str(cur_namespace))
-            success = self.unsubscribeStabSource()
-            needs_publish = True
-
-    # self.msg_if.pub_warn("")
-    # self.msg_if.pub_warn("Starting Stab Updater Connect Check")
-    # self.msg_if.pub_warn("available stab: " + str(self.stab_available_stab))
-    # self.msg_if.pub_warn("stab_dict: " + str(stab_dict))
-    # connect_states = [self.stab_source_connected,self.stab_source_connecting]
-    # self.msg_if.pub_warn("connect states: " + str(connect_states))
-    # cur_namespace = self.stab_source_connected_namespace
-    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
-    # active = self.checkForStabTopic(cur_namespace)
-    # self.msg_if.pub_warn("is active topic: " + str(active))
-    # stab_topic =  stab_dict['stab_topic']
-    # self.msg_if.pub_warn("check_namespace: " + str(stab_topic))
-    # active = self.checkForStabTopic(stab_topic)
-    # self.msg_if.pub_warn("is active topic: " + str(active))
-
-
-    ####################
-    #### Connect if needed
-    needs_connect = False
-    cur_namespace = self.stab_source_connected_namespace
-    if (stab_topic != cur_namespace and self.checkForStabTopic(stab_topic) and stab_topic != 'None'):
-        if (self.stab_source_connected == False and self.stab_source_connecting == False):
-            self.msg_if.pub_warn("Subscribing to Stab topic: " + str(stab_topic) + " does not match current namespace " + str(cur_namespace))
-            needs_connect = True
-            success = self.subscribeStabSource(stab_topic)
-            needs_publish = True
-    
-      
-
-    ##################
-    # Update status
-
-    # self.msg_if.pub_warn("")
-    # self.msg_if.pub_warn("Starting Stab Status Msg Check")
-    # self.msg_if.pub_warn("status_msg is None: " + str(self.stab_status_msg is None))
-
-
-    if self.stab_source_connected == True:
-        if self.stab_status_last_time is not None:
-            last_time = nepi_utils.get_time() - self.stab_status_last_time
-            if last_time > self.stab_timeout:
-                self.msg_if.pub_warn("Clearing stab status message on timeout")
-                self.stab_status_msg = None
-                self.stab_status_last_time = None
-                self.stab_running = False
-                self.stab_available_sources = []
-                self.stab_available_classes = []
-                needs_publish = True
-
-    ####################
-    # Update State
-    self.stab_state = self.track_dict_check is not None
-    self.track_dict_check = None
-    self.track_dict = None
-    track_last_time = 0
-
-    ##################
-    # Get settings from param server
-    if needs_publish == True:
-      self.publish_status()
-
-    nepi_sdk.start_timer_process(1.0, self.updaterStabCb, oneshot = True)     
-
-
-
-  def subscribeStabSource(self,namespace):
-        success = True
-        if self.stab_subpub_dict is not None:
-            success = self.unsubscribeStabSource()
-        if namespace != 'None':
-            self.stab_source_connecting = True
-            self.stab_source_connected_namespace = namespace
-            self.msg_if.pub_warn("Subscribing to Stab topic: " + str(namespace))
-            stab_subpub_dict = dict()
-
-            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(namespace, NavPose, self.stabSourceCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
-            # stab_subpub_dict['status_sub'] = nepi_sdk.create_subscriber(namespace + '/status', StabingStatus, self.stabStatusCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
-            
-            # stab_subpub_dict['enable_pub'] = nepi_sdk.create_publisher(namespace + '/enable', Bool, queue_size = 10, log_name_list = [])
-            # stab_subpub_dict['source_pub'] = nepi_sdk.create_publisher(namespace + '/set_source_topic', String, queue_size = 10, log_name_list = [])
-            # stab_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
-            # stab_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
-            # stab_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_save_config_enable', Bool, queue_size = 10, log_name_list = [])
-            # stab_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', StabingUpdate, queue_size = 10, log_name_list = [])
-
-            self.stab_subpub_stab.acquire()
-            self.stab_subpub_dict = stab_subpub_dict
-            nepi_sdk.sleep(1)
-            self.stab_subpub_stab.release()
-
-            self.stab_stab_connected = False
-
-        else:
-            self.stab_stab_connecting = False
-        return success  
-
-  def unsubscribeStabSource(self):
-        if self.stab_subpub_dict is not None:
-            namespace = self.stab_stab_connected_namespace
-            self.msg_if.pub_info("Unsubscribing to Stab topic: " + str(namespace))
-
-            if True: #self.stab_manages_stabing == False:
-                self.sendStabConfig()
-            nepi_sdk.sleep(1)
-            self.sendStabMsg('save_pub',True)
-
-            self.stab_subpub_stab.acquire()
-            for subpub in self.stab_subpub_dict.keys():
-                try:
-                    self.stab_subpub_dict[subpub].unregister()
-                except:
-                    pass
-            self.stab_subpub_stab.release()
-            nepi_sdk.sleep(1)
-        self.stab_stab_connecting = False
-        self.stab_stab_connected = False
-        self.stab_stab_connected_namespace = 'None'
-        # self.stab_status_msg = None
-        # self.stab_status_msg_start = None 
-        # self.stab_status_last_time = None
-        return True
-
-
-
-  def stabSourceCb(self,msg, args):
-    #self.msg_if.pub_info("Stab callback got new stab mgs: " + str(msg))
-    stab_namespace = args
-    self.stab_last_time = nepi_utils.get_time()
-    #self.msg_if.pub_warn("Stab enabled " + str(self.stab_enabled))
-    if self.stab_enabled == True:
-        self.stab_msg = msg.stab
-        #self.msg_if.pub_info("Got stab mgs: " + str(self.stab_msg))
-        stab_dict = copy.deepcopy(self.stab_dict)
-        stab_topic = stab_dict['stab_topic']
-        source_topic = stab_dict['source_topic']
-        if True: #stab_topic == msg.process_namespace and source_topic == msg.source_topic:
-            self.stab_last_time = nepi_utils.get_time()
-
-            #self.msg_if.pub_warn("Got stab msg list " + str(stab_msg))
-            stab_dict_list = []
-            for stab_msg in self.stab_msg:
-                stab_dict = nepi_stab.convert_stab_msg2dict(stab_msg)
-                stab_dict_list.append(stab_dict)
-                #self.msg_if.pub_warn("Added stab list for name " + str(stab_dict['stab_name']))
-            #self.msg_if.pub_warn("Got stab list " + str(stab_dict_list))
-
-
-            #########################
-            # Apply Cutsom Filter Stab
-            if self.customFilterCb is not None:
-                stab_dict_list = self.customFilterCb(stab_dict_list)
-            
-            #self.msg_if.pub_warn("Got custom filtered stab list " + str(stab_dict_list))
-            #################
-            # Find Best Stab
-            #self.msg_if.pub_warn("Applying best stab filter dict " + str(stab_dict))
-            [best_stab_dict,stab_dict] = nepi_track.get_best_from_stab(stab_dict_list,stab_dict)
-            #self.msg_if.pub_warn("Got best stab " + str(best_stab_dict))
-            if best_stab_dict is not None:
-                self.track_last_time = nepi_utils.get_time()
-                self.track_dict = best_stab_dict
-                self.track_pan_dict = copy.deepcopy(best_stab_dict)
-                self.track_tilt_dict = copy.deepcopy(best_stab_dict)
-                self.track_dict_check = best_stab_dict
-                ##################
-                #self.msg_if.pub_warn("Got track dict" + str(track_dict))
-
-
-                # track_msg = nepi_stab.convert_stab_dict2msg(best_stab_dict)
-                # if self.node_if is not None:
-                #     self.node_if.publish_pub('track', track_msg) 
-
-#   def stabStatusCb(self,msg, args):
-#     #self.msg_if.pub_info("Stab callback got new stab mgs")
-#     stab_namespace = args
-#     status_msg = msg
-#     namespace = status_msg.namespace
-#     if self.stab_status_msg_start is None:
-#         #self.msg_if.pub_warn("Captured current Status msg from Targers namespace: " + str(namespace) + " : " + str(msg))
-#         self.stab_status_msg_start = msg
-#     self.stab_running = True
-#     self.stab_stab_connecting = False
-#     self.stab_stab_connected = True
-#     self.stab_status_msg = msg
-#     self.stab_available_sources = msg.available_source_topics
-#     self.stab_available_classes = msg.available_classes
-
-#     self.stab_status_last_time = nepi_utils.get_time()
 
 
 ##########################
@@ -2972,22 +2703,29 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.stab_pan_enabled = self.stab_pan_enabled
     self.status_msg.stab_tilt_enabled = self.stab_tilt_enabled
+    self.status_msg.stab_move_deg = self.stab_settings_dict['stab_move_deg']
+    self.status_msg.stab_goal_deg = self.stab_settings_dict['stab_goal_deg']
+    self.status_msg.stab_move_ratio = self.stab_settings_dict['stab_move_ratio']
+    self.status_msg.stab_reset_time_sec = self.stab_settings_dict['stab_reset_time_sec']
 
-    self.status_msg.stab_move_deg = self.stab_move_deg
-    self.status_msg.stab_goal_deg = self.stab_goal_deg
-    self.status_msg.stab_move_ratio = self.stab_move_ratio
-    self.status_msg.stab_reset_time_sec = self.stab_reset_time_sec
+
+    self.status_msg.stab_roll_deg = self.stab_data_dict['roll_deg']
+    self.status_msg.stab_roll_est = self.stab_data_dict['roll_est']
+
+    self.status_msg.stab_pitch_deg = self.stab_data_dict['pitch_deg']
+    self.status_msg.stab_pitch_est = self.stab_data_dict['pitch_est']
+
+    self.status_msg.stab_heading_deg = self.stab_data_dict['heading_deg']
+    self.status_msg.stab_heading_est = self.stab_data_dict['heading_est']
 
 
-    self.status_msg.stab_roll_deg = self.stab_roll_deg
-    self.status_msg.stab_roll_error = self.stab_roll_error
-    self.status_msg.stab_pitch_deg = self.stab_pitch_deg
-    self.status_msg.stab_pitch_error = self.stab_pitch_error
-    self.status_msg.stab_heading_deg = self.stab_heading_deg
-    self.status_msg.stab_heading_error = self.stab_heading_error
+    self.status_msg.stab_pan_dps = self.stab_data_dict['pan_dps']
+    self.status_msg.stab_pan_deg = self.stab_data_dict['pan_deg']
+    self.status_msg.stab_pan_adj = self.stab_data_dict['pan_adj']
 
-    self.status_msg.stab_pan_error = self.stab_pan_error
-    self.status_msg.stab_tilt_error = self.stab_tilt_error
+    self.status_msg.stab_tilt_dps = self.stab_data_dict['tilt_dps']
+    self.status_msg.stab_tilt_deg = self.stab_data_dict['tilt_deg']
+    self.status_msg.stab_tilt_adj = self.stab_data_dict['tilt_adj']
 
 
     ###############
@@ -3119,7 +2857,7 @@ class NepiPanTiltAutoApp(object):
     # Predict
     ###############
 
-    predict_dict = copy.deepcopy(self.predict_dict)
+    predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
 
 
     self.predict_status_msg.name = self.node_name
@@ -3130,16 +2868,16 @@ class NepiPanTiltAutoApp(object):
 
     #################
   
-    self.predict_status_msg.max_log_sec = predict_dict['max_log_sec']
-    self.predict_status_msg.max_log_hz = predict_dict['max_log_hz']
-    self.predict_status_msg.predict_time_sec = predict_dict['predict_time_sec']
-    self.predict_status_msg.quality_filter = predict_dict['quality_filter']
+    self.predict_status_msg.max_log_sec = predict_settings_dict['max_log_sec']
+    self.predict_status_msg.max_log_hz = predict_settings_dict['max_log_hz']
+    self.predict_status_msg.predict_time_sec = predict_settings_dict['predict_time_sec']
+    self.predict_status_msg.quality_filter = predict_settings_dict['quality_filter']
     
   
-    self.predict_status_msg.data_names_list = predict_dict['data_names_list']
+    self.predict_status_msg.data_names_list = predict_settings_dict['data_names_list']
 
 
-    process_dict = predict_dict['process_dict']
+    process_dict = predict_settings_dict['process_dict']
     process_names = list(process_dict.keys())
     self.predict_status_msg.process_names = process_names
     self.predict_status_msg.process_settings = []
@@ -3164,7 +2902,7 @@ class NepiPanTiltAutoApp(object):
         #self.msg_if.pub_warn("Publishing Status: " + str(self.status_msg))
         self.status_has_published = True
       self.node_if.publish_pub('status_pub', self.status_msg) 
-      self.node_if.save_config()
+      #self.node_if.save_config()
     
   #######################
   # Node Cleanup Function
@@ -3173,9 +2911,257 @@ class NepiPanTiltAutoApp(object):
     self.msg_if.pub_info(" Shutting down: Executing script cleanup actions")
 
 
+
+
+
+##########################
+### Stab
+##########################  
+            
+
+
+  def checkForStabSourceTopic(self,namespace):
+      check_topic = namespace
+      found = check_topic in self.active_topics
+      return found
+
+  def updaterStabCb(self,timer):
+    #self.msg_if.pub_warn("Stab Updater Called")
+
+    needs_publish = False
+    source_topic = self.selected_stab_source
+    
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Stab Updater Purge Check")
+    # connect_states = [self.stab_source_connected,self.stab_source_connecting]
+    # self.msg_if.pub_warn("connect states: " + str(connect_states))
+    # cur_namespace = self.stab_source_connected_namespace
+    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
+    # active = self.checkForStabSourceTopic(cur_namespace)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+
+    ####################
+    #### Purge if needed
+    do_purge = False
+    if (self.stab_source_connected == True or self.stab_source_connecting == True):
+        cur_namespace = self.stab_source_connected_namespace
+        if self.checkForStabSourceTopic(cur_namespace) == False and cur_namespace != 'None' and self.stab_subpub_dict is not None:
+            self.msg_if.pub_warn("Unsubscribing to Stab self.stab_source_connected_namespace: " + str(cur_namespace))
+            success = self.unsubscribeStabSource()
+            needs_publish = True
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Stab Updater Connect Check")
+    # connect_states = [self.stab_source_connected,self.stab_source_connecting]
+    # self.msg_if.pub_warn("connect states: " + str(connect_states))
+    # cur_namespace = self.stab_source_connected_namespace
+    # self.msg_if.pub_warn("current_namespace: " + str(cur_namespace))
+    # active = self.checkForStabSourceTopic(cur_namespace)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+    # self.msg_if.pub_warn("check_namespace: " + str(source_topic))
+    # active = self.checkForStabSourceTopic(source_topic)
+    # self.msg_if.pub_warn("is active topic: " + str(active))
+
+
+    ####################
+    #### Connect if needed
+    needs_connect = False
+    cur_namespace = self.stab_source_connected_namespace
+    if (source_topic != cur_namespace and self.checkForStabSourceTopic(source_topic) and source_topic != 'None'):
+        if (self.stab_source_connected == False and self.stab_source_connecting == False):
+            self.msg_if.pub_warn("Subscribing to Stab topic: " + str(source_topic) + " does not match current namespace " + str(cur_namespace))
+            needs_connect = True
+            success = self.subscribeStabSource(source_topic)
+            needs_publish = True
+    
+      
+
+    ##################
+    # Update status
+
+    # self.msg_if.pub_warn("")
+    # self.msg_if.pub_warn("Starting Stab Status Msg Check")
+    # self.msg_if.pub_warn("status_msg is None: " + str(self.stab_status_msg is None))
+
+
+    if self.stab_source_connected == True:
+        if self.last_stab_source_time is not None:
+            last_time = nepi_utils.get_time() - self.last_stab_source_time
+            if last_time > self.stab_timeout:
+                self.msg_if.pub_warn("Clearing stab status message on timeout")
+                self.stab_data_dict = nepi_stab.get_blank_stab_data_dict()
+                self.last_stab_source_time = None
+                self.stab_running = False
+
+                needs_publish = True
+
+    ####################
+    # Update State
+    # self.stab_state = self.track_dict_check is not None
+    # self.track_dict_check = None
+    # self.track_dict = None
+    track_last_time = 0
+
+    ##################
+    # Get settings from param server
+    if needs_publish == True:
+      self.publish_status()
+
+    nepi_sdk.start_timer_process(1.0, self.updaterStabCb, oneshot = True)     
+
+
+
+  def subscribeStabSource(self,namespace):
+        success = True
+        if self.stab_subpub_dict is not None:
+            success = self.unsubscribeStabSource()
+        if namespace != 'None':
+            self.stab_source_connecting = True
+            self.stab_source_connected_namespace = namespace
+            self.msg_if.pub_warn("Subscribing to Stab topic: " + str(namespace))
+            stab_subpub_dict = dict()
+
+            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(namespace, NavPose, self.stabSourceCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+
+            self.stab_subpub_lock.acquire()
+            self.stab_subpub_dict = stab_subpub_dict
+            nepi_sdk.sleep(1)
+            self.stab_subpub_lock.release()
+
+            self.stab_source_connected = False
+
+        else:
+            self.stab_source_connecting = False
+        return success  
+
+  def unsubscribeStabSource(self):
+        if self.stab_subpub_dict is not None:
+            namespace = self.stab_source_connected_namespace
+            self.msg_if.pub_info("Unsubscribing to Stab topic: " + str(namespace))
+
+            if True: #self.stab_manages_stabing == False:
+                self.sendStabConfig()
+            nepi_sdk.sleep(1)
+            self.sendStabMsg('save_pub',True)
+
+            self.stab_subpub_lock.acquire()
+            for subpub in self.stab_subpub_dict.keys():
+                try:
+                    self.stab_subpub_dict[subpub].unregister()
+                except:
+                    pass
+            self.stab_subpub_lock.release()
+            nepi_sdk.sleep(1)
+        self.stab_source_connecting = False
+        self.stab_source_connected = False
+        self.stab_source_connected_namespace = 'None'
+        self.stab_data_dict = nepi_stab.get_blank_stab_data_dict()
+        self.last_stab_source_time = None
+        return True
+
+
+
+  def stabSourceCb(self,msg, args):
+    
+    stab_namespace = args
+    verbose = self.navpose_msg is None
+    if verbose == True:
+        self.msg_if.pub_info("Stab callback got new NavPose msg " + str(msg))
+    self.stab_source_connecting = False
+    self.stab_source_connected = True
+    self.last_stab_source_time = nepi_utils.get_time()
+
+    predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
+    self.predict_data_lock.acquire()
+    predict_data_dict = copy.deepcopy(self.predict_data_dict)
+    self.predict_data_lock.release()
+    if verbose == True:
+        self.msg_if.pub_info("Stab passing first predict dicts " + str([ predict_data_dict, predict_settings_dict ]))
+    predict_data_dict = nepi_stab.update_data_from_msg(msg, predict_data_dict, predict_settings_dict, verbose = verbose)
+    if verbose == True:
+        self.msg_if.pub_info("Stab callback got new predict_data_dict " + str(predict_data_dict))
+    self.navpose_msg = msg
+
+    self.predict_data_lock.acquire()
+    self.predict_data_dict = predict_data_dict
+    self.predict_data_lock.release()
+
+
+  def updaterStabSolutionCb(self, timer):
+    stab_update_rate = 1
+    start_time = nepi_utils.get_time()
+    if self.pt_connected == True:
+            
+            
+
+        pos_pan_tilt = copy.deepcopy(self.current_position)
+
+        set_speed_pan_tilt = [10,10]
+        #set_speed_pan_tilt = self.pt_connect_if.get_set_pan_tilt_speed()
+
+        current_speed_pan_tilt = [0,0]
+        #current_speed_pan_tilt = self.pt_connect_if.get_cur_pan_tilt_speed()
+
+        delay_pan_tilt = 1
+        #delay_pan_tilt = self.pt_connect_if.get_pan_tilt_move_delay()
+
+
+        ##########################
+        # Calculate PT ADJUSTMENTS
+        stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
+        stab_settings_dict['max_pan_dps'] = set_speed_pan_tilt[0]
+        stab_settings_dict['max_tilt_dps'] = set_speed_pan_tilt[1]
+        stab_settings_dict['avg_move_delay'] = delay_pan_tilt
+
+        stab_update_rate = stab_settings_dict['stab_update_rate']
+        stab_goal_deg = stab_settings_dict['stab_goal_deg']
+        stab_move_deg = stab_settings_dict['stab_move_deg']
+        stab_move_ratio = stab_settings_dict['stab_move_ratio']
+        stab_reset_time_sec = stab_settings_dict['stab_reset_time_sec']
+
+
+        stab_data_dict = copy.deepcopy(self.stab_data_dict)
+        stab_data_dict['pan_deg'] = pos_pan_tilt[0]
+        stab_data_dict['tilt_deg'] = pos_pan_tilt[1]
+        stab_data_dict['pan_dps'] = current_speed_pan_tilt[0]
+        stab_data_dict['tilt_dps'] = current_speed_pan_tilt[1]
+
+        predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
+        self.predict_data_lock.acquire()
+        predict_data_dict = copy.deepcopy(self.predict_data_dict)
+        self.predict_data_lock.release()
+
+        stab_data_dict = nepi_stab.process_data_from_dict(predict_data_dict, predict_settings_dict, stab_settings_dict, stab_data_dict)
+
+        ##########################
+        # APPLY PT UPDATES IF NEEDED
+        [pan_goal, tilt_goal] = copy.deepcopy(self.goto_position)
+
+        adj_pan = stab_data_dict['pan_adj']
+
+        if abs(adj_pan) > stab_goal_deg and abs(adj_pan) > stab_move_deg  and self.stab_pan_enabled == True:
+            adj_pan_goal = pan_goal + adj_pan
+            self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
+
+        adj_tilt = stab_data_dict['tilt_adj']
+        if abs(adj_tilt) > stab_goal_deg and abs(adj_tilt) > stab_move_deg  and self.stab_tilt_enabled == True:
+            adj_tilt_goal = tilt_goal + adj_tilt
+            self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
+
+
+        self.stab_data_dict = stab_data_dict
+    stop_time = nepi_utils.get_time()
+    stab_update_time = float(1)/stab_update_rate - (stop_time - start_time)
+    if stab_update_time < 0.1:
+        stab_update_time = 0.1
+    nepi_sdk.start_timer_process(stab_update_rate, self.updaterStabSolutionCb, oneshot = True) 
+
+
 #########################################
 # Main
 #########################################
 if __name__ == '__main__':
   NepiPanTiltAutoApp()
-

@@ -83,7 +83,8 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: false,
       autoTiltEnabled: false,
 
-
+      stabPanEnabled: false,
+      stabTiltEnabled: false,
 
       click_pan_enabled: false,
       click_tilt_enabled: false,
@@ -110,6 +111,8 @@ class NepiAppPTAutoControls extends Component {
 
     this.renderControlPanel = this.renderControlPanel.bind(this)
     this.renderScanControls = this.renderScanControls.bind(this)
+
+    //this.renderStabControls = this.renderStabControls.bind(this)
 
     this.onMenuSelection = this.onMenuSelection.bind(this)
     this.renderTrackControls = this.renderTrackControls.bind(this)
@@ -154,6 +157,9 @@ class NepiAppPTAutoControls extends Component {
       trackPanEnabled: message.track_pan_enabled,
       trackTiltEnabled: message.track_tilt_enabled,
       
+      stabPanEnabled: message.stab_pan_enabled,
+      stabTiltEnabled: message.stab_tilt_enabled,
+
       sinPanEnabled: message.sin_pan_enabled,
       sinTiltEnabled: message.sin_tilt_enabled,
 
@@ -260,7 +266,7 @@ componentWillUnmount() {
     const { ptxDevices, sendBoolMsg } = this.props.ros
 
     const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
-            track_source_connected,
+            track_source_connected, stabPanEnabled, stabTiltEnabled,
             click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
 
     const selected_pan_tilt = this.state.selected_pan_tilt
@@ -299,12 +305,12 @@ componentWillUnmount() {
           <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
             <div style={{ display: 'flex' }} >
-                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'pantilt')} >
+                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'scan')} >
 
                         <Label title="Show Scanning Controls">
                             <Toggle
-                              checked={(show_control === 'pantilt')}
-                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'pantilt') ? 'None' : 'pantilt' )}>
+                              checked={(show_control === 'scan')}
+                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'scan') ? 'None' : 'scan' )}>
                             </Toggle>
                         </Label>
 
@@ -314,7 +320,7 @@ componentWillUnmount() {
                 </div>
 
           </div>
-          <div hidden={(show_control !== 'pantilt')}>
+          <div hidden={(show_control !== 'scan')}>
                 {this.renderScanControls()}
           </div>
 
@@ -336,6 +342,26 @@ componentWillUnmount() {
           </div>
           <div hidden={(show_control !== 'track')}>
                 {this.renderTrackControls()}
+          </div>
+
+            <div style={{ display: 'flex' }} >
+                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'stab')}>
+
+                        <Label title="Show Tracking Controls">
+                            <Toggle
+                              checked={(show_control === 'stab')}
+                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'stab') ? 'None' : 'stab' )}>
+                            </Toggle>
+                        </Label>
+
+                </div>
+
+                <div style={{ width: '40%' }}>
+                </div>
+
+          </div>
+          <div hidden={(show_control !== 'stab')}>
+                { }
           </div>
 
             </React.Fragment>
@@ -423,7 +449,7 @@ componentWillUnmount() {
     const { ptxDevices, sendBoolMsg } = this.props.ros
 
     const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
-            track_source_connected,
+            track_source_connected, stabPanEnabled, stabTiltEnabled,
             click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
 
     const selected_pan_tilt = this.state.selected_pan_tilt
@@ -469,6 +495,8 @@ componentWillUnmount() {
     const has_sep_speed = (status_msg.pt_status_msg.has_seperate_pan_tilt_speed)
 
     const disable_track_enable = ((track_source_connected === false || has_scan_pan === false || has_scan_tilt === false))
+
+    const disable_stab_enable = false
 
       const panPosition = status_msg.pt_status_msg.pan_now_deg
       const tiltPosition = status_msg.pt_status_msg.tilt_now_deg
@@ -551,6 +579,25 @@ componentWillUnmount() {
 
               </Label>
 
+
+              <Label title={"Enable Stabilize"}>
+
+                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                  <Toggle style={{justifyContent: "flex-left"}} 
+                    disabled={true}
+                    checked={stabPanEnabled === true && disable_stab_enable === false} 
+                    onClick={() => sendBoolMsg.bind(this)(namespace + "/set_stab_pan_enable",!stabPanEnabled)} />
+                </div>
+
+
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                  <Toggle style={{justifyContent: "flex-right"}} 
+                    disabled={disable_stab_enable === true}
+                    checked={stabTiltEnabled === true && disable_stab_enable === false} 
+                    onClick={() => sendBoolMsg.bind(this)(namespace + "/set_stab_tilt_enable",!stabTiltEnabled)} />
+                </div>
+
+              </Label>
 
 
           <div hidden={(has_abs_pos === false)}>
