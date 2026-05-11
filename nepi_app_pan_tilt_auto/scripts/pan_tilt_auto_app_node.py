@@ -2769,11 +2769,11 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.stab_heading_adj = self.stab_data_dict['heading_adj']
 
 
-    self.status_msg.stab_pan_speed_dps = self.stab_data_dict['pan_speed_dps']
+    self.status_msg.pan_speed_dps = self.stab_data_dict['pan_speed_dps']
     self.status_msg.stab_pan_deg = self.stab_data_dict['pan_deg']
     self.status_msg.stab_pan_adj = self.stab_data_dict['pan_adj']
 
-    self.status_msg.stab_tilt_speed_dps = self.stab_data_dict['tilt_speed_dps']
+    self.status_msg.tilt_speed_dps = self.stab_data_dict['tilt_speed_dps']
     self.status_msg.stab_tilt_deg = self.stab_data_dict['tilt_deg']
     self.status_msg.stab_tilt_adj = self.stab_data_dict['tilt_adj']
 
@@ -3079,7 +3079,7 @@ class NepiPanTiltAutoApp(object):
             self.msg_if.pub_warn("Subscribing to Stab topic: " + str(namespace))
             stab_subpub_dict = dict()
 
-            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(namespace, NavPose, self.stabSourceCb, queue_size = 1, callback_args= (namespace), log_name_list = [])
+            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(namespace, NavPose, self.stabSourceCb, queue_size = 1, log_name_list = [])
 
             self.stab_subpub_lock.acquire()
             self.stab_subpub_dict = stab_subpub_dict
@@ -3183,8 +3183,8 @@ class NepiPanTiltAutoApp(object):
       # stab_data_dict['pan_tilt_dps'] = pan_tilt_dps
       # stab_data_dict['tilt_speed_dps'] = tilt_speed_dps
 
-      # #pantilt_avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
-      #stab_settings_dict['pantilt_avg_move_delay'] =  pantilt_avg_move_delay
+      # #avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
+      #stab_settings_dict['avg_move_delay'] =  avg_move_delay
 
     [pan_deg,tilt_deg] = current_position
 
@@ -3194,7 +3194,7 @@ class NepiPanTiltAutoApp(object):
     pan_speed_dps = stab_data_dict['pan_speed_dps']
     tilt_speed_dps = stab_data_dict['tilt_speed_dps']
 
-    pantilt_avg_move_delay = stab_settings_dict['pantilt_avg_move_delay']
+    avg_move_delay = stab_settings_dict['avg_move_delay']
 
     ##########################
     # Calculate pan tilt adjustments

@@ -73,6 +73,11 @@ class NepiAppPTAutoControls extends Component {
       trackTiltMax: 50,
       trackResetTime: null,
 
+      stab_update_rate: null,
+      stab_goal_deg: null,
+      stab_move_deg: null,
+      stab_reset_time_sec: null,
+
       lockPanMin: -50,
       lockPanMax: 50,
       lockTiltMin: -50,
@@ -112,7 +117,9 @@ class NepiAppPTAutoControls extends Component {
     this.renderControlPanel = this.renderControlPanel.bind(this)
     this.renderScanControls = this.renderScanControls.bind(this)
 
-    //this.renderStabControls = this.renderStabControls.bind(this)
+    this.renderStabControls = this.renderStabControls.bind(this)
+    this.onStabUpdateText = this.onStabUpdateText.bind(this)
+    this.onStabKeyText = this.onStabKeyText.bind(this)
 
     this.onMenuSelection = this.onMenuSelection.bind(this)
     this.renderTrackControls = this.renderTrackControls.bind(this)
@@ -347,7 +354,7 @@ componentWillUnmount() {
             <div style={{ display: 'flex' }} >
                 <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'stab')}>
 
-                        <Label title="Show Tracking Controls">
+                        <Label title="Show Stabilize Controls">
                             <Toggle
                               checked={(show_control === 'stab')}
                               onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'stab') ? 'None' : 'stab' )}>
@@ -361,7 +368,7 @@ componentWillUnmount() {
 
           </div>
           <div hidden={(show_control !== 'stab')}>
-                { }
+                {this.renderStabControls()}
           </div>
 
             </React.Fragment>
@@ -960,6 +967,52 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 
 
+  onStabUpdateText(e) {
+    var element = null
+    const id = e.target.id
+    const stateKey = {
+      StabUpdateRate: 'stab_update_rate',
+      StabGoalDeg: 'stab_goal_deg',
+      StabMoveDeg: 'stab_move_deg',
+      StabResetTimeSec: 'stab_reset_time_sec'
+    }[id]
+    if (stateKey) {
+      element = document.getElementById(id)
+      setElementStyleModified(element)
+      this.setState({[stateKey]: e.target.value})
+    }
+  }
+
+  onStabKeyText(e) {
+    const {sendFloatMsg} = this.props.ros
+    const namespace = this.getNamespace()
+    var element = null
+    if (e.key === 'Enter') {
+      const val = parseFloat(e.target.value)
+      if (e.target.id === "StabUpdateRate") {
+        element = document.getElementById("StabUpdateRate")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_update_rate", val) }
+        this.setState({stab_update_rate: null})
+      } else if (e.target.id === "StabGoalDeg") {
+        element = document.getElementById("StabGoalDeg")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_goal_deg", val) }
+        this.setState({stab_goal_deg: null})
+      } else if (e.target.id === "StabMoveDeg") {
+        element = document.getElementById("StabMoveDeg")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_move_deg", val) }
+        this.setState({stab_move_deg: null})
+      } else if (e.target.id === "StabResetTimeSec") {
+        element = document.getElementById("StabResetTimeSec")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_reset_time_sec", val) }
+        this.setState({stab_reset_time_sec: null})
+      }
+    }
+  }
+
   renderTrackControls() {
 
 
@@ -1268,6 +1321,193 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
   
 }
 
+
+  renderStabControls() {
+    const namespace = this.getNamespace()
+    const status_msg = this.state.status_msg
+
+    const available_sources = status_msg.available_stab_source_namespaces
+    const sources_names = createMenuBaseNames(available_sources)
+    const sources_menu = createMenuListFromStrLists(available_sources, sources_names, ['None'], [], 'None Available')
+    const selected_source = status_msg.selected_stab_source
+
+    var stab_update_rate = this.state.stab_update_rate
+    if (stab_update_rate == null) { stab_update_rate = status_msg.stab_update_rate }
+
+    var stab_goal_deg = this.state.stab_goal_deg
+    if (stab_goal_deg == null) { stab_goal_deg = status_msg.stab_goal_deg }
+
+    var stab_move_deg = this.state.stab_move_deg
+    if (stab_move_deg == null) { stab_move_deg = status_msg.stab_move_deg }
+
+    var stab_reset_time_sec = this.state.stab_reset_time_sec
+    if (stab_reset_time_sec == null) { stab_reset_time_sec = status_msg.stab_reset_time_sec }
+
+    const stab_move_ratio = status_msg.stab_move_ratio
+
+    const pan_speed_max = status_msg.pan_speed_max
+    const pan_speed_dps = status_msg.pan_speed_dps
+    const tilt_speed_max = status_msg.tilt_speed_max
+    const tilt_speed_dps = status_msg.tilt_speed_dps
+    const pantilt_avg_move_delay = status_msg.pantilt_avg_move_delay
+
+    const stab_roll_deg = status_msg.stab_roll_deg
+    const stab_roll_adj = status_msg.stab_roll_adj
+    const stab_pitch_deg = status_msg.stab_pitch_deg
+    const stab_pitch_adj = status_msg.stab_pitch_adj
+    const stab_heading_deg = status_msg.stab_heading_deg
+    const stab_heading_adj = status_msg.stab_heading_adj
+    const stab_pan_deg = status_msg.stab_pan_deg
+    const stab_pan_adj = status_msg.stab_pan_adj
+    const stab_tilt_deg = status_msg.stab_tilt_deg
+    const stab_tilt_adj = status_msg.stab_tilt_adj
+
+    return (
+      <React.Fragment>
+
+        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+        <Label title={'Select Source'}>
+          <Select
+            id="set_stab_source"
+            onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_source", e.target.value)}
+            value={selected_source}
+          >
+            {sources_menu}
+          </Select>
+        </Label>
+
+        <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+        <Label title={"Update Rate"}>
+          <Input
+            id={"StabUpdateRate"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_update_rate}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <Label title={"Goal Deg"}>
+          <Input
+            id={"StabGoalDeg"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_goal_deg}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <Label title={"Move Deg"}>
+          <Input
+            id={"StabMoveDeg"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_move_deg}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <Label title={"Reset Timeout"}>
+          <Input
+            id={"StabResetTimeSec"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_reset_time_sec}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <SliderAdjustment
+          title={"Move Sensitivity"}
+          msgType={"std_msgs/Float32"}
+          adjustment={stab_move_ratio}
+          topic={namespace + "/set_stab_move_ratio"}
+          scaled={0.01}
+          min={0}
+          max={100}
+          disabled={false}
+          tooltip={"Sets stabilize move sensitivity"}
+          unit={"%"}
+        />
+
+        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"DPS"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Max"}</div>
+        </Label>
+
+        <Label title={"Pan Speed"}>
+          <Input
+            disabled
+            style={{ width: "45%", float: "left" }}
+            value={round(pan_speed_dps, 2)}
+          />
+          <Input
+            disabled
+            style={{ width: "45%" }}
+            value={round(pan_speed_max, 2)}
+          />
+        </Label>
+
+        <Label title={"Tilt Speed"}>
+          <Input
+            disabled
+            style={{ width: "45%", float: "left" }}
+            value={round(tilt_speed_dps, 2)}
+          />
+          <Input
+            disabled
+            style={{ width: "45%" }}
+            value={round(tilt_speed_max, 2)}
+          />
+        </Label>
+
+        <Label title={"Avg Move Delay"}>
+          <Input
+            disabled
+            style={{ width: "45%", float: "left" }}
+            value={round(pantilt_avg_move_delay, 3)}
+          />
+        </Label>
+
+        <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Deg"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Adj"}</div>
+        </Label>
+
+        <Label title={"Roll"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_roll_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_roll_adj, 2)} />
+        </Label>
+
+        <Label title={"Pitch"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pitch_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pitch_adj, 2)} />
+        </Label>
+
+        <Label title={"Heading"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_heading_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_heading_adj, 2)} />
+        </Label>
+
+        <Label title={"Pan"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pan_adj, 2)} />
+        </Label>
+
+        <Label title={"Tilt"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_adj, 2)} />
+        </Label>
+
+      </React.Fragment>
+    )
+  }
 
   render() {
     const make_section = (this.props.make_section !== undefined)? this.props.make_section : true
