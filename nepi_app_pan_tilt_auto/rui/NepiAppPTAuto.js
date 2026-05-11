@@ -242,7 +242,7 @@ class NepiAppPTAuto extends Component {
 
     const appNamespace = this.getAppNamespace()
     const selected_pan_tilt = this.state.selected_pan_tilt
-    const ptConnected = this.state.pt_connected
+    //const ptConnected = this.state.pt_connected
     const ptMenuItems = this.createPtMenuOptions()
     //const show_pt_selector = (ptMenuItems.length > 1) ? true : (ptConnected === false)
     return (
@@ -275,16 +275,21 @@ class NepiAppPTAuto extends Component {
             : null } */}
 
 
-          { (ptConnected === true) ? 
+          {/* { (ptConnected === true) ?
             <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-          : null }
+          : null } */}
+          <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-          { (ptConnected === true) ? 
+          {/* { (ptConnected === true) ?
             <NepiAppPTAutoControls
                 namespace={appNamespace}
                 make_section={false}
             />
-          : null }
+          : null } */}
+          <NepiAppPTAutoControls
+              namespace={appNamespace}
+              make_section={false}
+          />
 
             { this.renderConfig() }
 
