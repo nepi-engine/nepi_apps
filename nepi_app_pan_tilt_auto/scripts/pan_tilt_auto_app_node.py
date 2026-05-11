@@ -3037,7 +3037,7 @@ class NepiPanTiltAutoApp(object):
             if last_time > stab_reset_time_sec:
                 self.msg_if.pub_warn("Clearing stab status message on timeout")
 
-                self.stab_dict_lock.aquire()
+                self.stab_dict_lock.acquire()
                 self.stab_data_dict = copy.deepcopy(self.BLANK_STAB_DATA_DICT)
                 self.stab_dict_lock.release()  
                 self.stab_pan_adj = 0.0
@@ -3139,7 +3139,7 @@ class NepiPanTiltAutoApp(object):
     self.stab_source_connected = True
 
     stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
-    self.stab_dict_lock.aquire()
+    self.stab_dict_lock.acquire()
     stab_data_dict = copy.deepcopy(self.stab_data_dict)
     self.stab_dict_lock.release()   
 
@@ -3237,9 +3237,9 @@ class NepiPanTiltAutoApp(object):
 
     
     self.stab_settings_dict = stab_settings_dict
-    self.stab_dict_lock.aquire()
+    self.stab_dict_lock.acquire()
     self.stab_data_dict = stab_data_dict
-    self.stab_dict_lock.aquire()
+    self.stab_dict_lock.acquire()
 
   def updaterStabSolutionCb(self, timer):
     stab_update_rate = 1
@@ -3247,7 +3247,7 @@ class NepiPanTiltAutoApp(object):
 
    
     stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
-    self.stab_dict_lock.aquire()
+    self.stab_dict_lock.acquire()
     stab_data_dict = copy.deepcopy(self.stab_data_dict)
     self.stab_dict_lock.release()   
 
