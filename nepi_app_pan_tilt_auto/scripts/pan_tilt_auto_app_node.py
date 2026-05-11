@@ -2018,17 +2018,10 @@ class NepiPanTiltAutoApp(object):
                         #self.msg_if.pub_warn("Resetting pan Scan Process to: " + str(self.goto_position[1]))
                         self.goto_position[0] = goto
                         self.pt_connect_if.goto_to_pan_position(goto)
-<<<<<<< HEAD
-                    self.scan_pan_track_hold = False
-
-
-
-=======
                     self.tilt_track_hold = False
       
                 
       
->>>>>>> 529646c00174b78654feb768dd4494c61bc43308
 
   def trackTiltProcess(self,timer):
       if self.track_tilt_enabled == False or self.tracking_targets_connected == False:
