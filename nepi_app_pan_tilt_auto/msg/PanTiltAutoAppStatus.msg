@@ -80,12 +80,10 @@ float32 stab_move_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
 
-
-
 float32 pan_speed_max
-float32 pan_speed_now
+float32 pan_speed_dps
 float32 tilt_speed_max
-float32 tilt_speed_now
+float32 tilt_speed_dps
 float32 pantilt_avg_move_delay
 
 float32 stab_roll_deg
