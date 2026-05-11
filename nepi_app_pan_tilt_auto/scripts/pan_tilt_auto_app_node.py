@@ -1299,14 +1299,11 @@ class NepiPanTiltAutoApp(object):
   def setScanPan(self,enabled):
         was_scanning = copy.deepcopy(self.scan_pan_enabled)
         self.scan_pan_enabled = enabled
-        self.publish_status()
         if enabled == True:
-            #self.goto_position[0] = 0.0
-            #self.pan_track_hold = False
-            #self.track_pan_enabled = False
-            pass
+            self.goto_position[0] = 0.0
         if (was_scanning == True and enabled == False and self.track_pan_enabled == False):
             self.pt_connect_if.goto_to_pan_position(0.0)
+        self.publish_status()
         self.node_if.set_param('scan_pan_enabled', enabled)
         
 
@@ -1320,14 +1317,11 @@ class NepiPanTiltAutoApp(object):
   def setScanTilt(self,enabled):
         was_scanning = copy.deepcopy(self.scan_tilt_enabled)
         self.scan_tilt_enabled = enabled
-        self.publish_status()
         if enabled == True:
             self.goto_position[1] = 0.0
-            #self.track_tilt_enabled = False
-            self.tilt_track_hold = False
-            self.stab_tilt_enabled = False
         if (was_scanning == True and enabled == False):
-               self.pt_connect_if.goto_to_tilt_position(0.0)        
+               self.pt_connect_if.goto_to_tilt_position(0.0)      
+        self.publish_status()  
         self.node_if.set_param('scan_tilt_enabled', self.scan_tilt_enabled)
 
 
