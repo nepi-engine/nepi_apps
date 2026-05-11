@@ -2772,11 +2772,11 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.stab_heading_adj = self.stab_data_dict['heading_adj']
 
 
-    self.status_msg.stab_pan_speed_dps = self.stab_data_dict['pan_speed_dps']
+    self.status_msg.pan_speed_dps = self.stab_data_dict['pan_speed_dps']
     self.status_msg.stab_pan_deg = self.stab_data_dict['pan_deg']
     self.status_msg.stab_pan_adj = self.stab_data_dict['pan_adj']
 
-    self.status_msg.stab_tilt_speed_dps = self.stab_data_dict['tilt_speed_dps']
+    self.status_msg.tilt_speed_dps = self.stab_data_dict['tilt_speed_dps']
     self.status_msg.stab_tilt_deg = self.stab_data_dict['tilt_deg']
     self.status_msg.stab_tilt_adj = self.stab_data_dict['tilt_adj']
 
@@ -3141,7 +3141,8 @@ class NepiPanTiltAutoApp(object):
     stab_namespace = args
     verbose = self.navpose_msg is None
     if verbose == True:
-        self.msg_if.pub_info("Stab callback got new NavPose msg " + str(msg))
+        pass
+        #self.msg_if.pub_info("Stab callback got new NavPose msg " + str(msg))
     self.stab_source_connecting = False
     self.stab_source_connected = True
 
