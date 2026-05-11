@@ -28,10 +28,9 @@ from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_targets
 from nepi_sdk import nepi_track
-from nepi_sdk import nepi_predict
 from nepi_sdk import nepi_nav
-from nepi_sdk import nepi_stab
-
+# from nepi_sdk import nepi_stab
+# from nepi_sdk import nepi_predict
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
@@ -81,6 +80,57 @@ class NepiPanTiltAutoApp(object):
 
   TARGET_BEST_FILTER_OPTIONS = nepi_targets.BEST_FILTER_OPTIONS
   TARGET_BEST_FILTER_DEFAULT = 'LARGEST'
+
+  STAB_DEFAULT_SOURCE = nepi_sdk.get_base_namespace() + '/navposes/base_frame/navpose'
+
+  STAB_DATA_NAMES = ['heading_deg','roll_deg','pitch_deg',]
+
+
+  BLANK_STAB_SETTINGS_DICT = {
+      
+      'stab_update_rate': 0.3,
+      'stab_goal_deg': 1.0,
+      'stab_move_deg': 2.0,
+      'stab_move_ratio': 1.0,
+      'stab_reset_time_sec': 3.0,
+
+      'num_adj_avg': 1,
+
+      'pan_speed_max': 10.0,
+      'tilt_speed_max': 10.0,
+      'avg_move_delay': 1.0,
+
+
+  }
+
+
+  BLANK_STAB_DATA_DICT = {
+      'data_time': 0.0,
+      'process_time': 0.0,
+
+      'roll_deg': -999,
+      'roll_adj': -999,
+
+      'pitch_deg': -999,
+      'pitch_adj': -999,
+
+      'heading_deg': -999,
+      'heading_adj': -999,
+
+      'pan_speed_dps': 0.0,
+      'pan_deg': 0.0,
+      'pan_adjs': [],
+      'pan_adj': 0.0,
+
+      'tilt_speed_dps': 0.0,
+      'tilt_deg': 0.0,
+      'tilt_adjs': [],
+      'tilt_adj': 0.0    
+  }
+
+
+
+
 
   IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
   IMAGE_PRIORITY_NAMES = ['color_image','detection_image','target_image']
@@ -218,8 +268,8 @@ class NepiPanTiltAutoApp(object):
   stab_pan_enabled = False
   stab_tilt_enabled = False
   
-  available_stab_source_namespaces = [nepi_stab.STAB_DEFAULT_SOURCE]
-  selected_stab_source = nepi_stab.STAB_DEFAULT_SOURCE
+  available_stab_source_namespaces = [STAB_DEFAULT_SOURCE]
+  selected_stab_source = STAB_DEFAULT_SOURCE
   stab_source_connected_namespace = "None"
   stab_source_connecting = False
   stab_source_connected = False
@@ -227,8 +277,10 @@ class NepiPanTiltAutoApp(object):
 
   stab_subpub_dict = None
   stab_subpub_lock = threading.Lock()
-  stab_settings_dict = nepi_stab.get_blank_stab_settings_dict()
-  stab_data_dict = nepi_stab.get_blank_stab_data_dict()
+  stab_settings_dict = copy.deepcopy(BLANK_STAB_SETTINGS_DICT)
+  stab_data_dict = copy.deepcopy(BLANK_STAB_DATA_DICT)
+  stab_pan_adj = 0.0
+  stab_tilt_adj = 0.0
 
   ############
 
@@ -315,34 +367,34 @@ class NepiPanTiltAutoApp(object):
   # Predict
   ###############
 
-  PREDICT_MIN_LOG_TIME = 1
-  PREDICT_MAX_LOG_TIME = 100
-  PREDICT_DEFAULT_LOG_TIME = 5
+  # PREDICT_MIN_LOG_TIME = 1
+  # PREDICT_MAX_LOG_TIME = 100
+  # PREDICT_DEFAULT_LOG_TIME = 5
 
-  PREDICT_MIN_LOG_RATE = 1
-  PREDICT_MAX_LOG_RATE = 10
-  PREDICT_DEFAULT_LOG_RATE = 2
+  # PREDICT_MIN_LOG_RATE = 1
+  # PREDICT_MAX_LOG_RATE = 10
+  # PREDICT_DEFAULT_LOG_RATE = 2
 
-  PREDICT_MIN_PREDICT_TIME = 0.1
-  PREDICT_MAX_PREDICT_TIME = 1
-  PREDICT_DEFAULT_PREDICT_TIME = 1
+  # PREDICT_MIN_PREDICT_TIME = 0.1
+  # PREDICT_MAX_PREDICT_TIME = 1
+  # PREDICT_DEFAULT_PREDICT_TIME = 1
 
-  PREDICT_DEFAULT_QUALITY_FILTER = 0.5
+  # PREDICT_DEFAULT_QUALITY_FILTER = 0.5
 
-  predict_topic = 'predict'
-  predict_status_msg = PredictStatus()
+  # predict_topic = 'predict'
+  # predict_status_msg = PredictStatus()
 
-  predict_data_names = copy.deepcopy(nepi_stab.STAB_DATA_NAMES)
+  # predict_data_names = copy.deepcopy(nepi_stab.STAB_DATA_NAMES)
 
 
-  predict_settings_dict = nepi_predict.create_predict_dict(predict_data_names)
-  predict_settings_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_settings_dict)
-  predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_settings_dict)
-  predict_settings_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_settings_dict)
-  predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_settings_dict)
+  # predict_settings_dict = nepi_predict.create_predict_dict(predict_data_names)
+  # predict_settings_dict = nepi_predict.update_predict_dict('max_log_time', PREDICT_DEFAULT_LOG_TIME, predict_settings_dict)
+  # predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', PREDICT_DEFAULT_LOG_RATE, predict_settings_dict)
+  # predict_settings_dict = nepi_predict.update_predict_dict('predict_time', PREDICT_DEFAULT_PREDICT_TIME, predict_settings_dict)
+  # predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', PREDICT_DEFAULT_QUALITY_FILTER, predict_settings_dict)
   
-  predict_data_dict = nepi_predict.create_datas_dict(predict_settings_dict)
-  predict_data_lock = threading.Lock()
+  # predict_data_dict = nepi_predict.create_datas_dict(predict_settings_dict)
+  # predict_data_lock = threading.Lock()
 
   
   #######################
@@ -532,10 +584,10 @@ class NepiPanTiltAutoApp(object):
         #####################
         ###Predict
         #####################
-        'predict_settings_dict': {
-            'namespace': self.node_namespace,
-            'factory_val': self.predict_settings_dict
-        },
+        # 'predict_settings_dict': {
+        #     'namespace': self.node_namespace,
+        #     'factory_val': self.predict_settings_dict
+        # },
         
 
 
@@ -571,20 +623,20 @@ class NepiPanTiltAutoApp(object):
         #####################
         ### Predict
         #####################
-        'predict': {
-            'msg': Predict,
-            'namespace': self.node_namespace,
-            'topic': self.predict_topic,
-            'qsize': 1,
-            'latch': True
-        },
-        'predict_status': {
-            'msg': PredictStatus,
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'status',
-            'qsize': 1,
-            'latch': True
-        }
+        # 'predict': {
+        #     'msg': Predict,
+        #     'namespace': self.node_namespace,
+        #     'topic': self.predict_topic,
+        #     'qsize': 1,
+        #     'latch': True
+        # },
+        # 'predict_status': {
+        #     'msg': PredictStatus,
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'status',
+        #     'qsize': 1,
+        #     'latch': True
+        # }
     }
 
     # Subscribers Config Dict ####################
@@ -901,54 +953,54 @@ class NepiPanTiltAutoApp(object):
         ### Predict
         #####################
 
-        'set_predict_source_topic': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_source_topic',
-            'msg': String,
-            'qsize': 10,
-            'callback': self.setPredictSourceTopicCb, 
-            'callback_args': ()
-        },
-        'set_predict_max_log_sec': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_max_log_sec',
-            'msg': Float32,
-            'qsize': 10,
-            'callback': self.setPredictMaxLogTimeCb, 
-            'callback_args': ()
-        },
-        'set_predict_max_log_hz': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_max_log_hz',
-            'msg': Float32,
-            'qsize': 10,
-            'callback': self.setPredictMaxLogRateCb, 
-            'callback_args': ()
-        },
-        'set_predict_predict_time': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_predict_time',
-            'msg': Float32,
-            'qsize': 10,
-            'callback': self.setPredictTimeCb, 
-            'callback_args': ()
-        },
-        'set_predict_quality_filter': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_quality_filter',
-            'msg': Float32,
-            'qsize': 10,
-            'callback': self.setPredictQualityFilterCb, 
-            'callback_args': ()
-        },
-        'set_predict_process_value': {
-            'namespace': self.node_namespace + '/' + self.predict_topic,
-            'topic': 'set_process_value',
-            'msg': UpdateFloat,
-            'qsize': 10,
-            'callback': self.setPredictProcessValueCb, 
-            'callback_args': ()
-        },
+        # 'set_predict_source_topic': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_source_topic',
+        #     'msg': String,
+        #     'qsize': 10,
+        #     'callback': self.setPredictSourceTopicCb, 
+        #     'callback_args': ()
+        # },
+        # 'set_predict_max_log_sec': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_max_log_sec',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.setPredictMaxLogTimeCb, 
+        #     'callback_args': ()
+        # },
+        # 'set_predict_max_log_hz': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_max_log_hz',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.setPredictMaxLogRateCb, 
+        #     'callback_args': ()
+        # },
+        # 'set_predict_predict_time': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_predict_time',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.setPredictTimeCb, 
+        #     'callback_args': ()
+        # },
+        # 'set_predict_quality_filter': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_quality_filter',
+        #     'msg': Float32,
+        #     'qsize': 10,
+        #     'callback': self.setPredictQualityFilterCb, 
+        #     'callback_args': ()
+        # },
+        # 'set_predict_process_value': {
+        #     'namespace': self.node_namespace + '/' + self.predict_topic,
+        #     'topic': 'set_process_value',
+        #     'msg': UpdateFloat,
+        #     'qsize': 10,
+        #     'callback': self.setPredictProcessValueCb, 
+        #     'callback_args': ()
+        # },
        
     }
 
@@ -1088,7 +1140,7 @@ class NepiPanTiltAutoApp(object):
         #####################
         ###Predict
         #####################
-        self.predict_source_topic = self.node_if.get_param('predict_source_topic')
+        # self.predict_source_topic = self.node_if.get_param('predict_source_topic')
         # predict_settings_dict = self.node_if.get_param('predict_settings_dict')
         
         # if predict_settings_dict is not None:
@@ -1690,118 +1742,118 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('tracking_dict', self.tracking_dict)
             ##self.node_if.save_config()
 
-    ##############################
-    # Predict
-    #############################
+  #   ##############################
+  #   # Predict
+  #   #############################
 
 
  
-  def setPredictSourceTopicCb(self, msg):
-      value = msg.data
-      self.setPredictSourceTopic(value)
+  # def setPredictSourceTopicCb(self, msg):
+  #     value = msg.data
+  #     self.setPredictSourceTopic(value)
 
-  def setPredictSourceTopic(self,value):
-        #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
-        self.predict_settings_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_settings_dict)
-        self.publish_status()
-        if self.node_if is not None:
-            self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-            #self.node_if.save_config()
-
-
-  def setPredictMaxLogTimeCb(self, msg):
-      max_time = msg.data
-      self.setPredictTime(max_time)
-
-  def setPredictMaxLogTime(self,max_time):
-        if max_time < self.PREDICT_MIN_LOG_TIME:
-            max_time = self.PREDICT_MIN_LOG_TIME
-        if max_time > self.PREDICT_MAX_LOG_TIME:
-            max_time = self.PREDICT_MAX_LOG_TIME
-
-        self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
-        last_val = copy.deepcopy(self.predict_settings_dict['max_log_sec'])
-        self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_settings_dict)
-        if last_val != max_time:
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-                #self.node_if.save_config()
+  # def setPredictSourceTopic(self,value):
+  #       #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
+  #       self.predict_settings_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_settings_dict)
+  #       self.publish_status()
+  #       if self.node_if is not None:
+  #           self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #           #self.node_if.save_config()
 
 
-  def setPredictMaxLogRateCb(self, msg):
-      max_rate = msg.data
-      self.setPredictRate(max_rate)
+  # def setPredictMaxLogTimeCb(self, msg):
+  #     max_time = msg.data
+  #     self.setPredictTime(max_time)
 
-  def setPredictMaxLogRate(self,max_rate):
-        if max_rate < self.PREDICT_MIN_LOG_RATE:
-            max_rate = self.PREDICT_MIN_LOG_RATE
-        if max_rate > self.PREDICT_MAX_LOG_RATE:
-            max_rate = self.PREDICT_MAX_LOG_RATE
-        self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
-        last_val = copy.deepcopy(self.predict_settings_dict['max_log_rate'])
-        self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_settings_dict)
-        if last_val != max_rate:
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-                #self.node_if.save_config()
+  # def setPredictMaxLogTime(self,max_time):
+  #       if max_time < self.PREDICT_MIN_LOG_TIME:
+  #           max_time = self.PREDICT_MIN_LOG_TIME
+  #       if max_time > self.PREDICT_MAX_LOG_TIME:
+  #           max_time = self.PREDICT_MAX_LOG_TIME
 
-
-  def setPredictQualityFilterCb(self, msg):
-      ratio = msg.data
-      self.setPredictQualityFilter(ratio)
-
-  def setPredictQualityFilter(self,ratio):
-        ratio = nepi_utils.check_ratio(ratio)
-        self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
-        last_val = copy.deepcopy(self.predict_settings_dict['quality_filter'])
-        self.predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_settings_dict)
-        if last_val != ratio:
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-                #self.node_if.save_config()
+  #       self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
+  #       last_val = copy.deepcopy(self.predict_settings_dict['max_log_sec'])
+  #       self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_settings_dict)
+  #       if last_val != max_time:
+  #           self.publish_status()
+  #           if self.node_if is not None:
+  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #               #self.node_if.save_config()
 
 
-  def setPredictTimeCb(self, msg):
-      predict_time = msg.data
-      self.setPredictTime(predict_time)
+  # def setPredictMaxLogRateCb(self, msg):
+  #     max_rate = msg.data
+  #     self.setPredictRate(max_rate)
 
-  def setPredictTime(self,predict_time):
-        if max_time < self.PREDICT_MIN_PREDICT_TIME:
-            max_time = self.PREDICT_MIN_PREDICT_TIME
-        if max_time > self.PREDICT_MAX_PREDICT_TIME:
-            max_time = self.PREDICT_MAX_PREDICT_TIME
-        self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
-        last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
-        self.predict_settings_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_settings_dict)
-        if last_val != predict_time:
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-                #self.node_if.save_config()
+  # def setPredictMaxLogRate(self,max_rate):
+  #       if max_rate < self.PREDICT_MIN_LOG_RATE:
+  #           max_rate = self.PREDICT_MIN_LOG_RATE
+  #       if max_rate > self.PREDICT_MAX_LOG_RATE:
+  #           max_rate = self.PREDICT_MAX_LOG_RATE
+  #       self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
+  #       last_val = copy.deepcopy(self.predict_settings_dict['max_log_rate'])
+  #       self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_settings_dict)
+  #       if last_val != max_rate:
+  #           self.publish_status()
+  #           if self.node_if is not None:
+  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #               #self.node_if.save_config()
 
-  def setPredictProcessValueCb(self, msg):
-      process = msg.name
-      key_name = msg.name2
-      value = msg.data
-      arg_name = msg.name3
-      if arg_name == '':
-          arg_name = None
 
-      self.setPredictProcessValue(process,key_name,value,arg_name)
+  # def setPredictQualityFilterCb(self, msg):
+  #     ratio = msg.data
+  #     self.setPredictQualityFilter(ratio)
 
-  def setPredictProcessValue(self,process,key_name,value,arg_name = None):
-        self.msg_if.pub_info("Setting predict process to: " + str(value))
-        predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
-        if arg_name is None:
-            self.predict_settings_dict = nepi_predict.update_process_dict(process,key_name,value, predict_settings_dict)
-        if predict_settings_dict != self.predict_settings_dict:
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-                #self.node_if.save_config()
+  # def setPredictQualityFilter(self,ratio):
+  #       ratio = nepi_utils.check_ratio(ratio)
+  #       self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
+  #       last_val = copy.deepcopy(self.predict_settings_dict['quality_filter'])
+  #       self.predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_settings_dict)
+  #       if last_val != ratio:
+  #           self.publish_status()
+  #           if self.node_if is not None:
+  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #               #self.node_if.save_config()
+
+
+  # def setPredictTimeCb(self, msg):
+  #     predict_time = msg.data
+  #     self.setPredictTime(predict_time)
+
+  # def setPredictTime(self,predict_time):
+  #       if max_time < self.PREDICT_MIN_PREDICT_TIME:
+  #           max_time = self.PREDICT_MIN_PREDICT_TIME
+  #       if max_time > self.PREDICT_MAX_PREDICT_TIME:
+  #           max_time = self.PREDICT_MAX_PREDICT_TIME
+  #       self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
+  #       last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
+  #       self.predict_settings_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_settings_dict)
+  #       if last_val != predict_time:
+  #           self.publish_status()
+  #           if self.node_if is not None:
+  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #               #self.node_if.save_config()
+
+  # def setPredictProcessValueCb(self, msg):
+  #     process = msg.name
+  #     key_name = msg.name2
+  #     value = msg.data
+  #     arg_name = msg.name3
+  #     if arg_name == '':
+  #         arg_name = None
+
+  #     self.setPredictProcessValue(process,key_name,value,arg_name)
+
+  # def setPredictProcessValue(self,process,key_name,value,arg_name = None):
+  #       self.msg_if.pub_info("Setting predict process to: " + str(value))
+  #       predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
+  #       if arg_name is None:
+  #           self.predict_settings_dict = nepi_predict.update_process_dict(process,key_name,value, predict_settings_dict)
+  #       if predict_settings_dict != self.predict_settings_dict:
+  #           self.publish_status()
+  #           if self.node_if is not None:
+  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
+  #               #self.node_if.save_config()
 
     ##############################
     # Proccesses
@@ -2703,6 +2755,7 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.stab_pan_enabled = self.stab_pan_enabled
     self.status_msg.stab_tilt_enabled = self.stab_tilt_enabled
+
     self.status_msg.stab_move_deg = self.stab_settings_dict['stab_move_deg']
     self.status_msg.stab_goal_deg = self.stab_settings_dict['stab_goal_deg']
     self.status_msg.stab_move_ratio = self.stab_settings_dict['stab_move_ratio']
@@ -2710,20 +2763,20 @@ class NepiPanTiltAutoApp(object):
 
 
     self.status_msg.stab_roll_deg = self.stab_data_dict['roll_deg']
-    self.status_msg.stab_roll_est = self.stab_data_dict['roll_est']
+    self.status_msg.stab_roll_adj = self.stab_data_dict['roll_adj']
 
     self.status_msg.stab_pitch_deg = self.stab_data_dict['pitch_deg']
-    self.status_msg.stab_pitch_est = self.stab_data_dict['pitch_est']
+    self.status_msg.stab_pitch_adj = self.stab_data_dict['pitch_adj']
 
     self.status_msg.stab_heading_deg = self.stab_data_dict['heading_deg']
-    self.status_msg.stab_heading_est = self.stab_data_dict['heading_est']
+    self.status_msg.stab_heading_adj = self.stab_data_dict['heading_adj']
 
 
-    self.status_msg.stab_pan_dps = self.stab_data_dict['pan_dps']
+    self.status_msg.stab_pan_speed_dps = self.stab_data_dict['pan_speed_dps']
     self.status_msg.stab_pan_deg = self.stab_data_dict['pan_deg']
     self.status_msg.stab_pan_adj = self.stab_data_dict['pan_adj']
 
-    self.status_msg.stab_tilt_dps = self.stab_data_dict['tilt_dps']
+    self.status_msg.stab_tilt_speed_dps = self.stab_data_dict['tilt_speed_dps']
     self.status_msg.stab_tilt_deg = self.stab_data_dict['tilt_deg']
     self.status_msg.stab_tilt_adj = self.stab_data_dict['tilt_adj']
 
@@ -2853,49 +2906,49 @@ class NepiPanTiltAutoApp(object):
 
 
 
-    ###############
-    # Predict
-    ###############
+    # ###############
+    # # Predict
+    # ###############
 
-    predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
+    # predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
 
 
-    self.predict_status_msg.name = self.node_name
-    self.predict_status_msg.node_name = self.node_name
-    self.predict_status_msg.namespace = self.node_namespace
+    # self.predict_status_msg.name = self.node_name
+    # self.predict_status_msg.node_name = self.node_name
+    # self.predict_status_msg.namespace = self.node_namespace
 
-    #self.predict_status_msg.save_data_topic = self.save_data_namespace
+    # #self.predict_status_msg.save_data_topic = self.save_data_namespace
 
-    #################
+    # #################
   
-    self.predict_status_msg.max_log_sec = predict_settings_dict['max_log_sec']
-    self.predict_status_msg.max_log_hz = predict_settings_dict['max_log_hz']
-    self.predict_status_msg.predict_time_sec = predict_settings_dict['predict_time_sec']
-    self.predict_status_msg.quality_filter = predict_settings_dict['quality_filter']
+    # self.predict_status_msg.max_log_sec = predict_settings_dict['max_log_sec']
+    # self.predict_status_msg.max_log_hz = predict_settings_dict['max_log_hz']
+    # self.predict_status_msg.predict_time_sec = predict_settings_dict['predict_time_sec']
+    # self.predict_status_msg.quality_filter = predict_settings_dict['quality_filter']
     
   
-    self.predict_status_msg.data_names_list = predict_settings_dict['data_names_list']
+    # self.predict_status_msg.data_names_list = predict_settings_dict['data_names_list']
 
 
-    process_dict = predict_settings_dict['process_dict']
-    process_names = list(process_dict.keys())
-    self.predict_status_msg.process_names = process_names
-    self.predict_status_msg.process_settings = []
-    for process_name in process_names:
-        process_msg = PredictProcess()
-        process_msg.process_name = process_name
-        process_msg.enabled = process_dict[process_name]['enabled']
-        process_msg.max_process_sec = process_dict[process_name]['max_process_sec']
-        process_msg.max_process_hz = process_dict[process_name]['max_process_hz']
-        process_msg.sensitivity = process_dict[process_name]['sensitivity']
-        process_msg.weight = process_dict[process_name]['weight']
-        process_msg.arg_names = process_dict[process_name]['arg_names']
-        process_msg.arg_values = process_dict[process_name]['arg_values']
-        self.predict_status_msg.process_settings.append(process_msg)
+    # process_dict = predict_settings_dict['process_dict']
+    # process_names = list(process_dict.keys())
+    # self.predict_status_msg.process_names = process_names
+    # self.predict_status_msg.process_settings = []
+    # for process_name in process_names:
+    #     process_msg = PredictProcess()
+    #     process_msg.process_name = process_name
+    #     process_msg.enabled = process_dict[process_name]['enabled']
+    #     process_msg.max_process_sec = process_dict[process_name]['max_process_sec']
+    #     process_msg.max_process_hz = process_dict[process_name]['max_process_hz']
+    #     process_msg.sensitivity = process_dict[process_name]['sensitivity']
+    #     process_msg.weight = process_dict[process_name]['weight']
+    #     process_msg.arg_names = process_dict[process_name]['arg_names']
+    #     process_msg.arg_values = process_dict[process_name]['arg_values']
+    #     self.predict_status_msg.process_settings.append(process_msg)
 
 
-    self.status_msg.predict_status = self.predict_status_msg
-    ##################
+    # self.status_msg.predict_status = self.predict_status_msg
+    # ##################
 
     if self.node_if is not None:
       if self.status_has_published == False:
@@ -2992,7 +3045,9 @@ class NepiPanTiltAutoApp(object):
             last_time = nepi_utils.get_time() - self.last_stab_source_time
             if last_time > self.stab_timeout:
                 self.msg_if.pub_warn("Clearing stab status message on timeout")
-                self.stab_data_dict = nepi_stab.get_blank_stab_data_dict()
+                self.stab_data_dict = copy.deepcopy(self.BLANK_STAB_DATA_DICT)
+                self.stab_pan_adj = 0.0
+                self.stab_tilt_adj = 0.0
                 self.last_stab_source_time = None
                 self.stab_running = False
 
@@ -3064,103 +3119,182 @@ class NepiPanTiltAutoApp(object):
 
 
 
-  def stabSourceCb(self,msg, args):
+
+  def rotate_enu_angles(rpy_vector, angle_deg, axis='z'):
+    theta = np.radians(angle_deg)
+    c, s = np.cos(theta), np.sin(theta)
     
+    if axis == 'x': # East
+        R = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+    elif axis == 'y': # North
+        R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+    elif axis == 'z': # Up
+        R = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+    else:
+        raise ValueError("Axis must be 'x', 'y', or 'z'")
+    new_vector = np.dot(R, rpy_vector)
+    return new_vector
+
+
+
+  def stabSourceCb(self,msg, args):
     stab_namespace = args
     verbose = self.navpose_msg is None
     if verbose == True:
         self.msg_if.pub_info("Stab callback got new NavPose msg " + str(msg))
     self.stab_source_connecting = False
     self.stab_source_connected = True
-    self.last_stab_source_time = nepi_utils.get_time()
 
-    predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
-    self.predict_data_lock.acquire()
-    predict_data_dict = copy.deepcopy(self.predict_data_dict)
-    self.predict_data_lock.release()
-    if verbose == True:
-        self.msg_if.pub_info("Stab passing first predict dicts " + str([ predict_data_dict, predict_settings_dict ]))
-    predict_data_dict = nepi_stab.update_data_from_msg(msg, predict_data_dict, predict_settings_dict, verbose = verbose)
-    if verbose == True:
-        self.msg_if.pub_info("Stab callback got new predict_data_dict " + str(predict_data_dict))
-    self.navpose_msg = msg
+    last_stab_source_time = copy.deepcopy(self.last_stab_source_time)
+    if last_stab_source_time is None:
+        last_stab_source_time = 0
+    cur_time = nepi_utils.get_time()
+    stab_timer = cur_time - last_stab_source_time
+    self.last_stab_source_time = cur_time
 
-    self.predict_data_lock.acquire()
-    self.predict_data_dict = predict_data_dict
-    self.predict_data_lock.release()
+ 
+    stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
+    stab_data_dict = copy.deepcopy(self.stab_data_dict)
 
+    stab_data_dict['data_time'] = cur_time
+    stab_data_dict['process_time'] = cur_time
+        
+    heading_deg = 0.0
+    if msg.heading_deg != -999:
+        heading_deg = msg.heading_deg
+    stab_data_dict['heading_deg'] = heading_deg
+    
+    
+    stab_data_dict['roll_deg'] = msg.roll_deg
+    stab_data_dict['pitch_deg'] = msg.pitch_deg
+
+    current_position = [0,0]
+    if self.current_position is not None:
+      current_position = copy.deepcopy(self.current_position)
+    [pan_deg,tilt_deg] = current_position
+
+    ##########################
+    # Calculate pan tilt adjustments
+    pan_radians = np.radians(pan_deg)
+    tilt_radians = np.radians(tilt_deg)
+    rpy_vector = [msg.roll_deg, msg.roll_deg, heading_deg ]
+    if -999 not in rpy_vector:
+        [ar,ap,ay] = rpy_vector
+        [art,apt,ayt]  = self.rotate_enu_angles([ar,ap,ay],tilt_deg,'y')
+        [ar,ap,ay] = [art,apt,ayt]
+        [arp,app,ayp]  = self.rotate_enu_angles([ar,ap,ay],pan_deg,'z')
+        [ar,ap,ay] = [arp,app,ayp]
+
+        stab_data_dict['roll_adj'] = ar
+        stab_data_dict['pitch_adj'] = ap
+
+        stab_data_dict['heading_adj'] = 0
+
+        num_avg = p_adjs = stab_settings_dict['num_adj_avg']
+        ####
+        p_adj = 0 #####
+        pan_adjs = stab_data_dict['pan_adjs']
+        if (len(pan_adjs) >= num_avg):
+            pan_adjs.pop(0)
+        pan_adjs.append(p_adj)
+        # pan_adj =  sum(pan_adjs) / len(pan_adjs)
+        pan_adj = 0
+        
+        ####
+
+        t_adj = -1 * (-1 * ar * np.sin(pan_radians) + ap * np.cos(pan_radians))
+        tilt_adjs = stab_data_dict['tilt_adjs']
+        if (len(tilt_adjs) >= num_avg):
+            tilt_adjs.pop(0)
+        tilt_adjs.append(t_adj)
+        # tilt_adj =  sum(tilt_adjs) / len(tilt_adjs)
+        tilt_adj = t_adj
+
+        stab_data_dict['pan_adjs'] = pan_adjs
+        stab_data_dict['pan_adj'] = pan_adj
+        stab_data_dict['tilt_adjs'] = tilt_adjs 
+        stab_data_dict['tilt_adj'] = tilt_adj  
+
+
+    return stab_data_dict
 
   def updaterStabSolutionCb(self, timer):
     stab_update_rate = 1
     start_time = nepi_utils.get_time()
+
+    stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
+    stab_data_dict = copy.deepcopy(self.stab_data_dict)       
+
+    stab_update_rate = stab_settings_dict['stab_update_rate']
+
     if self.pt_connected == True:
             
-            
 
-        pos_pan_tilt = copy.deepcopy(self.current_position)
-
-        set_speed_pan_tilt = [10,10]
-        #set_speed_pan_tilt = self.pt_connect_if.get_set_pan_tilt_speed()
-
-        current_speed_pan_tilt = [0,0]
-        #current_speed_pan_tilt = self.pt_connect_if.get_cur_pan_tilt_speed()
-
-        delay_pan_tilt = 1
-        #delay_pan_tilt = self.pt_connect_if.get_pan_tilt_move_delay()
-
-
-        ##########################
-        # Calculate PT ADJUSTMENTS
-        stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
-        stab_settings_dict['max_pan_dps'] = set_speed_pan_tilt[0]
-        stab_settings_dict['max_tilt_dps'] = set_speed_pan_tilt[1]
-        stab_settings_dict['avg_move_delay'] = delay_pan_tilt
-
-        stab_update_rate = stab_settings_dict['stab_update_rate']
         stab_goal_deg = stab_settings_dict['stab_goal_deg']
         stab_move_deg = stab_settings_dict['stab_move_deg']
         stab_move_ratio = stab_settings_dict['stab_move_ratio']
-        stab_reset_time_sec = stab_settings_dict['stab_reset_time_sec']
+        stab_reset_time_sec = stab_settings_dict['stab_reset_time_sec']        
+
+        # pos_pan_tilt = copy.deepcopy(self.current_position)
+
+        # set_speed_pan_tilt = [10,10]
+        # #set_speed_pan_tilt = self.pt_connect_if.get_set_pan_tilt_speed()
+
+        # current_speed_pan_tilt = [0,0]
+        # #current_speed_pan_tilt = self.pt_connect_if.get_cur_pan_tilt_speed()
+
+        # delay_pan_tilt = 1
+        # #delay_pan_tilt = self.pt_connect_if.get_pan_tilt_move_delay()
 
 
-        stab_data_dict = copy.deepcopy(self.stab_data_dict)
-        stab_data_dict['pan_deg'] = pos_pan_tilt[0]
-        stab_data_dict['tilt_deg'] = pos_pan_tilt[1]
-        stab_data_dict['pan_dps'] = current_speed_pan_tilt[0]
-        stab_data_dict['tilt_dps'] = current_speed_pan_tilt[1]
+        # ##########################
+        # # Calculate PT ADJUSTMENTS
+        # stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
+        # stab_settings_dict['max_pan_speed_dps'] = set_speed_pan_tilt[0]
+        # stab_settings_dict['max_tilt_speed_dps'] = set_speed_pan_tilt[1]
+        # stab_settings_dict['avg_move_delay'] = delay_pan_tilt
 
-        predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
-        self.predict_data_lock.acquire()
-        predict_data_dict = copy.deepcopy(self.predict_data_dict)
-        self.predict_data_lock.release()
-
-        stab_data_dict = nepi_stab.process_data_from_dict(predict_data_dict, predict_settings_dict, stab_settings_dict, stab_data_dict)
-
-        ##########################
-        # APPLY PT UPDATES IF NEEDED
-        [pan_goal, tilt_goal] = copy.deepcopy(self.goto_position)
-
-        adj_pan = stab_data_dict['pan_adj']
-
-        if abs(adj_pan) > stab_goal_deg and abs(adj_pan) > stab_move_deg  and self.stab_pan_enabled == True:
-            adj_pan_goal = pan_goal + adj_pan
-            self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
-
-        adj_tilt = stab_data_dict['tilt_adj']
-        if abs(adj_tilt) > stab_goal_deg and abs(adj_tilt) > stab_move_deg  and self.stab_tilt_enabled == True:
-            adj_tilt_goal = tilt_goal + adj_tilt
-            self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
+ 
 
 
-        self.stab_data_dict = stab_data_dict
+        # stab_data_dict = copy.deepcopy(self.stab_data_dict)
+        # stab_data_dict['pan_deg'] = pos_pan_tilt[0]
+        # stab_data_dict['tilt_deg'] = pos_pan_tilt[1]
+        # stab_data_dict['pan_speed_dps'] = current_speed_pan_tilt[0]
+        # stab_data_dict['tilt_speed_dps'] = current_speed_pan_tilt[1]
 
-        pan_adjs = stab_data_dict['pan_adjs']
-        pan_adj = stab_data_dict['pan_adj']
-        tilt_adjs = stab_data_dict['tilt_adjs']
-        tilt_adj = stab_data_dict['tilt_adj']
+        # predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
+        # self.predict_data_lock.acquire()
+        # predict_data_dict = copy.deepcopy(self.predict_data_dict)
+        # self.predict_data_lock.release()
 
-        # self.msg_if.pub_warn("Stabs Calc at Pan angle: " + str(pos_pan_tilt[0]))
-        # self.msg_if.pub_warn("Stabs Got tilt adj: " + str(tilt_adj))
+        # stab_data_dict = nepi_stab.process_data_from_dict(predict_data_dict, predict_settings_dict, stab_settings_dict, stab_data_dict)
+
+        # ##########################
+        # # APPLY PT UPDATES IF NEEDED
+        # [pan_goal, tilt_goal] = copy.deepcopy(self.goto_position)
+
+        # adj_pan = stab_data_dict['pan_adj']
+
+        # if abs(adj_pan) > stab_goal_deg and abs(adj_pan) > stab_move_deg  and self.stab_pan_enabled == True:
+        #     adj_pan_goal = pan_goal + adj_pan
+        #     self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
+
+        # adj_tilt = stab_data_dict['tilt_adj']
+        # if abs(adj_tilt) > stab_goal_deg and abs(adj_tilt) > stab_move_deg  and self.stab_tilt_enabled == True:
+        #     adj_tilt_goal = tilt_goal + adj_tilt
+        #     self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
+
+
+        # self.stab_data_dict = stab_data_dict
+
+        # pan_adjs = stab_data_dict['pan_adjs']
+        # pan_adj = stab_data_dict['pan_adj']
+        # tilt_adjs = stab_data_dict['tilt_adjs']
+        # tilt_adj = stab_data_dict['tilt_adj']
+
+        # # self.msg_if.pub_warn("Stabs Calc at Pan angle: " + str(pos_pan_tilt[0]))
+        # # self.msg_if.pub_warn("Stabs Got tilt adj: " + str(tilt_adj))
 
     stop_time = nepi_utils.get_time()
     stab_update_time = float(1)/stab_update_rate - (stop_time - start_time)
