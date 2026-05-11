@@ -3166,21 +3166,27 @@ class NepiPanTiltAutoApp(object):
 
     current_position = [0,0]
 
-    if self.pt_connect_if is not None:
-      current_position = self.pt_connect_if.get_pan_tilt_position()
-      #self.msg_if.pub_warn("current_position: " + str(current_position))
+    [pan_deg,tilt_deg] = [msg.pan_deg,msg.tilt_deg]
+    if pan_deg == -999:
+        pan_deg = 0.0
+    if tilt_deg == -999:
+        titl_deg = 0.0
 
-      # [pan_tilt_max,tilt_speed_max] = self.pt_connect_if.get_max_pan_tilt_speed()
-      # [pan_tilt_dps,tilt_speed_dps] = self.pt_connect_if.get_cur_pan_tilt_speed()
-      # stab_settings_dict['pan_speed_max'] = pan_tilt_max
-      # stab_settings_dict['tilt_speed_max'] = tilt_speed_max
-      # stab_data_dict['pan_tilt_dps'] = pan_tilt_dps
-      # stab_data_dict['tilt_speed_dps'] = tilt_speed_dps
+    # if self.pt_connect_if is not None:
+    #   current_position = self.pt_connect_if.get_pan_tilt_position()
+    #   #self.msg_if.pub_warn("current_position: " + str(current_position))
 
-      # #avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
-      #stab_settings_dict['avg_move_delay'] =  avg_move_delay
+    #   [pan_tilt_max,tilt_speed_max] = self.pt_connect_if.get_max_pan_tilt_speed()
+    #   [pan_tilt_dps,tilt_speed_dps] = self.pt_connect_if.get_cur_pan_tilt_speed()
+    #   stab_settings_dict['pan_speed_max'] = pan_tilt_max
+    #   stab_settings_dict['tilt_speed_max'] = tilt_speed_max
+    #   stab_data_dict['pan_tilt_dps'] = pan_tilt_dps
+    #   stab_data_dict['tilt_speed_dps'] = tilt_speed_dps
 
-    [pan_deg,tilt_deg] = current_position
+    #   #avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
+    #   stab_settings_dict['avg_move_delay'] =  avg_move_delay
+
+    # [pan_deg,tilt_deg] = current_position
 
     pan_speed_max = stab_settings_dict['pan_speed_max']
     tilt_speed_max = stab_settings_dict['tilt_speed_max']
@@ -3239,7 +3245,7 @@ class NepiPanTiltAutoApp(object):
     self.stab_settings_dict = stab_settings_dict
     self.stab_dict_lock.acquire()
     self.stab_data_dict = stab_data_dict
-    self.stab_dict_lock.acquire()
+    self.stab_dict_lock.release()
 
   def updaterStabSolutionCb(self, timer):
     stab_update_rate = 1
