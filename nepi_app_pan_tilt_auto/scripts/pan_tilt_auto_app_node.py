@@ -3132,16 +3132,7 @@ class NepiPanTiltAutoApp(object):
 
 
 
-<<<<<<< HEAD
-  def stabSourceCb(self,msg, args):
-    stab_namespace = args
-    verbose = self.navpose_msg is None
-    if verbose == True:
-        pass
-        #self.msg_if.pub_info("Stab callback got new NavPose msg " + str(msg))
-=======
   def stabSourceCb(self,msg):
->>>>>>> 76709961e60dd0ec7bc428d676992896993c7735
     self.stab_source_connecting = False
     self.stab_source_connected = True
 
