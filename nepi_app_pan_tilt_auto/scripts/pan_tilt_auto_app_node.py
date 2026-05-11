@@ -185,7 +185,7 @@ class NepiPanTiltAutoApp(object):
   #####################
 
   scan_pan_enabled = False
-  scan_pan_track_hold = False
+  pan_track_hold = False
 
   scan_pan_sec = 5
 
@@ -196,7 +196,7 @@ class NepiPanTiltAutoApp(object):
   scan_pan_sin_ind = 0
   
   scan_tilt_enabled = False
-  scan_tilt_track_hold = False
+  tilt_track_hold = False
   scan_tilt_sec = 5
 
   scan_tilt_last_time = None
@@ -277,6 +277,7 @@ class NepiPanTiltAutoApp(object):
   stab_subpub_lock = threading.Lock()
   stab_settings_dict = copy.deepcopy(BLANK_STAB_SETTINGS_DICT)
   stab_data_dict = copy.deepcopy(BLANK_STAB_DATA_DICT)
+  stab_dict_lock = threading.Lock()
   stab_pan_adj = 0.0
   stab_tilt_adj = 0.0
 
@@ -1267,7 +1268,7 @@ class NepiPanTiltAutoApp(object):
   
   def stopPanControls(self):
       self.scan_pan_enabled = False
-      self.scan_pan_track_hold = False
+      self.pan_track_hold = False
       self.track_pan_enabled = False
       self.stab_pan_enabled = False
       self.click_pan_enabled = True
@@ -1299,14 +1300,11 @@ class NepiPanTiltAutoApp(object):
   def setScanPan(self,enabled):
         was_scanning = copy.deepcopy(self.scan_pan_enabled)
         self.scan_pan_enabled = enabled
-        self.publish_status()
         if enabled == True:
             self.goto_position[0] = 0.0
-            self.scan_pan_track_hold = False
-            #self.track_pan_enabled = False
-            self.stab_pan_enabled = False
         if (was_scanning == True and enabled == False and self.track_pan_enabled == False):
             self.pt_connect_if.goto_to_pan_position(0.0)
+        self.publish_status()
         self.node_if.set_param('scan_pan_enabled', enabled)
         
 
@@ -1320,14 +1318,11 @@ class NepiPanTiltAutoApp(object):
   def setScanTilt(self,enabled):
         was_scanning = copy.deepcopy(self.scan_tilt_enabled)
         self.scan_tilt_enabled = enabled
-        self.publish_status()
         if enabled == True:
             self.goto_position[1] = 0.0
-            #self.track_tilt_enabled = False
-            self.scan_tilt_track_hold = False
-            self.stab_tilt_enabled = False
         if (was_scanning == True and enabled == False):
-               self.pt_connect_if.goto_to_tilt_position(0.0)        
+               self.pt_connect_if.goto_to_tilt_position(0.0)      
+        self.publish_status()  
         self.node_if.set_param('scan_tilt_enabled', self.scan_tilt_enabled)
 
 
@@ -1393,7 +1388,7 @@ class NepiPanTiltAutoApp(object):
             #self.scan_pan_enabled = False
             self.stab_pan_enabled = False           
         self.track_pan_enabled = enabled
-        self.scan_pan_track_hold = enabled
+        self.pan_track_hold = enabled
         self.setTrackingEnable(enabled or self.track_tilt_enabled)
         self.publish_status()
         if self.node_if is not None:
@@ -1407,9 +1402,9 @@ class NepiPanTiltAutoApp(object):
   def setTrackTilt(self,enabled):
         if enabled == True:
             #self.scan_tilt_enabled = False
-            self.stab_tilt_enabled = False
+            pass
         self.track_tilt_enabled = enabled
-        self.scan_tilt_track_hold = enabled
+        self.tilt_track_hold = enabled
         self.setTrackingEnable(enabled or self.track_pan_enabled)
         self.publish_status()
         if self.node_if is not None:
@@ -1539,7 +1534,7 @@ class NepiPanTiltAutoApp(object):
                     self.goto_position[0] = self.scan_pan_max_deg
                 else:
                     self.goto_position[0] = self.scan_pan_min_deg
-                self.scan_pan_track_hold = False
+                self.pan_track_hold = False
             else:
                 self.goto_position[0] = 0.0
             self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
@@ -1565,7 +1560,7 @@ class NepiPanTiltAutoApp(object):
                     self.goto_position[0] = self.scan_tilt_max_deg
                 else:
                     self.goto_position[0] = self.scan_tilt_min_deg
-                self.scan_tilt_track_hold = False
+                self.tilt_track_hold = False
             else:
                 self.goto_position[0] = 0.0
             self.pt_connect_if.goto_to_tilt_position(self.goto_position[0])
@@ -1866,7 +1861,7 @@ class NepiPanTiltAutoApp(object):
       if self.current_position == None or self.pt_connected == False:
         self.pan_scanning = False
       else:
-        if self.scan_pan_enabled == False or self.scan_pan_track_hold == True:
+        if self.scan_pan_enabled == False or self.pan_track_hold == True:
             self.pan_scanning = False
         elif self.pt_connect_if is not None:
             self.pan_scanning = True
@@ -1876,7 +1871,7 @@ class NepiPanTiltAutoApp(object):
             if self.goto_position[0] != self.scan_pan_min_deg and self.goto_position[0] != self.scan_pan_max_deg:
                 #self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
                 self.goto_position[0] = self.scan_pan_min_deg
-                self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)  
+                self.goto_to_pan_position_adj(self.scan_pan_min_deg)  
               
             elif (pan_cur < (self.scan_pan_min_deg + self.SCAN_SWITCH_DEG)):
                 last_time = self.scan_pan_last_time
@@ -1886,7 +1881,7 @@ class NepiPanTiltAutoApp(object):
 
                 #self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_max_deg)) 
                 self.goto_position[0] = self.scan_pan_max_deg
-                self.pt_connect_if.goto_to_pan_position(self.scan_pan_max_deg)
+                self.goto_to_pan_position_adj(self.scan_pan_max_deg)
 
                 
             elif (pan_cur > (self.scan_pan_max_deg - self.SCAN_SWITCH_DEG)):
@@ -1895,9 +1890,9 @@ class NepiPanTiltAutoApp(object):
                     scan_time =  cur_time - self.scan_pan_last_time
                 self.scan_pan_last_time = nepi_utils.get_time()
                 self.goto_position[0] = self.scan_pan_min_deg
-                self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)
+                self.goto_to_pan_position_adj(self.scan_pan_min_deg)
             elif (self.pt_connect_if.check_pan_moving() == False):
-                self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
+                self.goto_to_pan_position_adj(self.goto_position[0])
 
 
             if scan_time is not None:
@@ -1929,7 +1924,7 @@ class NepiPanTiltAutoApp(object):
       if self.current_position == None or self.pt_connected == False:
         self.tilt_scanning = False
       else:
-        if self.scan_tilt_enabled == False or self.scan_tilt_track_hold == True:
+        if self.scan_tilt_enabled == False or self.tilt_track_hold == True:
             self.tilt_scanning = False
         elif self.pt_connect_if is not None:
             self.tilt_scanning = True
@@ -1991,7 +1986,7 @@ class NepiPanTiltAutoApp(object):
             self.track_pan_dict = None
             if track_dict is not None:
                 #self.msg_if.pub_warn("Got track target dict " + str(track_dict))
-                self.scan_pan_track_hold = True
+                self.pan_track_hold = True
                 self.pan_tracking = True
                 self.last_track_pan_time = nepi_utils.get_time()
                 pan_error = track_dict['azimuth_deg']
@@ -2012,7 +2007,7 @@ class NepiPanTiltAutoApp(object):
                     self.track_pan_error = 0
                     goto = None
                     if self.scan_pan_enabled == True:
-                        if self.scan_pan_track_hold == True:
+                        if self.pan_track_hold == True:
                             if last_error > 0:
                                 goto = self.scan_pan_max_deg
                             else:
@@ -2023,10 +2018,17 @@ class NepiPanTiltAutoApp(object):
                         #self.msg_if.pub_warn("Resetting pan Scan Process to: " + str(self.goto_position[1]))
                         self.goto_position[0] = goto
                         self.pt_connect_if.goto_to_pan_position(goto)
+<<<<<<< HEAD
                     self.scan_pan_track_hold = False
 
 
 
+=======
+                    self.tilt_track_hold = False
+      
+                
+      
+>>>>>>> 529646c00174b78654feb768dd4494c61bc43308
 
   def trackTiltProcess(self,timer):
       if self.track_tilt_enabled == False or self.tracking_targets_connected == False:
@@ -2040,7 +2042,7 @@ class NepiPanTiltAutoApp(object):
             last_error = copy.deepcopy(self.track_tilt_error)
             self.track_tilt_dict = None
             if track_dict is not None:
-                self.scan_tilt_track_hold = True
+                self.tilt_track_hold = True
                 self.tilt_tracking = True
                 tilt_error = track_dict['elevation_deg']
                 self.track_tilt_error = round(tilt_error,1)
@@ -2058,7 +2060,7 @@ class NepiPanTiltAutoApp(object):
                     self.track_tilt_error = 0
                     goto = None
                     if self.scan_tilt_enabled == True:
-                        if self.scan_tilt_track_hold == True:
+                        if self.tilt_track_hold == True:
                             if last_error > 0:
                                 goto = self.scan_tilt_max_deg
                             else:
@@ -2069,7 +2071,7 @@ class NepiPanTiltAutoApp(object):
                         #self.msg_if.pub_warn("Resetting Tilt Scan Process to: " + str(self.goto_position[1]))
                         self.goto_position[1] = goto
                         self.pt_connect_if.goto_to_tilt_position(goto)
-                    self.scan_tilt_track_hold = False
+                    self.tilt_track_hold = False
                     
                 
 
@@ -3059,7 +3061,10 @@ class NepiPanTiltAutoApp(object):
             last_time = nepi_utils.get_time() - self.last_stab_source_time
             if last_time > stab_reset_time_sec:
                 self.msg_if.pub_warn("Clearing stab status message on timeout")
+
+                self.stab_dict_lock.acquire()
                 self.stab_data_dict = copy.deepcopy(self.BLANK_STAB_DATA_DICT)
+                self.stab_dict_lock.release()  
                 self.stab_pan_adj = 0.0
                 self.stab_tilt_adj = 0.0
                 self.last_stab_source_time = None
@@ -3131,6 +3136,10 @@ class NepiPanTiltAutoApp(object):
         return True
 
 
+  def goto_to_pan_position_adj(self,pan_deg):
+    if self.stab_pan_enabled == True and self.pan_track_hold == False:
+        adj_pan_goal = pan_deg + self.stab_pan_adj
+        self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
 
 
   def rotate_enu_angles(self, rpy_vector, angle_deg, axis='z'):
@@ -3154,6 +3163,12 @@ class NepiPanTiltAutoApp(object):
     self.stab_source_connecting = False
     self.stab_source_connected = True
 
+    stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
+    self.stab_dict_lock.acquire()
+    stab_data_dict = copy.deepcopy(self.stab_data_dict)
+    self.stab_dict_lock.release()   
+
+
     last_stab_source_time = copy.deepcopy(self.last_stab_source_time)
     if last_stab_source_time is None:
         last_stab_source_time = 0
@@ -3161,9 +3176,6 @@ class NepiPanTiltAutoApp(object):
     stab_timer = cur_time - last_stab_source_time
     self.last_stab_source_time = cur_time
 
- 
-    stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
-    stab_data_dict = copy.deepcopy(self.stab_data_dict)
 
     stab_data_dict['data_time'] = cur_time
     stab_data_dict['process_time'] = cur_time
@@ -3179,21 +3191,27 @@ class NepiPanTiltAutoApp(object):
 
     current_position = [0,0]
 
-    if self.pt_connect_if is not None:
-      current_position = self.pt_connect_if.get_pan_tilt_position()
-      #self.msg_if.pub_warn("current_position: " + str(current_position))
+    [pan_deg,tilt_deg] = [msg.pan_deg,msg.tilt_deg]
+    if pan_deg == -999:
+        pan_deg = 0.0
+    if tilt_deg == -999:
+        titl_deg = 0.0
 
-      # [pan_tilt_max,tilt_speed_max] = self.pt_connect_if.get_max_pan_tilt_speed()
-      # [pan_tilt_dps,tilt_speed_dps] = self.pt_connect_if.get_cur_pan_tilt_speed()
-      # stab_settings_dict['pan_speed_max'] = pan_tilt_max
-      # stab_settings_dict['tilt_speed_max'] = tilt_speed_max
-      # stab_data_dict['pan_tilt_dps'] = pan_tilt_dps
-      # stab_data_dict['tilt_speed_dps'] = tilt_speed_dps
+    # if self.pt_connect_if is not None:
+    #   current_position = self.pt_connect_if.get_pan_tilt_position()
+    #   #self.msg_if.pub_warn("current_position: " + str(current_position))
 
-      # #avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
-      #stab_settings_dict['avg_move_delay'] =  avg_move_delay
+    #   [pan_tilt_max,tilt_speed_max] = self.pt_connect_if.get_max_pan_tilt_speed()
+    #   [pan_tilt_dps,tilt_speed_dps] = self.pt_connect_if.get_cur_pan_tilt_speed()
+    #   stab_settings_dict['pan_speed_max'] = pan_tilt_max
+    #   stab_settings_dict['tilt_speed_max'] = tilt_speed_max
+    #   stab_data_dict['pan_tilt_dps'] = pan_tilt_dps
+    #   stab_data_dict['tilt_speed_dps'] = tilt_speed_dps
 
-    [pan_deg,tilt_deg] = current_position
+    #   #avg_move_delay = self.pt_connect_if.get_pan_tilt_move_delay()
+    #   stab_settings_dict['avg_move_delay'] =  avg_move_delay
+
+    # [pan_deg,tilt_deg] = current_position
 
     pan_speed_max = stab_settings_dict['pan_speed_max']
     tilt_speed_max = stab_settings_dict['tilt_speed_max']
@@ -3248,15 +3266,21 @@ class NepiPanTiltAutoApp(object):
         self.stab_pan_adj = pan_adj
         self.stab_tilt_adj = tilt_adj
 
+    
     self.stab_settings_dict = stab_settings_dict
+    self.stab_dict_lock.acquire()
     self.stab_data_dict = stab_data_dict
+    self.stab_dict_lock.release()
 
   def updaterStabSolutionCb(self, timer):
     stab_update_rate = 1
     start_time = nepi_utils.get_time()
 
+   
     stab_settings_dict = copy.deepcopy(self.stab_settings_dict)
-    stab_data_dict = copy.deepcopy(self.stab_data_dict)       
+    self.stab_dict_lock.acquire()
+    stab_data_dict = copy.deepcopy(self.stab_data_dict)
+    self.stab_dict_lock.release()   
 
     stab_update_rate = stab_settings_dict['stab_update_rate']
 
@@ -3275,12 +3299,13 @@ class NepiPanTiltAutoApp(object):
 
         adj_pan = stab_data_dict['pan_adj']
 
-        if abs(adj_pan) > stab_goal_deg and abs(adj_pan) > stab_move_deg  and self.stab_pan_enabled == True:
+
+        if abs(adj_pan) > stab_goal_deg and abs(adj_pan) > stab_move_deg  and self.stab_pan_enabled == True and self.pan_track_hold == False:
             adj_pan_goal = pan_goal + adj_pan
             self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
 
         adj_tilt = stab_data_dict['tilt_adj']
-        if abs(adj_tilt) > stab_goal_deg and abs(adj_tilt) > stab_move_deg  and self.stab_tilt_enabled == True:
+        if abs(adj_tilt) > stab_goal_deg and abs(adj_tilt) > stab_move_deg  and self.stab_tilt_enabled == True and self.tilt_track_hold == False:
             adj_tilt_goal = tilt_goal + adj_tilt
             self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
 
