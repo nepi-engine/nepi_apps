@@ -1892,7 +1892,7 @@ class NepiPanTiltAutoApp(object):
             if self.goto_position[0] != self.scan_pan_min_deg and self.goto_position[0] != self.scan_pan_max_deg:
                 #self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
                 self.goto_position[0] = self.scan_pan_min_deg
-                self.goto_to_pan_position_adj(self.scan_pan_min_deg)  
+                self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)  
               
             elif (pan_cur < (self.scan_pan_min_deg + self.SCAN_SWITCH_DEG)):
                 last_time = self.scan_pan_last_time
@@ -1902,7 +1902,7 @@ class NepiPanTiltAutoApp(object):
 
                 #self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_max_deg)) 
                 self.goto_position[0] = self.scan_pan_max_deg
-                self.goto_to_pan_position_adj(self.scan_pan_max_deg)
+                self.pt_connect_if.goto_to_pan_position(self.scan_pan_max_deg)
 
                 
             elif (pan_cur > (self.scan_pan_max_deg - self.SCAN_SWITCH_DEG)):
@@ -1911,9 +1911,9 @@ class NepiPanTiltAutoApp(object):
                     scan_time =  cur_time - self.scan_pan_last_time
                 self.scan_pan_last_time = nepi_utils.get_time()
                 self.goto_position[0] = self.scan_pan_min_deg
-                self.goto_to_pan_position_adj(self.scan_pan_min_deg)
+                self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)
             elif (self.pt_connect_if.check_pan_moving() == False):
-                self.goto_to_pan_position_adj(self.goto_position[0])
+                self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
 
 
             if scan_time is not None:
