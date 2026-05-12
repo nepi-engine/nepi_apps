@@ -74,7 +74,7 @@ class NepiAppPTAutoControls extends Component {
       trackResetTime: null,
 
       stab_update_rate: null,
-      stab_goal_deg: null,
+      stab_num_avg: null,
       stab_move_deg: null,
       stab_reset_time_sec: null,
 
@@ -128,8 +128,8 @@ class NepiAppPTAutoControls extends Component {
     this.onPTKeyText = this.onPTKeyText.bind(this)
     this.renderPTControlPanel = this.renderPTControlPanel.bind(this)
 
-    this.onPTUpdateText = this.onTrackUpdateText.bind(this)
-    this.onPTKeyText = this.onTrackKeyText.bind(this)
+    this.onTrackUpdateText = this.onTrackUpdateText.bind(this)
+    this.onTrackKeyText = this.onTrackKeyText.bind(this)
 
 
     this.getNamespace = this.getNamespace.bind(this)
@@ -972,7 +972,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const id = e.target.id
     const stateKey = {
       StabUpdateRate: 'stab_update_rate',
-      StabGoalDeg: 'stab_goal_deg',
+      StabGoalDeg: 'stab_num_avg',
       StabMoveDeg: 'stab_move_deg',
       StabResetTimeSec: 'stab_reset_time_sec'
     }[id]
@@ -984,7 +984,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
   }
 
   onStabKeyText(e) {
-    const {sendFloatMsg} = this.props.ros
+    const {sendFloatMsg, sendIntMsg} = this.props.ros
     const namespace = this.getNamespace()
     var element = null
     if (e.key === 'Enter') {
@@ -997,8 +997,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
       } else if (e.target.id === "StabGoalDeg") {
         element = document.getElementById("StabGoalDeg")
         clearElementStyleModified(element)
-        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_goal_deg", val) }
-        this.setState({stab_goal_deg: null})
+        if (!isNaN(val)) { sendIntMsg(namespace + "/set_stab_num_avg", Math.round(val)) }
+        this.setState({stab_num_avg: null})
       } else if (e.target.id === "StabMoveDeg") {
         element = document.getElementById("StabMoveDeg")
         clearElementStyleModified(element)
@@ -1334,8 +1334,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     var stab_update_rate = this.state.stab_update_rate
     if (stab_update_rate == null) { stab_update_rate = status_msg.stab_update_rate }
 
-    var stab_goal_deg = this.state.stab_goal_deg
-    if (stab_goal_deg == null) { stab_goal_deg = status_msg.stab_goal_deg }
+    var stab_num_avg = this.state.stab_num_avg
+    if (stab_num_avg == null) { stab_num_avg = status_msg.stab_num_avg }
 
     var stab_move_deg = this.state.stab_move_deg
     if (stab_move_deg == null) { stab_move_deg = status_msg.stab_move_deg }
@@ -1389,17 +1389,17 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           />
         </Label>
 
-        <Label title={"Goal Deg"}>
+        <Label title={"Num Avg"}>
           <Input
-            id={"StabGoalDeg"}
+            id={"StabNumAvg"}
             style={{ width: "45%", float: "left" }}
-            value={stab_goal_deg}
+            value={stab_num_avg}
             onChange={this.onStabUpdateText}
             onKeyDown={this.onStabKeyText}
           />
         </Label>
 
-        <Label title={"Move Deg"}>
+        <Label title={"Min Deg"}>
           <Input
             id={"StabMoveDeg"}
             style={{ width: "45%", float: "left" }}

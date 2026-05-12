@@ -75,7 +75,7 @@ bool stab_tilt_enabled
 #********
 
 float32 stab_update_rate
-float32 stab_goal_deg
+float32 stab_num_avg
 float32 stab_move_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
