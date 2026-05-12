@@ -86,9 +86,9 @@ class NepiPanTiltAutoApp(object):
 
   BLANK_STAB_SETTINGS_DICT = {
       
-      'stab_update_rate': 1.0,
+      'stab_update_rate': 10,
       'stab_goal_deg': 1.0,
-      'stab_move_deg': 2.0,
+      'stab_move_deg': 1.0,
       'stab_move_ratio': 1.0,
       'stab_reset_time_sec': 3.0,
 
