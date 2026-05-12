@@ -1058,6 +1058,7 @@ class NepiPanTiltAutoApp(object):
     nepi_sdk.start_timer_process(1.0, self.updaterTrackingCb, oneshot = True)
     nepi_sdk.start_timer_process(1.0, self.updaterStabCb, oneshot = True)
     nepi_sdk.start_timer_process(1.0, self.updaterStabSolutionCb, oneshot = True)  
+    nepi_sdk.start_timer_process(1.0, self.updaterTrackingStateCb, oneshot = True)
 
 
 
@@ -2438,6 +2439,29 @@ class NepiPanTiltAutoApp(object):
       found = check_topic in self.active_topics
       return found
 
+
+  def updaterTrackingStateCb(self,timer):
+        #self.msg_if.pub_warn("Tracking Updater Called")
+
+        needs_publish = False
+ 
+        ####################
+        # Update State
+        self.tracking_state = copy.deepcopy(self.track_dict_check) is not None
+        #self.msg_if.pub_warn("Resetting Tracking State")
+        self.track_dict_check = None
+        self.track_dict = None
+        track_last_time = 0
+
+        ##################
+        # Get settings from param server
+        if needs_publish == True:
+            self.publish_status()
+
+        nepi_sdk.start_timer_process(self.targets_timeout, self.updaterTrackingStateCb, oneshot = True)   
+
+
+
   def updaterTrackingCb(self,timer):
     #self.msg_if.pub_warn("Tracking Updater Called")
 
@@ -2521,12 +2545,6 @@ class NepiPanTiltAutoApp(object):
                 self.tracking_available_classes = []
                 needs_publish = True
 
-    ####################
-    # Update State
-    self.tracking_state = self.track_dict_check is not None
-    self.track_dict_check = None
-    self.track_dict = None
-    track_last_time = 0
 
     ##################
     # Get settings from param server
@@ -2631,8 +2649,8 @@ class NepiPanTiltAutoApp(object):
 
             #########################
             # Apply Cutsom Filter Targets
-            if self.customFilterCb is not None:
-                targets_dict_list = self.customFilterCb(targets_dict_list)
+            # if self.customFilterCb is not None:
+            #     targets_dict_list = self.customFilterCb(targets_dict_list)
             
             #self.msg_if.pub_warn("Got custom filtered targets list " + str(targets_dict_list))
             #################
