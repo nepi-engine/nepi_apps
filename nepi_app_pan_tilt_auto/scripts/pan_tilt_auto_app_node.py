@@ -3198,7 +3198,7 @@ class NepiPanTiltAutoApp(object):
     stab_update_time = float(1)/stab_update_rate - (stop_time - start_time)
     if stab_update_time < 0.1:
         stab_update_time = 0.1
-    nepi_sdk.start_timer_process(stab_update_rate, self.updaterStabSolutionCb, oneshot = True) 
+    nepi_sdk.start_timer_process(stab_update_time, self.updaterStabSolutionCb, oneshot = True) 
 
 
   def rotate_enu_angles(self, rpy_vector, angle_deg, axis='z'):
