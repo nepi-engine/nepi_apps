@@ -77,7 +77,8 @@ class NepiAppPTAutoControls extends Component {
 
       stab_update_rate: null,
       stab_num_avg: null,
-      stab_move_deg: null,
+      stab_pos_deg: null,
+      stab_vel_deg: null,
       stab_reset_time_sec: null,
 
       lockPanMin: -50,
@@ -975,7 +976,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const stateKey = {
       StabUpdateRate: 'stab_update_rate',
       StabNumAvg: 'stab_num_avg',
-      StabMoveDeg: 'stab_move_deg',
+      StabPosDeg: 'stab_pos_deg',
+      StabVelDeg: 'stab_vel_deg',
       StabResetTimeSec: 'stab_reset_time_sec'
     }[id]
     if (stateKey) {
@@ -1001,11 +1003,16 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         clearElementStyleModified(element)
         if (!isNaN(val)) { sendIntMsg(namespace + "/set_stab_num_avg", Math.round(val)) }
         this.setState({stab_num_avg: null})
-      } else if (e.target.id === "StabMoveDeg") {
-        element = document.getElementById("StabMoveDeg")
+      } else if (e.target.id === "StabPosDeg") {
+        element = document.getElementById("StabPosDeg")
         clearElementStyleModified(element)
-        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_move_deg", val) }
-        this.setState({stab_move_deg: null})
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_pos_deg", val) }
+        this.setState({stab_pos_deg: null})
+      } else if (e.target.id === "StabVelDeg") {
+        element = document.getElementById("StabVelDeg")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_vel_deg", val) }
+        this.setState({stab_vel_deg: null})
       } else if (e.target.id === "StabResetTimeSec") {
         element = document.getElementById("StabResetTimeSec")
         clearElementStyleModified(element)
@@ -1339,8 +1346,11 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     var stab_num_avg = this.state.stab_num_avg
     if (stab_num_avg == null) { stab_num_avg = status_msg.stab_num_avg }
 
-    var stab_move_deg = this.state.stab_move_deg
-    if (stab_move_deg == null) { stab_move_deg = status_msg.stab_move_deg }
+    var stab_pos_deg = this.state.stab_pos_deg
+    if (stab_pos_deg == null) { stab_pos_deg = status_msg.stab_pos_deg }
+
+    var stab_vel_deg = this.state.stab_vel_deg
+    if (stab_vel_deg == null) { stab_vel_deg = status_msg.stab_vel_deg }
 
     var stab_reset_time_sec = this.state.stab_reset_time_sec
     if (stab_reset_time_sec == null) { stab_reset_time_sec = status_msg.stab_reset_time_sec }
@@ -1405,11 +1415,21 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           />
         </Label>
 
-        <Label title={"Min Deg"}>
+        <Label title={"Pos Deg Limit"}>
           <Input
-            id={"StabMoveDeg"}
+            id={"StabPosDeg"}
             style={{ width: "45%", float: "left" }}
-            value={stab_move_deg}
+            value={stab_pos_deg}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <Label title={"Vel Deg Limit"}>
+          <Input
+            id={"StabVelDeg"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_vel_deg}
             onChange={this.onStabUpdateText}
             onKeyDown={this.onStabKeyText}
           />
