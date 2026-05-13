@@ -153,8 +153,8 @@ class NepiPanTiltAutoApp(object):
   pt_connected = False
 
 
-  min_pan_softstop_deg = -DEFAULT_MIN_MAX_DEG
-  max_pan_softstop_deg = DEFAULT_MIN_MAX_DEG
+  min_pan_softstop_deg = -170
+  max_pan_softstop_deg = 170
   min_tilt_softstop_deg = -DEFAULT_MIN_MAX_DEG
   max_tilt_softstop_deg = DEFAULT_MIN_MAX_DEG
 
