@@ -887,6 +887,14 @@ class NepiPanTiltAutoApp(object):
         ###Misc
         #####################
 
+        'go_home': {
+            'namespace': self.node_namespace,
+            'topic': 'go_home',
+            'msg': Empty,
+            'qsize': 1,
+            'callback': self.goHomeCb,
+            'callback_args': ()
+        },
         'set_pan_click_enable': {
             'namespace': self.node_namespace,
             'topic': 'set_pan_click_enable',
@@ -1345,7 +1353,10 @@ class NepiPanTiltAutoApp(object):
   ##############################
   ## Node PT Commands
 
-  
+  def goHomeCb(self, msg):
+      if self.pt_connect_if is not None:
+          self.pt_connect_if.go_home()
+
   def stopPanControls(self):
       self.scan_pan_enabled = False
       self.pan_track_hold = False
@@ -1696,11 +1707,15 @@ class NepiPanTiltAutoApp(object):
   def setSpeedRatio(self, speed_ratio):
         speed_ratio = nepi_utils.check_ratio(speed_ratio)
         self.speed_ratio = speed_ratio
+        self.pan_speed_ratio = speed_ratio
+        self.tilt_speed_ratio = speed_ratio
         if self.pt_connect_if is not None:
             self.pt_connect_if.set_speed_ratio(speed_ratio)
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('speed_ratio', self.speed_ratio)
+            self.node_if.set_param('pan_speed_ratio', self.pan_speed_ratio)
+            self.node_if.set_param('tilt_speed_ratio', self.tilt_speed_ratio)
 
   def setPanSpeedRatioCb(self, msg):
       self.setPanSpeedRatio(msg.data)

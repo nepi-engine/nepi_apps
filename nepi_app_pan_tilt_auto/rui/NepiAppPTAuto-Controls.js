@@ -207,7 +207,6 @@ class NepiAppPTAutoControls extends Component {
         })
       }
 
-    
   }
 
 
@@ -542,7 +541,7 @@ componentWillUnmount() {
 
           <ButtonMenu>
             <Button onClick={() => this.props.ros.onPTXStop(selected_pan_tilt)}>{"STOP"}</Button>
-            <Button disabled={!has_homing} onClick={() => this.props.ros.onPTXGoHome(selected_pan_tilt)}>{"GO HOME"}</Button>
+            <Button disabled={!has_homing} onClick={() => this.props.ros.onPTXGoHome(namespace)}>{"GO HOME"}</Button>
           </ButtonMenu>
 
           }
@@ -664,8 +663,6 @@ componentWillUnmount() {
 
 
           <div hidden={(has_speed_control === false)}>
-
-
 
             {(has_sep_speed === true && this.state.linkSpeeds === false) ? (
               <React.Fragment>
