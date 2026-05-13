@@ -3385,6 +3385,8 @@ class NepiPanTiltAutoApp(object):
 
             ##########################
             # APPLY PT UPDATES IF NEEDED
+            pan_deg = stab_data_dict['pan_deg']
+            tilt_deg = stab_data_dict['tilt_deg']
             [pan_goal, tilt_goal] = copy.deepcopy(self.goto_position)
         
             pan_adj_last = copy.deepcopy(self.stab_pan_adj_last)
@@ -3405,10 +3407,10 @@ class NepiPanTiltAutoApp(object):
             tilt_adj_last = copy.deepcopy(self.stab_tilt_adj_last)
             tilt_adj = stab_data_dict['tilt_adj']
             adj_tilt_delta = abs(tilt_adj - tilt_adj_last)
+            adj_tilt_goal = tilt_goal + tilt_adj
             if self.stab_tilt_enabled == True and self.tilt_track_hold == False:
                 if adj_tilt_delta > stab_move_deg:
                     self.stab_tilt_adj_last = tilt_adj
-                    adj_tilt_goal = tilt_goal + tilt_adj
                     self.stab_data_dict['tilt_goal'] = adj_tilt_goal
                     stab_speed_ratio = stab_settings_dict['stab_pt_max_speed_ratio']
                     tilt_dps = stab_speed_ratio * self.pan_tilt_max_speed_dps
@@ -3420,12 +3422,13 @@ class NepiPanTiltAutoApp(object):
                     adj_deg = tilt_adj
                     adj_dps = (tilt_adj - tilt_adj_last) / delta_time
 
+                    #stab_deg =  adj_tilt_goal - tilt_deg
                     stab_dir = 1 if (adj_dps > 0) else -1
                     
                     min_speed = stab_settings_dict['stab_pt_min_speed_ratio'] * self.pan_tilt_max_speed_dps
                     max_speed = stab_settings_dict['stab_pt_max_speed_ratio'] * self.pan_tilt_max_speed_dps
                     stab_min_speed = max(min_speed,abs(adj_dps)) 
-                    stab_speed = max_speed * (adj_tilt_delta / stab_move_deg)
+                    stab_speed = max_speed  * abs(adj_tilt_delta / stab_move_deg) #* (abs(adj_tilt_goal - tilt_deg) / stab_move_deg)
                     if stab_speed < min_speed:
                         stab_speed = 0
                     self.stab_data_dict['tilt_dps'] = stab_speed
