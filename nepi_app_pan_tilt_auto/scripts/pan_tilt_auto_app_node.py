@@ -2782,8 +2782,8 @@ class NepiPanTiltAutoApp(object):
        pt_status_msg = DevicePTXStatus()
     
     self.status_msg.pt_status_msg = pt_status_msg
-    # self.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
-    # self.status_msg.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
+    self.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
+    self.status_msg.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
     self.pan_speed_dps = pt_status_msg.speed_pan_dps
     self.status_msg.pan_speed_dps = pt_status_msg.speed_pan_dps
     self.tilt_speed_dps = pt_status_msg.speed_tilt_dps
@@ -3243,7 +3243,7 @@ class NepiPanTiltAutoApp(object):
 
     stab_update_rate = stab_settings_dict['stab_update_rate']
 
-    if self.pt_connected == True:
+    if self.pt_connected == True and pan_tilt_max_speed_dps != -999:
         last_dict = self.stab_data_dict_last
         last_time = copy.deepcopy(self.stab_data_dict['last_time'])
         self.stab_data_dict['last_time'] = nepi_utils.get_time()
@@ -3318,6 +3318,7 @@ class NepiPanTiltAutoApp(object):
                     stab_goal = self.scan_tilt_max_deg if (stab_dir > 0) else self.scan_tilt_min_deg
                     if self.stab_data_dict['tilt_goal'] != stab_goal:
                         self.pt_connect_if.goto_to_tilt_position(stab_goal)
+                    self.stab_data_dict['tilt_goal'] = stab_goal
             
 
     self.stab_data_dict_last = copy.deepcopy(self.stab_data_dict)
