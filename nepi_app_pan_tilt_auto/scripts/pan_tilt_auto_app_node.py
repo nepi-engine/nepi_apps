@@ -95,7 +95,8 @@ class NepiPanTiltAutoApp(object):
       'stab_num_avg': 3,
 
 
-      'stab_pt_max_speed_ratio': 0.5,
+      'stab_pt_min_speed_ratio': 0.1,
+      'stab_pt_max_speed_ratio': 0.9,
   }
 
 
@@ -791,12 +792,12 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setStabResetTimeSecCb, 
             'callback_args': ()
         },
-        'set_stab_max_speed_ratio': {
+        'set_stab_max_speed_ratios': {
             'namespace': self.node_namespace,
-            'topic': 'set_stab_max_speed_ratio',
-            'msg': Float32,
+            'topic': 'set_stab_max_speed_ratios',
+            'msg': RangeWindow,
             'qsize': 1,
-            'callback': self.  setStabSpeedRatioCb,
+            'callback': self.  setStabSpeedRatiosCb,
             'callback_args': ()
         },
         # 'set_stab_goal_deg': {
@@ -1614,19 +1615,26 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
             #self.node_if.save_config()
 
-  def   setStabSpeedRatioCb(self, msg):
-      ratio = msg.data
-      self.  setStabSpeedRatio(ratio)
+  def   setStabSpeedRatiosCb(self, msg):
+      min_ratio = msg.start_range
+      max_ratio = msg.stop_range
+      self.setStabSpeedRatios(min_ratio,max_ratio)
 
 
-  def   setStabSpeedRatio(self,ratio):
-        ratio = nepi_utils.check_ratio(ratio)
-        self.msg_if.pub_info("Setting stab max speed ratio to: " + str(ratio))
-        self.stab_settings_dict['stab_pt_max_speed_ratio'] = ratio
-        self.publish_status()
-        if self.node_if is not None:
-            self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
-            #self.node_if.save_config()
+  def setStabSpeedRatios(self,min_ratio,max_ratio):
+        min_ratio = nepi_utils.check_ratio(min_ratio)
+        max_ratio = nepi_utils.check_ratio(max_ratio)
+        if min_ratio > max_ratio:
+            self.msg_if.pub_info("invalid speed ratios: " + "%.2f" % min_ratio  + " " + "%.2f" % max_ratio )
+        else:
+            #self.msg_if.pub_info("Setting stab speed ratio limits to: " + "%.2f" % adj_min_deg  + " " + "%.2f" % adj_max_deg )
+            self.msg_if.pub_info("Setting stab max speed ratios to: " + str([min_ratio,max_ratio]))
+            self.stab_settings_dict['stab_pt_min_speed_ratio'] = min_ratio
+            self.stab_settings_dict['stab_pt_max_speed_ratio'] = max_ratio
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
+                #self.node_if.save_config()
 
   def setStabGoalDegCb(self, msg):
       goal_deg = msg.data
@@ -2840,6 +2848,7 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.stab_reset_time_sec = self.stab_settings_dict['stab_reset_time_sec']
 
     max_speed = self.pan_tilt_max_speed_dps
+    self.status_msg.stab_pt_min_speed_ratio = self.stab_settings_dict['stab_pt_min_speed_ratio']
     stab_pt_max_speed_ratio = self.stab_settings_dict['stab_pt_max_speed_ratio']
     stab_pt_max_speed_dps = 0.0
     if max_speed != -999:
@@ -3233,14 +3242,12 @@ class NepiPanTiltAutoApp(object):
     self.stab_dict_lock.release()   
 
     stab_update_rate = stab_settings_dict['stab_update_rate']
-    stab_max_speed_ratio = stab_settings_dict['stab_pt_max_speed_ratio']
 
     if self.pt_connected == True:
         last_dict = self.stab_data_dict_last
-        last_time = self.stab_data_dict['last_time']
-        if last_time is None or last_dict is None:
-            self.stab_data_dict['last_time'] = nepi_utils.get_time()
-        else:
+        last_time = copy.deepcopy(self.stab_data_dict['last_time'])
+        self.stab_data_dict['last_time'] = nepi_utils.get_time()
+        if last_time is not None and last_dict is not None:
             delta_time = nepi_utils.get_time() - last_time
             self.stab_data_dict['roll_dps'] = (self.stab_data_dict['roll_deg'] - last_dict['roll_deg']) / delta_time
             self.stab_data_dict['pitch_dps'] = (self.stab_data_dict['pitch_deg'] - last_dict['pitch_deg']) / delta_time
@@ -3273,9 +3280,10 @@ class NepiPanTiltAutoApp(object):
                     self.stab_pan_adj_last = pan_adj
                     adj_pan_goal = pan_goal + pan_adj
                     self.stab_data_dict['pan_goal'] = adj_pan_goal
-                    pan_dps = stab_max_speed_ratio * self.pan_tilt_max_speed_dps
+                    stab_speed_ratio = stab_settings_dict['stab_pt_max_speed_ratio']
+                    pan_dps = stab_speed_ratio * self.pan_tilt_max_speed_dps
                     self.stab_data_dict['pan_dps'] = pan_dps
-                    self.pt_connect_if.set_pan_speed_ratio(stab_max_speed_ratio)
+                    self.pt_connect_if.set_pan_speed_ratio(stab_speed_ratio)
                     self.pt_connect_if.goto_to_pan_position(adj_pan_goal)
             
 
@@ -3286,11 +3294,30 @@ class NepiPanTiltAutoApp(object):
                 if adj_tilt_delta > stab_move_deg:
                     self.stab_tilt_adj_last = tilt_adj
                     adj_tilt_goal = tilt_goal + tilt_adj
-                    self.stab_tilt_dict['pan_goal'] = adj_tilt_goal
-                    tilt_dps = stab_max_speed_ratio * self.pan_tilt_max_speed_dps
-                    self.stab_data_dict['pan_dps'] = tilt_dps
-                    self.pt_connect_if.set_tilt_speed_ratio(stab_max_speed_ratio)
+                    self.stab_data_dict['tilt_goal'] = adj_tilt_goal
+                    stab_speed_ratio = stab_settings_dict['stab_pt_max_speed_ratio']
+                    tilt_dps = stab_speed_ratio * self.pan_tilt_max_speed_dps
+                    self.stab_data_dict['tilt_dps'] = tilt_dps
+                    self.pt_connect_if.set_tilt_speed_ratio(stab_speed_ratio)
                     self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
+                elif self.scan_tilt_enabled == False:
+                    adj_deg = tilt_adj
+                    adj_dps = (tilt_adj - tilt_adj_last) / delta_time
+
+                    stab_dir = 1 if (adj_dps > 0) else -1
+                    
+                    min_speed = stab_settings_dict['stab_pt_min_speed_ratio'] * self.pan_tilt_max_speed_dps
+                    max_speed = stab_settings_dict['stab_pt_max_speed_ratio'] * self.pan_tilt_max_speed_dps
+                    stab_min_speed = max(min_speed,abs(adj_dps)) 
+                    stab_speed = max_speed * (adj_tilt_delta / stab_move_deg)
+                    if stab_speed < min_speed:
+                        stab_speed = 0
+                    stab_speed_ratio = nepi_utils.check_ratio(stab_speed/self.pan_tilt_max_speed_dps)
+                    self.pt_connect_if.set_tilt_speed_ratio(stab_speed_ratio)
+
+                    stab_goal = self.scan_tilt_max_deg if (stab_dir > 0) else self.scan_tilt_min_deg
+                    if self.stab_data_dict['tilt_goal'] != stab_goal:
+                        self.pt_connect_if.goto_to_tilt_position(stab_goal)
             
 
     self.stab_data_dict_last = copy.deepcopy(self.stab_data_dict)
@@ -3319,7 +3346,7 @@ class NepiPanTiltAutoApp(object):
 
 
   def stabSourceCb(self,msg):
-    #self.msg_if.pub_debug("*** Stabs update starting ***", throttle_s=1)
+    self.msg_if.pub_debug("*** Stabs update starting ***", throttle_s=1)
     self.stab_source_connecting = False
     self.stab_source_connected = True
     source_dict = nepi_sdk.convert_msg2dict(msg)
@@ -3380,7 +3407,7 @@ class NepiPanTiltAutoApp(object):
         pan_deg = 0.0
     if tilt_deg == -999:
         tilt_deg = 0.0
-    #self.msg_if.pub_debug("Stabs pan tilt input: " + str([pan_deg,tilt_deg]), throttle_s=1)
+    self.msg_if.pub_debug("Stabs pan tilt input: " + str([pan_deg,tilt_deg]), throttle_s=1)
 
     pan_speed_max = stab_settings_dict['stab_pt_max_speed_dps']
     tilt_speed_max = stab_settings_dict['stab_pt_max_speed_dps']
@@ -3422,11 +3449,6 @@ class NepiPanTiltAutoApp(object):
         ####
 
         t_adj = ap
-        t_r_adj = 0 # t_adj * np.sin(pan_radians)
-        t_p_adj = 0 # t_adj * np.cos(pan_radians)
-        stab_data_dict['roll_dps'] = t_r_adj
-        stab_data_dict['pitch_dps'] = t_p_adj
-
         
         tilt_adjs = stab_data_dict['tilt_adjs']
         if (len(tilt_adjs) >= num_avg):

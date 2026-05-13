@@ -30,6 +30,8 @@ import Label from "./Label"
 import Input from "./Input"
 import Styles from "./Styles"
 import Button, { ButtonMenu } from "./Button"
+import RangeAdjustment from "./RangeAdjustment"
+
 
 
 import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
@@ -1346,6 +1348,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const stab_move_ratio = status_msg.stab_move_ratio
 
     //const pan_tilt_max_speed_dps = status_msg.pan_tilt_max_speed_dps
+    const stab_pt_min_speed_ratio = status_msg.stab_pt_min_speed_ratio
     const stab_pt_max_speed_ratio = status_msg.stab_pt_max_speed_ratio
     const pan_speed_dps = status_msg.pan_speed_dps
     const tilt_speed_dps = status_msg.tilt_speed_dps
@@ -1422,7 +1425,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           />
         </Label>
 
-        <SliderAdjustment
+        {/* <SliderAdjustment
           title={"Max Move Speed"}
           msgType={"std_msgs/Float32"}
           adjustment={stab_pt_max_speed_ratio}
@@ -1433,7 +1436,18 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           disabled={false}
           tooltip={"Sets stabilize max move speed"}
           unit={"%"}
-        />
+        /> */}
+
+          <RangeAdjustment
+            title="Min Max Speed"
+            min={0}
+            max={1}
+            min_limit_m={stab_pt_min_speed_ratio}
+            max_limit_m={stab_pt_max_speed_ratio}
+            topic={namespace + "/set_stab_max_speed_ratios"}
+            tooltip={"Sets stabilize min max move ratios"}
+            noTextBox={true}
+          />        
 
         <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
