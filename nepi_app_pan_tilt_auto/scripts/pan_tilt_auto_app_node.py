@@ -3329,6 +3329,9 @@ class NepiPanTiltAutoApp(object):
 
 
   def updaterStabSolutionCb(self, timer):
+    self.msg_if.pub_warn("******", throttle_s=1)
+    self.msg_if.pub_warn("*** Stabs Solution Update Starting ***", throttle_s=1)
+    self.msg_if.pub_warn("******", throttle_s=1)
     stab_update_rate = 1
     start_time = nepi_utils.get_time()
 
@@ -3397,6 +3400,7 @@ class NepiPanTiltAutoApp(object):
                     self.stab_data_dict['tilt_dps'] = tilt_dps
                     self.pt_connect_if.set_tilt_speed_ratio(stab_speed_ratio)
                     self.pt_connect_if.goto_to_tilt_position(adj_tilt_goal)
+                    self.msg_if.pub_warn("Stabs POSITION Control updated: " + str([adj_tilt_delta, stab_speed_ratio, adj_tilt_goal]), throttle_s=1)
                 elif self.scan_tilt_enabled == False:
                     adj_deg = tilt_adj
                     adj_dps = (tilt_adj - tilt_adj_last) / delta_time
@@ -3409,14 +3413,18 @@ class NepiPanTiltAutoApp(object):
                     stab_speed = max_speed * (adj_tilt_delta / stab_move_deg)
                     if stab_speed < min_speed:
                         stab_speed = 0
+                    self.stab_data_dict['tilt_dps'] = stab_speed
                     stab_speed_ratio = nepi_utils.check_ratio(stab_speed/self.pan_tilt_max_speed_dps)
                     self.pt_connect_if.set_tilt_speed_ratio(stab_speed_ratio)
 
                     stab_goal = self.scan_tilt_max_deg if (stab_dir > 0) else self.scan_tilt_min_deg
                     if self.stab_data_dict['tilt_goal'] != stab_goal:
+                        nepi_sdk.sleep(1)
+                        
                         self.pt_connect_if.goto_to_tilt_position(stab_goal)
                     self.stab_data_dict['tilt_goal'] = stab_goal
             
+                    self.msg_if.pub_warn("Stabs VELOCITY Control updated: " + str([adj_dps, adj_deg, stab_dir, stab_speed, stab_speed_ratio, stab_goal]), throttle_s=1)
 
     self.stab_data_dict_last = copy.deepcopy(self.stab_data_dict)
     stop_time = nepi_utils.get_time()
@@ -3444,7 +3452,9 @@ class NepiPanTiltAutoApp(object):
 
 
   def stabSourceCb(self,msg):
-    self.msg_if.pub_debug("*** Stabs update starting ***", throttle_s=1)
+    self.msg_if.pub_debug("******", throttle_s=1)
+    self.msg_if.pub_debug("*** Stabs Source Update Starting ***", throttle_s=1)
+    self.msg_if.pub_debug("******", throttle_s=1)
     self.stab_source_connecting = False
     self.stab_source_connected = True
     source_dict = nepi_sdk.convert_msg2dict(msg)
