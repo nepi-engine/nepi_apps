@@ -160,6 +160,10 @@ class NepiPanTiltAutoApp(object):
   pan_speed_dps = -999
   tilt_speed_dps = -999
 
+  speed_ratio = 0.5
+  pan_speed_ratio = 0.5
+  tilt_speed_ratio = 0.5
+
   min_pan_softstop_deg = -170
   max_pan_softstop_deg = 170
   min_tilt_softstop_deg = -DEFAULT_MIN_MAX_DEG
@@ -556,7 +560,24 @@ class NepiPanTiltAutoApp(object):
         'stab_tilt_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
-        },   
+        },
+
+        #####################
+        ###Speed
+        #####################
+
+        'speed_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.speed_ratio
+        },
+        'pan_speed_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.pan_speed_ratio
+        },
+        'tilt_speed_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.tilt_speed_ratio
+        },
 
         #####################
         ###Image Viewer
@@ -797,7 +818,36 @@ class NepiPanTiltAutoApp(object):
             'topic': 'set_stab_max_speed_ratios',
             'msg': RangeWindow,
             'qsize': 1,
-            'callback': self.  setStabSpeedRatiosCb,
+            'callback': self.setStabSpeedRatiosCb,
+            'callback_args': ()
+        },
+
+        #####################
+        ###Speed
+        #####################
+
+        'set_speed_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_speed_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setSpeedRatioCb,
+            'callback_args': ()
+        },
+        'set_pan_speed_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_pan_speed_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setPanSpeedRatioCb,
+            'callback_args': ()
+        },
+        'set_tilt_speed_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_tilt_speed_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setTiltSpeedRatioCb,
             'callback_args': ()
         },
         # 'set_stab_goal_deg': {
@@ -1138,6 +1188,10 @@ class NepiPanTiltAutoApp(object):
         stab_tilt_enabled = self.node_if.get_param('stab_tilt_enabled')
         self.setStabPan(stab_pan_enabled)
         self.setStabTilt(stab_tilt_enabled)
+
+        self.speed_ratio = self.node_if.get_param('speed_ratio')
+        self.pan_speed_ratio = self.node_if.get_param('pan_speed_ratio')
+        self.tilt_speed_ratio = self.node_if.get_param('tilt_speed_ratio')
 
         self.num_windows = self.node_if.get_param('num_windows')
         self.selected_image_topics = self.node_if.get_param('selected_image_topics')
@@ -1635,6 +1689,42 @@ class NepiPanTiltAutoApp(object):
             if self.node_if is not None:
                 self.node_if.set_param('stab_settings_dict', self.stab_settings_dict)
                 #self.node_if.save_config()
+
+  def setSpeedRatioCb(self, msg):
+      self.setSpeedRatio(msg.data)
+
+  def setSpeedRatio(self, speed_ratio):
+        speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        self.speed_ratio = speed_ratio
+        if self.pt_connect_if is not None:
+            self.pt_connect_if.set_speed_ratio(speed_ratio)
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('speed_ratio', self.speed_ratio)
+
+  def setPanSpeedRatioCb(self, msg):
+      self.setPanSpeedRatio(msg.data)
+
+  def setPanSpeedRatio(self, speed_ratio):
+        speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        self.pan_speed_ratio = speed_ratio
+        if self.pt_connect_if is not None:
+            self.pt_connect_if.set_pan_speed_ratio(speed_ratio)
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('pan_speed_ratio', self.pan_speed_ratio)
+
+  def setTiltSpeedRatioCb(self, msg):
+      self.setTiltSpeedRatio(msg.data)
+
+  def setTiltSpeedRatio(self, speed_ratio):
+        speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        self.tilt_speed_ratio = speed_ratio
+        if self.pt_connect_if is not None:
+            self.pt_connect_if.set_tilt_speed_ratio(speed_ratio)
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('tilt_speed_ratio', self.tilt_speed_ratio)
 
   def setStabGoalDegCb(self, msg):
       goal_deg = msg.data
@@ -2244,6 +2334,9 @@ class NepiPanTiltAutoApp(object):
       self.pt_connect_if = pt_connect_if
       self.pt_connected_topic = topic
       self.msg_if.pub_warn("pt_connected_topic: " + str(self.pt_connected_topic))
+      self.pt_connect_if.set_speed_ratio(self.speed_ratio)
+      self.pt_connect_if.set_pan_speed_ratio(self.pan_speed_ratio)
+      self.pt_connect_if.set_tilt_speed_ratio(self.tilt_speed_ratio)
     return success
   
 
@@ -2790,6 +2883,10 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.tilt_speed_dps = pt_status_msg.speed_tilt_dps
     
     self.status_msg.pan_tilt_avg_move_delay = self.pan_tilt_avg_move_delay
+
+    self.status_msg.speed_ratio = self.speed_ratio
+    self.status_msg.pan_speed_ratio = self.pan_speed_ratio
+    self.status_msg.tilt_speed_ratio = self.tilt_speed_ratio
 
     ###
     current_position = [-999,-999]

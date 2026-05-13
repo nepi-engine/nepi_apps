@@ -16,6 +16,10 @@ float32 pan_speed_dps
 float32 tilt_speed_dps
 float32 pan_tilt_avg_move_delay
 
+float32 speed_ratio
+float32 pan_speed_ratio
+float32 tilt_speed_ratio
+
 float32[] current_position
 float32[] goto_position
 
