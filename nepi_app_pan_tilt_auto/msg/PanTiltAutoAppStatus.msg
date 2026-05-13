@@ -9,7 +9,13 @@ bool pt_connected
 string pt_connected_topic
 nepi_interfaces/DevicePTXStatus pt_status_msg
 
+
 #[pan_deg, tilt_deg], unset values are -999
+float32 pan_tilt_max_speed_dps
+float32 pan_speed_dps
+float32 tilt_speed_dps
+float32 pan_tilt_avg_move_delay
+
 float32[] current_position
 float32[] goto_position
 
@@ -80,27 +86,31 @@ float32 stab_move_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
 
-float32 pan_speed_max
-float32 pan_speed_dps
-float32 tilt_speed_max
-float32 tilt_speed_dps
-float32 pantilt_avg_move_delay
+
+float32 stab_pt_max_speed_ratio
+float32 stab_pt_max_speed_dps
+
 
 float32 stab_roll_deg
-float32 stab_roll_adj
+float32 stab_roll_dps
 
 float32 stab_pitch_deg
-float32 stab_pitch_adj
+float32 stab_pitch_dps
 
 float32 stab_heading_deg
-float32 stab_heading_adj
+float32 stab_heading_dps
 
 float32 stab_pan_deg
 float32 stab_pan_adj
 
-
 float32 stab_tilt_deg
 float32 stab_tilt_adj
+
+float32 stab_pan_goal
+float32 stab_pan_dps
+
+float32 stab_tilt_goal
+float32 stab_tilt_dps
 
 #********
 
