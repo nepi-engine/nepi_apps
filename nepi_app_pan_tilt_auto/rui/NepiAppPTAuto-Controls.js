@@ -972,7 +972,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const id = e.target.id
     const stateKey = {
       StabUpdateRate: 'stab_update_rate',
-      StabGoalDeg: 'stab_num_avg',
+      StabNumAvg: 'stab_num_avg',
       StabMoveDeg: 'stab_move_deg',
       StabResetTimeSec: 'stab_reset_time_sec'
     }[id]
@@ -994,8 +994,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         clearElementStyleModified(element)
         if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_update_rate", val) }
         this.setState({stab_update_rate: null})
-      } else if (e.target.id === "StabGoalDeg") {
-        element = document.getElementById("StabGoalDeg")
+      } else if (e.target.id === "StabNumAvg") {
+        element = document.getElementById("StabNumAvg")
         clearElementStyleModified(element)
         if (!isNaN(val)) { sendIntMsg(namespace + "/set_stab_num_avg", Math.round(val)) }
         this.setState({stab_num_avg: null})

@@ -86,9 +86,9 @@ class NepiPanTiltAutoApp(object):
 
   STAB_SETTINGS_DICT = {
       
-      'stab_update_rate': 1.0,
+      'stab_update_rate': 10,
       'stab_goal_deg': 1.0,
-      'stab_move_deg': 2.0,
+      'stab_move_deg': 1.0,
       'stab_move_ratio': 1.0,
       'stab_reset_time_sec': 3.0,
 
@@ -159,8 +159,8 @@ class NepiPanTiltAutoApp(object):
   pan_speed_dps = -999
   tilt_speed_dps = -999
 
-  min_pan_softstop_deg = -DEFAULT_MIN_MAX_DEG
-  max_pan_softstop_deg = DEFAULT_MIN_MAX_DEG
+  min_pan_softstop_deg = -170
+  max_pan_softstop_deg = 170
   min_tilt_softstop_deg = -DEFAULT_MIN_MAX_DEG
   max_tilt_softstop_deg = DEFAULT_MIN_MAX_DEG
 
