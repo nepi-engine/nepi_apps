@@ -86,7 +86,7 @@ float32 stab_move_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
 
-
+float32 stab_pt_min_speed_ratio
 float32 stab_pt_max_speed_ratio
 float32 stab_pt_max_speed_dps
 
