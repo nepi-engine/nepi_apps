@@ -520,9 +520,9 @@ componentWillUnmount() {
       const tiltMoveClean = tiltMove + .001
 
 
-      const speedRatio = status_msg.pt_status_msg.speed_ratio
-      const speedPanRatio = status_msg.pt_status_msg.speed_pan_ratio
-      const speedTiltRatio = status_msg.pt_status_msg.speed_tilt_ratio
+      const speedRatio = status_msg.speed_ratio
+      const speedPanRatio = status_msg.pan_speed_ratio
+      const speedTiltRatio = status_msg.tilt_speed_ratio
 
 
       const show_control = this.state.show_control
@@ -674,7 +674,7 @@ componentWillUnmount() {
                   title={"Pan Speed"}
                   msgType={"std_msgs/Float32"}
                   adjustment={speedPanRatio}
-                  topic={selected_pan_tilt + "/set_pan_speed_ratio"}
+                  topic={namespace + "/set_pan_speed_ratio"}
                   scaled={0.01}
                   min={0}
                   max={100}
@@ -686,7 +686,7 @@ componentWillUnmount() {
                   title={"Tilt Speed"}
                   msgType={"std_msgs/Float32"}
                   adjustment={speedTiltRatio}
-                  topic={selected_pan_tilt + "/set_tilt_speed_ratio"}
+                  topic={namespace + "/set_tilt_speed_ratio"}
                   scaled={0.01}
                   min={0}
                   max={100}
@@ -700,7 +700,7 @@ componentWillUnmount() {
                 title={"Speed"}
                 msgType={"std_msgs/Float32"}
                 adjustment={speedRatio}
-                topic={selected_pan_tilt + "/set_speed_ratio"}
+                topic={namespace + "/set_speed_ratio"}
                 scaled={0.01}
                 min={0}
                 max={100}
