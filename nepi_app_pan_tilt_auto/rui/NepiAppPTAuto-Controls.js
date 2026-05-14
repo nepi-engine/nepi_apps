@@ -2,8 +2,8 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_rui) repo
-# (see https://github.com/nepi-engine/nepi_rui)
+# This file is part of nepi rui (nepi_apps) repo
+# (see https://github.com/nepi-engine/nepi_apps)
 #
 # License: NEPI RUI repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License", 
