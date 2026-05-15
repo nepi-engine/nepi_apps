@@ -35,7 +35,7 @@ import RangeAdjustment from "./RangeAdjustment"
 
 
 import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
-import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists} from "./Utilities"
+import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists, createShortValuesFromNamespaces} from "./Utilities"
 
 
 
@@ -1336,9 +1336,13 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const status_msg = this.state.status_msg
 
     const available_sources = status_msg.available_stab_source_namespaces
-    const sources_names = createMenuBaseNames(available_sources)
+    const sources_names = createShortValuesFromNamespaces(available_sources)
     const sources_menu = createMenuListFromStrLists(available_sources, sources_names, ['None'], [], 'None Available')
     const selected_source = status_msg.selected_stab_source
+
+    const available_processes = status_msg.available_stab_processes
+    const processes_menu = createMenuListFromStrLists(available_processes, available_processes, ['None'], [], 'None Available')
+    const selected_process = status_msg.selected_stab_source
 
     var stab_update_rate = this.state.stab_update_rate
     if (stab_update_rate == null) { stab_update_rate = status_msg.stab_update_rate }
@@ -1392,6 +1396,20 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             {sources_menu}
           </Select>
         </Label>
+
+        <Label title={'Select Process'}>
+          <Select
+            id="set_stab_process"
+            onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_process", e.target.value)}
+            value={selected_process}
+          >
+            {processes_menu}
+          </Select>
+        </Label>
+
+          <ButtonMenu>
+            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + "/reload_stab_processes")}>{"Reload Processes"}</Button>
+          </ButtonMenu>
 
         <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
