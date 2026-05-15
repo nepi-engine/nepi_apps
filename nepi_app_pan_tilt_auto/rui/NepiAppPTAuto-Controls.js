@@ -1543,12 +1543,12 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
         <Label title={"Pan"}>
           <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_adj, 2)} />
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_goal, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pan_goal, 2)} />
         </Label>
 
         <Label title={"Tilt"}>
            <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_adj, 2)} />
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_goal, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_goal, 2)} />
         </Label>
 
       </React.Fragment>

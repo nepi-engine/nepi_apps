@@ -3233,12 +3233,12 @@ class NepiPanTiltAutoApp(object):
     needs_publish = False
     avail_stab_sources = []
     avail_stab_sources_dict = dict()
-    for message in nepi_stab.PAN_TILT_SOURCE_MESSAGES:
+    for message in nepi_stab.PAN_TILT_SOURCE_MESSAGE_DICT.keys():
         avail_sources = nepi_sdk.find_topics_by_msg(message,self.active_topics,self.active_topic_types)
         for source in avail_sources:
             if message != 'NavPose' or (message == 'NavPose' and 'navposes' in source and os.path.basename(source) == 'navpose'):
                 avail_stab_sources.append(source)
-                avail_stab_sources_dict[source] = message              
+                avail_stab_sources_dict[source] = nepi_stab.PAN_TILT_SOURCE_MESSAGE_DICT[message]              
     self.available_stab_source_dict = avail_stab_sources_dict
     source_topic = self.selected_stab_source
 
@@ -3260,7 +3260,7 @@ class NepiPanTiltAutoApp(object):
     do_purge = False
     if (self.stab_source_connected == True or self.stab_source_connecting == True):
         cur_namespace = self.stab_source_connected_namespace
-        if self.checkForStabSourceTopic(cur_namespace) == False and cur_namespace != 'None' and self.stab_subpub_dict is not None:
+        if source_topic not in avail_stab_sources and cur_namespace != 'None' and self.stab_subpub_dict is not None:
             self.msg_if.pub_warn("Unsubscribing to Stab self.stab_source_connected_namespace: " + str(cur_namespace))
             success = self.unsubscribeStabSource()
             needs_publish = True
@@ -3282,7 +3282,7 @@ class NepiPanTiltAutoApp(object):
     #### Connect if needed
     needs_connect = False
     cur_namespace = self.stab_source_connected_namespace
-    if (source_topic != cur_namespace and self.checkForStabSourceTopic(source_topic) and source_topic != 'None'):
+    if (source_topic != cur_namespace and source_topic in avail_stab_sources and source_topic != 'None'):
         if (self.stab_source_connected == False and self.stab_source_connecting == False):
             self.msg_if.pub_warn("Subscribing to Stab topic: " + str(source_topic) + " does not match current namespace " + str(cur_namespace))
             needs_connect = True
@@ -3341,8 +3341,8 @@ class NepiPanTiltAutoApp(object):
             self.msg_if.pub_warn("Subscribing to Stab topic: " + str(namespace))
             stab_subpub_dict = dict()
 
-            message = os.path.basename(self.available_stab_source_dict[namespace])
-            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(message, NavPoseOrientation, self.stabSourceCb, queue_size = 1, log_name_list = [])
+            message = self.available_stab_source_dict[namespace]
+            stab_subpub_dict['source_sub'] = nepi_sdk.create_subscriber(namespace, message, self.stabSourceCb, queue_size = 1, log_name_list = [])
 
             self.stab_subpub_lock.acquire()
             self.stab_subpub_dict = stab_subpub_dict
@@ -3393,13 +3393,14 @@ class NepiPanTiltAutoApp(object):
 
 
   def stabSourceCb(self,msg):
+    self.msg_if.pub_warn("******", throttle_s=1)
+    self.msg_if.pub_warn("*** Stabs Source Update Starting ***", throttle_s=1)
+    self.msg_if.pub_warn("******", throttle_s=1)
+    self.stab_source_connecting = False
+    self.stab_source_connected = True
+    source_dict = nepi_sdk.convert_msg2dict(msg)
     if self.stab_process_ready == True:
-        #self.msg_if.pub_warn("******", throttle_s=1)
-        #self.msg_if.pub_warn("*** Stabs Source Update Starting ***", throttle_s=1)
-        #self.msg_if.pub_warn("******", throttle_s=1)
-        self.stab_source_connecting = False
-        self.stab_source_connected = True
-        source_dict = nepi_sdk.convert_msg2dict(msg)
+
 
         stab_settings_dict = copy.deepcopy(self.stab_processes_dict[self.selected_stab_process])
         self.stab_dict_lock.acquire()
@@ -3499,7 +3500,7 @@ class NepiPanTiltAutoApp(object):
 
             #self.msg_if.pub_warn("Stabs update complete", throttle_s=1)
 
-        
+        self.msg_if.pub_warn("Stabs updated data dict: " + str(stab_data_dict), throttle_s=1)
         self.stab_processes_dict[self.selected_stab_process] = stab_settings_dict
         self.stab_dict_lock.acquire()
         self.stab_data_dict = stab_data_dict
