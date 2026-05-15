@@ -35,7 +35,7 @@ import RangeAdjustment from "./RangeAdjustment"
 
 
 import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
-import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists, createShortValuesFromNamespaces} from "./Utilities"
+import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists, removeStringFromMenuNames} from "./Utilities"
 
 
 
@@ -136,6 +136,7 @@ class NepiAppPTAutoControls extends Component {
 
 
     this.getNamespace = this.getNamespace.bind(this)
+    this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
 
@@ -151,6 +152,16 @@ class NepiAppPTAutoControls extends Component {
     }
     return namespace
   }
+
+  getBaseNamespace(){
+    const { namespacePrefix, deviceId} = this.props.ros
+    var baseNamespace = null
+    if (namespacePrefix !== null && deviceId !== null){
+      baseNamespace = "/" + namespacePrefix + "/" + deviceId 
+    }
+    return baseNamespace
+  }
+
 
   // Callback for handling ROS Status3DX messages
   statusListener(message) {
@@ -1333,16 +1344,21 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
   renderStabControls() {
     const namespace = this.getNamespace()
+    const baseNamespace = this.getBaseNamespace()
     const status_msg = this.state.status_msg
 
     const available_sources = status_msg.available_stab_source_namespaces
-    const sources_names = createShortValuesFromNamespaces(available_sources)
+    var sources_names = available_sources
+    sources_names = removeStringFromMenuNames(sources_names,baseNamespace + '/')
+    sources_names = removeStringFromMenuNames(sources_names,'navposes/')
+    sources_names = removeStringFromMenuNames(sources_names,'navpose/')
+    sources_names = removeStringFromMenuNames(sources_names,'npx/')
     const sources_menu = createMenuListFromStrLists(available_sources, sources_names, ['None'], [], 'None Available')
     const selected_source = status_msg.selected_stab_source
 
     const available_processes = status_msg.available_stab_processes
     const processes_menu = createMenuListFromStrLists(available_processes, available_processes, ['None'], [], 'None Available')
-    const selected_process = status_msg.selected_stab_source
+    const selected_process = status_msg.selected_stab_process
 
     var stab_update_rate = this.state.stab_update_rate
     if (stab_update_rate == null) { stab_update_rate = status_msg.stab_update_rate }
@@ -1521,21 +1537,18 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         </Label>
 
         <Label title={""}>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Goal"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Speed"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Adj"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Goal"}</div>
         </Label>
 
         <Label title={"Pan"}>
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_goal, 2)} />
-          <Input disabled style={{ width: "30%" }} value={round(stab_pan_dps, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_adj, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_goal, 2)} />
         </Label>
 
         <Label title={"Tilt"}>
-           <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_goal, 2)} />
-          <Input disabled style={{ width: "30%" }} value={round(stab_tilt_dps, 2)} />
+           <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_adj, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_goal, 2)} />
         </Label>
 
       </React.Fragment>
