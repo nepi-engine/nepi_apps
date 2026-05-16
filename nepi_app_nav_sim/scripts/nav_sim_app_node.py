@@ -47,6 +47,13 @@ FACTORY_HNAV_PORT    = 16718
 
 STATUS_RATE_HZ = 1.0
 
+_MOVE_FIELDS = (
+    'nmea_latitude', 'nmea_longitude', 'nmea_altitude_m',
+    'nmea_heading_deg', 'nmea_speed_ms',
+    'hnav_latitude', 'hnav_longitude', 'hnav_altitude_m', 'hnav_depth_m',
+    'hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg', 'hnav_speed_ms',
+)
+
 #########################################
 # HNav packet helpers
 #########################################
@@ -216,6 +223,51 @@ class NepiNavSimApp(object):
     nmea_connected = False
     hnav_connected = False
 
+    # move-enable flags
+    enable_move_nmea_latitude    = False
+    enable_move_nmea_longitude   = False
+    enable_move_nmea_altitude_m  = False
+    enable_move_nmea_heading_deg = False
+    enable_move_nmea_speed_ms    = False
+    enable_move_hnav_latitude    = False
+    enable_move_hnav_longitude   = False
+    enable_move_hnav_altitude_m  = False
+    enable_move_hnav_depth_m     = False
+    enable_move_hnav_heading_deg = False
+    enable_move_hnav_roll_deg    = False
+    enable_move_hnav_pitch_deg   = False
+    enable_move_hnav_speed_ms    = False
+
+    # move step sizes
+    move_step_nmea_latitude    = 0.0
+    move_step_nmea_longitude   = 0.0
+    move_step_nmea_altitude_m  = 0.0
+    move_step_nmea_heading_deg = 0.0
+    move_step_nmea_speed_ms    = 0.0
+    move_step_hnav_latitude    = 0.0
+    move_step_hnav_longitude   = 0.0
+    move_step_hnav_altitude_m  = 0.0
+    move_step_hnav_depth_m     = 0.0
+    move_step_hnav_heading_deg = 0.0
+    move_step_hnav_roll_deg    = 0.0
+    move_step_hnav_pitch_deg   = 0.0
+    move_step_hnav_speed_ms    = 0.0
+
+    # move rates (Hz)
+    move_rate_hz_nmea_latitude    = 1.0
+    move_rate_hz_nmea_longitude   = 1.0
+    move_rate_hz_nmea_altitude_m  = 1.0
+    move_rate_hz_nmea_heading_deg = 1.0
+    move_rate_hz_nmea_speed_ms    = 1.0
+    move_rate_hz_hnav_latitude    = 1.0
+    move_rate_hz_hnav_longitude   = 1.0
+    move_rate_hz_hnav_altitude_m  = 1.0
+    move_rate_hz_hnav_depth_m     = 1.0
+    move_rate_hz_hnav_heading_deg = 1.0
+    move_rate_hz_hnav_roll_deg    = 1.0
+    move_rate_hz_hnav_pitch_deg   = 1.0
+    move_rate_hz_hnav_speed_ms    = 1.0
+
     node_if = None
 
     _lock            = threading.Lock()
@@ -223,6 +275,7 @@ class NepiNavSimApp(object):
     _hnav_stop       = None
     _nmea_navpose_if = None
     _hnav_navpose_if = None
+    _move_last_tick  = None
 
     def __init__(self):
         nepi_sdk.init_node(name=self.DEFAULT_NODE_NAME)
@@ -261,6 +314,45 @@ class NepiNavSimApp(object):
             'hnav_pitch_deg':   {'namespace': ns, 'factory_val': self.hnav_pitch_deg},
             'hnav_speed_ms':    {'namespace': ns, 'factory_val': self.hnav_speed_ms},
             'hnav_port':        {'namespace': ns, 'factory_val': self.hnav_port},
+            'enable_move_nmea_latitude':    {'namespace': ns, 'factory_val': self.enable_move_nmea_latitude},
+            'move_step_nmea_latitude':      {'namespace': ns, 'factory_val': self.move_step_nmea_latitude},
+            'move_rate_hz_nmea_latitude':   {'namespace': ns, 'factory_val': self.move_rate_hz_nmea_latitude},
+            'enable_move_nmea_longitude':   {'namespace': ns, 'factory_val': self.enable_move_nmea_longitude},
+            'move_step_nmea_longitude':     {'namespace': ns, 'factory_val': self.move_step_nmea_longitude},
+            'move_rate_hz_nmea_longitude':  {'namespace': ns, 'factory_val': self.move_rate_hz_nmea_longitude},
+            'enable_move_nmea_altitude_m':  {'namespace': ns, 'factory_val': self.enable_move_nmea_altitude_m},
+            'move_step_nmea_altitude_m':    {'namespace': ns, 'factory_val': self.move_step_nmea_altitude_m},
+            'move_rate_hz_nmea_altitude_m': {'namespace': ns, 'factory_val': self.move_rate_hz_nmea_altitude_m},
+            'enable_move_nmea_heading_deg':  {'namespace': ns, 'factory_val': self.enable_move_nmea_heading_deg},
+            'move_step_nmea_heading_deg':    {'namespace': ns, 'factory_val': self.move_step_nmea_heading_deg},
+            'move_rate_hz_nmea_heading_deg': {'namespace': ns, 'factory_val': self.move_rate_hz_nmea_heading_deg},
+            'enable_move_nmea_speed_ms':    {'namespace': ns, 'factory_val': self.enable_move_nmea_speed_ms},
+            'move_step_nmea_speed_ms':      {'namespace': ns, 'factory_val': self.move_step_nmea_speed_ms},
+            'move_rate_hz_nmea_speed_ms':   {'namespace': ns, 'factory_val': self.move_rate_hz_nmea_speed_ms},
+            'enable_move_hnav_latitude':    {'namespace': ns, 'factory_val': self.enable_move_hnav_latitude},
+            'move_step_hnav_latitude':      {'namespace': ns, 'factory_val': self.move_step_hnav_latitude},
+            'move_rate_hz_hnav_latitude':   {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_latitude},
+            'enable_move_hnav_longitude':   {'namespace': ns, 'factory_val': self.enable_move_hnav_longitude},
+            'move_step_hnav_longitude':     {'namespace': ns, 'factory_val': self.move_step_hnav_longitude},
+            'move_rate_hz_hnav_longitude':  {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_longitude},
+            'enable_move_hnav_altitude_m':  {'namespace': ns, 'factory_val': self.enable_move_hnav_altitude_m},
+            'move_step_hnav_altitude_m':    {'namespace': ns, 'factory_val': self.move_step_hnav_altitude_m},
+            'move_rate_hz_hnav_altitude_m': {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_altitude_m},
+            'enable_move_hnav_depth_m':     {'namespace': ns, 'factory_val': self.enable_move_hnav_depth_m},
+            'move_step_hnav_depth_m':       {'namespace': ns, 'factory_val': self.move_step_hnav_depth_m},
+            'move_rate_hz_hnav_depth_m':    {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_depth_m},
+            'enable_move_hnav_heading_deg':  {'namespace': ns, 'factory_val': self.enable_move_hnav_heading_deg},
+            'move_step_hnav_heading_deg':    {'namespace': ns, 'factory_val': self.move_step_hnav_heading_deg},
+            'move_rate_hz_hnav_heading_deg': {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_heading_deg},
+            'enable_move_hnav_roll_deg':    {'namespace': ns, 'factory_val': self.enable_move_hnav_roll_deg},
+            'move_step_hnav_roll_deg':      {'namespace': ns, 'factory_val': self.move_step_hnav_roll_deg},
+            'move_rate_hz_hnav_roll_deg':   {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_roll_deg},
+            'enable_move_hnav_pitch_deg':   {'namespace': ns, 'factory_val': self.enable_move_hnav_pitch_deg},
+            'move_step_hnav_pitch_deg':     {'namespace': ns, 'factory_val': self.move_step_hnav_pitch_deg},
+            'move_rate_hz_hnav_pitch_deg':  {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_pitch_deg},
+            'enable_move_hnav_speed_ms':    {'namespace': ns, 'factory_val': self.enable_move_hnav_speed_ms},
+            'move_step_hnav_speed_ms':      {'namespace': ns, 'factory_val': self.move_step_hnav_speed_ms},
+            'move_rate_hz_hnav_speed_ms':   {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_speed_ms},
         }
 
         self.PUBS_DICT = {
@@ -286,6 +378,45 @@ class NepiNavSimApp(object):
             'set_hnav_roll':      {'namespace': ns, 'topic': 'set_hnav_roll',      'msg': Float32, 'qsize': 10, 'callback': self.setHnavRollCb,      'callback_args': ()},
             'set_hnav_pitch':     {'namespace': ns, 'topic': 'set_hnav_pitch',     'msg': Float32, 'qsize': 10, 'callback': self.setHnavPitchCb,     'callback_args': ()},
             'set_hnav_speed':     {'namespace': ns, 'topic': 'set_hnav_speed',     'msg': Float32, 'qsize': 10, 'callback': self.setHnavSpeedCb,     'callback_args': ()},
+            'set_enable_move_nmea_latitude':    {'namespace': ns, 'topic': 'set_enable_move_nmea_latitude',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'nmea_latitude'},
+            'set_move_step_nmea_latitude':      {'namespace': ns, 'topic': 'set_move_step_nmea_latitude',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'nmea_latitude'},
+            'set_move_rate_hz_nmea_latitude':   {'namespace': ns, 'topic': 'set_move_rate_hz_nmea_latitude',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'nmea_latitude'},
+            'set_enable_move_nmea_longitude':   {'namespace': ns, 'topic': 'set_enable_move_nmea_longitude',   'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'nmea_longitude'},
+            'set_move_step_nmea_longitude':     {'namespace': ns, 'topic': 'set_move_step_nmea_longitude',     'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'nmea_longitude'},
+            'set_move_rate_hz_nmea_longitude':  {'namespace': ns, 'topic': 'set_move_rate_hz_nmea_longitude',  'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'nmea_longitude'},
+            'set_enable_move_nmea_altitude_m':  {'namespace': ns, 'topic': 'set_enable_move_nmea_altitude_m',  'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'nmea_altitude_m'},
+            'set_move_step_nmea_altitude_m':    {'namespace': ns, 'topic': 'set_move_step_nmea_altitude_m',    'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'nmea_altitude_m'},
+            'set_move_rate_hz_nmea_altitude_m': {'namespace': ns, 'topic': 'set_move_rate_hz_nmea_altitude_m', 'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'nmea_altitude_m'},
+            'set_enable_move_nmea_heading_deg':  {'namespace': ns, 'topic': 'set_enable_move_nmea_heading_deg',  'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'nmea_heading_deg'},
+            'set_move_step_nmea_heading_deg':    {'namespace': ns, 'topic': 'set_move_step_nmea_heading_deg',    'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'nmea_heading_deg'},
+            'set_move_rate_hz_nmea_heading_deg': {'namespace': ns, 'topic': 'set_move_rate_hz_nmea_heading_deg', 'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'nmea_heading_deg'},
+            'set_enable_move_nmea_speed_ms':    {'namespace': ns, 'topic': 'set_enable_move_nmea_speed_ms',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'nmea_speed_ms'},
+            'set_move_step_nmea_speed_ms':      {'namespace': ns, 'topic': 'set_move_step_nmea_speed_ms',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'nmea_speed_ms'},
+            'set_move_rate_hz_nmea_speed_ms':   {'namespace': ns, 'topic': 'set_move_rate_hz_nmea_speed_ms',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'nmea_speed_ms'},
+            'set_enable_move_hnav_latitude':    {'namespace': ns, 'topic': 'set_enable_move_hnav_latitude',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_latitude'},
+            'set_move_step_hnav_latitude':      {'namespace': ns, 'topic': 'set_move_step_hnav_latitude',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_latitude'},
+            'set_move_rate_hz_hnav_latitude':   {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_latitude',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_latitude'},
+            'set_enable_move_hnav_longitude':   {'namespace': ns, 'topic': 'set_enable_move_hnav_longitude',   'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_longitude'},
+            'set_move_step_hnav_longitude':     {'namespace': ns, 'topic': 'set_move_step_hnav_longitude',     'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_longitude'},
+            'set_move_rate_hz_hnav_longitude':  {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_longitude',  'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_longitude'},
+            'set_enable_move_hnav_altitude_m':  {'namespace': ns, 'topic': 'set_enable_move_hnav_altitude_m',  'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_altitude_m'},
+            'set_move_step_hnav_altitude_m':    {'namespace': ns, 'topic': 'set_move_step_hnav_altitude_m',    'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_altitude_m'},
+            'set_move_rate_hz_hnav_altitude_m': {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_altitude_m', 'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_altitude_m'},
+            'set_enable_move_hnav_depth_m':     {'namespace': ns, 'topic': 'set_enable_move_hnav_depth_m',     'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_depth_m'},
+            'set_move_step_hnav_depth_m':       {'namespace': ns, 'topic': 'set_move_step_hnav_depth_m',       'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_depth_m'},
+            'set_move_rate_hz_hnav_depth_m':    {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_depth_m',    'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_depth_m'},
+            'set_enable_move_hnav_heading_deg':  {'namespace': ns, 'topic': 'set_enable_move_hnav_heading_deg',  'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_heading_deg'},
+            'set_move_step_hnav_heading_deg':    {'namespace': ns, 'topic': 'set_move_step_hnav_heading_deg',    'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_heading_deg'},
+            'set_move_rate_hz_hnav_heading_deg': {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_heading_deg', 'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_heading_deg'},
+            'set_enable_move_hnav_roll_deg':    {'namespace': ns, 'topic': 'set_enable_move_hnav_roll_deg',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_roll_deg'},
+            'set_move_step_hnav_roll_deg':      {'namespace': ns, 'topic': 'set_move_step_hnav_roll_deg',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_roll_deg'},
+            'set_move_rate_hz_hnav_roll_deg':   {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_roll_deg',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_roll_deg'},
+            'set_enable_move_hnav_pitch_deg':   {'namespace': ns, 'topic': 'set_enable_move_hnav_pitch_deg',   'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_pitch_deg'},
+            'set_move_step_hnav_pitch_deg':     {'namespace': ns, 'topic': 'set_move_step_hnav_pitch_deg',     'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_pitch_deg'},
+            'set_move_rate_hz_hnav_pitch_deg':  {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_pitch_deg',  'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_pitch_deg'},
+            'set_enable_move_hnav_speed_ms':    {'namespace': ns, 'topic': 'set_enable_move_hnav_speed_ms',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_speed_ms'},
+            'set_move_step_hnav_speed_ms':      {'namespace': ns, 'topic': 'set_move_step_hnav_speed_ms',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_speed_ms'},
+            'set_move_rate_hz_hnav_speed_ms':   {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_speed_ms',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_speed_ms'},
         }
 
         self.node_if = NodeClassIF(
@@ -295,6 +426,9 @@ class NepiNavSimApp(object):
             subs_dict=self.SUBS_DICT,
         )
         self.node_if.wait_for_ready()
+
+        self._move_last_tick = {f: 0.0 for f in _MOVE_FIELDS}
+        threading.Thread(target=self._moveThreadLoop, daemon=True).start()
 
         self.initCb(do_updates=True)
 
@@ -401,6 +535,47 @@ class NepiNavSimApp(object):
         self._save_param('hnav_speed_ms', self.hnav_speed_ms)
         self.publish_status()
 
+    def setEnableMoveFieldCb(self, msg, field):
+        attr = 'enable_move_' + field
+        with self._lock:
+            setattr(self, attr, msg.data)
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setMoveStepFieldCb(self, msg, field):
+        attr = 'move_step_' + field
+        with self._lock:
+            setattr(self, attr, float(msg.data))
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setMoveRateHzFieldCb(self, msg, field):
+        attr = 'move_rate_hz_' + field
+        with self._lock:
+            setattr(self, attr, float(msg.data))
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def _moveThreadLoop(self):
+        while True:
+            now = time.time()
+            changed = False
+            for field in _MOVE_FIELDS:
+                if not getattr(self, 'enable_move_' + field):
+                    continue
+                rate = getattr(self, 'move_rate_hz_' + field)
+                if rate <= 0.0:
+                    continue
+                if (now - self._move_last_tick[field]) >= 1.0 / rate:
+                    with self._lock:
+                        setattr(self, field,
+                                getattr(self, field) + getattr(self, 'move_step_' + field))
+                    self._move_last_tick[field] = now
+                    changed = True
+            if changed:
+                self.publish_status()
+            time.sleep(1.0 / 20)
+
 
     #######################
     ### Config Functions
@@ -425,6 +600,45 @@ class NepiNavSimApp(object):
                 self.hnav_pitch_deg   = float(self.node_if.get_param('hnav_pitch_deg'))
                 self.hnav_speed_ms    = float(self.node_if.get_param('hnav_speed_ms'))
                 self.hnav_port        = int(self.node_if.get_param('hnav_port'))
+                self.enable_move_nmea_latitude    = self.node_if.get_param('enable_move_nmea_latitude')
+                self.move_step_nmea_latitude      = float(self.node_if.get_param('move_step_nmea_latitude'))
+                self.move_rate_hz_nmea_latitude   = float(self.node_if.get_param('move_rate_hz_nmea_latitude'))
+                self.enable_move_nmea_longitude   = self.node_if.get_param('enable_move_nmea_longitude')
+                self.move_step_nmea_longitude     = float(self.node_if.get_param('move_step_nmea_longitude'))
+                self.move_rate_hz_nmea_longitude  = float(self.node_if.get_param('move_rate_hz_nmea_longitude'))
+                self.enable_move_nmea_altitude_m  = self.node_if.get_param('enable_move_nmea_altitude_m')
+                self.move_step_nmea_altitude_m    = float(self.node_if.get_param('move_step_nmea_altitude_m'))
+                self.move_rate_hz_nmea_altitude_m = float(self.node_if.get_param('move_rate_hz_nmea_altitude_m'))
+                self.enable_move_nmea_heading_deg  = self.node_if.get_param('enable_move_nmea_heading_deg')
+                self.move_step_nmea_heading_deg    = float(self.node_if.get_param('move_step_nmea_heading_deg'))
+                self.move_rate_hz_nmea_heading_deg = float(self.node_if.get_param('move_rate_hz_nmea_heading_deg'))
+                self.enable_move_nmea_speed_ms    = self.node_if.get_param('enable_move_nmea_speed_ms')
+                self.move_step_nmea_speed_ms      = float(self.node_if.get_param('move_step_nmea_speed_ms'))
+                self.move_rate_hz_nmea_speed_ms   = float(self.node_if.get_param('move_rate_hz_nmea_speed_ms'))
+                self.enable_move_hnav_latitude    = self.node_if.get_param('enable_move_hnav_latitude')
+                self.move_step_hnav_latitude      = float(self.node_if.get_param('move_step_hnav_latitude'))
+                self.move_rate_hz_hnav_latitude   = float(self.node_if.get_param('move_rate_hz_hnav_latitude'))
+                self.enable_move_hnav_longitude   = self.node_if.get_param('enable_move_hnav_longitude')
+                self.move_step_hnav_longitude     = float(self.node_if.get_param('move_step_hnav_longitude'))
+                self.move_rate_hz_hnav_longitude  = float(self.node_if.get_param('move_rate_hz_hnav_longitude'))
+                self.enable_move_hnav_altitude_m  = self.node_if.get_param('enable_move_hnav_altitude_m')
+                self.move_step_hnav_altitude_m    = float(self.node_if.get_param('move_step_hnav_altitude_m'))
+                self.move_rate_hz_hnav_altitude_m = float(self.node_if.get_param('move_rate_hz_hnav_altitude_m'))
+                self.enable_move_hnav_depth_m     = self.node_if.get_param('enable_move_hnav_depth_m')
+                self.move_step_hnav_depth_m       = float(self.node_if.get_param('move_step_hnav_depth_m'))
+                self.move_rate_hz_hnav_depth_m    = float(self.node_if.get_param('move_rate_hz_hnav_depth_m'))
+                self.enable_move_hnav_heading_deg  = self.node_if.get_param('enable_move_hnav_heading_deg')
+                self.move_step_hnav_heading_deg    = float(self.node_if.get_param('move_step_hnav_heading_deg'))
+                self.move_rate_hz_hnav_heading_deg = float(self.node_if.get_param('move_rate_hz_hnav_heading_deg'))
+                self.enable_move_hnav_roll_deg    = self.node_if.get_param('enable_move_hnav_roll_deg')
+                self.move_step_hnav_roll_deg      = float(self.node_if.get_param('move_step_hnav_roll_deg'))
+                self.move_rate_hz_hnav_roll_deg   = float(self.node_if.get_param('move_rate_hz_hnav_roll_deg'))
+                self.enable_move_hnav_pitch_deg   = self.node_if.get_param('enable_move_hnav_pitch_deg')
+                self.move_step_hnav_pitch_deg     = float(self.node_if.get_param('move_step_hnav_pitch_deg'))
+                self.move_rate_hz_hnav_pitch_deg  = float(self.node_if.get_param('move_rate_hz_hnav_pitch_deg'))
+                self.enable_move_hnav_speed_ms    = self.node_if.get_param('enable_move_hnav_speed_ms')
+                self.move_step_hnav_speed_ms      = float(self.node_if.get_param('move_step_hnav_speed_ms'))
+                self.move_rate_hz_hnav_speed_ms   = float(self.node_if.get_param('move_rate_hz_hnav_speed_ms'))
         if do_updates:
             self._apply_nmea_state()
             self._apply_hnav_state()
@@ -468,6 +682,45 @@ class NepiNavSimApp(object):
             msg.hnav_roll_deg    = self.hnav_roll_deg
             msg.hnav_pitch_deg   = self.hnav_pitch_deg
             msg.hnav_speed_ms    = self.hnav_speed_ms
+            msg.enable_move_nmea_latitude    = self.enable_move_nmea_latitude
+            msg.move_step_nmea_latitude      = self.move_step_nmea_latitude
+            msg.move_rate_hz_nmea_latitude   = self.move_rate_hz_nmea_latitude
+            msg.enable_move_nmea_longitude   = self.enable_move_nmea_longitude
+            msg.move_step_nmea_longitude     = self.move_step_nmea_longitude
+            msg.move_rate_hz_nmea_longitude  = self.move_rate_hz_nmea_longitude
+            msg.enable_move_nmea_altitude_m  = self.enable_move_nmea_altitude_m
+            msg.move_step_nmea_altitude_m    = self.move_step_nmea_altitude_m
+            msg.move_rate_hz_nmea_altitude_m = self.move_rate_hz_nmea_altitude_m
+            msg.enable_move_nmea_heading_deg  = self.enable_move_nmea_heading_deg
+            msg.move_step_nmea_heading_deg    = self.move_step_nmea_heading_deg
+            msg.move_rate_hz_nmea_heading_deg = self.move_rate_hz_nmea_heading_deg
+            msg.enable_move_nmea_speed_ms    = self.enable_move_nmea_speed_ms
+            msg.move_step_nmea_speed_ms      = self.move_step_nmea_speed_ms
+            msg.move_rate_hz_nmea_speed_ms   = self.move_rate_hz_nmea_speed_ms
+            msg.enable_move_hnav_latitude    = self.enable_move_hnav_latitude
+            msg.move_step_hnav_latitude      = self.move_step_hnav_latitude
+            msg.move_rate_hz_hnav_latitude   = self.move_rate_hz_hnav_latitude
+            msg.enable_move_hnav_longitude   = self.enable_move_hnav_longitude
+            msg.move_step_hnav_longitude     = self.move_step_hnav_longitude
+            msg.move_rate_hz_hnav_longitude  = self.move_rate_hz_hnav_longitude
+            msg.enable_move_hnav_altitude_m  = self.enable_move_hnav_altitude_m
+            msg.move_step_hnav_altitude_m    = self.move_step_hnav_altitude_m
+            msg.move_rate_hz_hnav_altitude_m = self.move_rate_hz_hnav_altitude_m
+            msg.enable_move_hnav_depth_m     = self.enable_move_hnav_depth_m
+            msg.move_step_hnav_depth_m       = self.move_step_hnav_depth_m
+            msg.move_rate_hz_hnav_depth_m    = self.move_rate_hz_hnav_depth_m
+            msg.enable_move_hnav_heading_deg  = self.enable_move_hnav_heading_deg
+            msg.move_step_hnav_heading_deg    = self.move_step_hnav_heading_deg
+            msg.move_rate_hz_hnav_heading_deg = self.move_rate_hz_hnav_heading_deg
+            msg.enable_move_hnav_roll_deg    = self.enable_move_hnav_roll_deg
+            msg.move_step_hnav_roll_deg      = self.move_step_hnav_roll_deg
+            msg.move_rate_hz_hnav_roll_deg   = self.move_rate_hz_hnav_roll_deg
+            msg.enable_move_hnav_pitch_deg   = self.enable_move_hnav_pitch_deg
+            msg.move_step_hnav_pitch_deg     = self.move_step_hnav_pitch_deg
+            msg.move_rate_hz_hnav_pitch_deg  = self.move_rate_hz_hnav_pitch_deg
+            msg.enable_move_hnav_speed_ms    = self.enable_move_hnav_speed_ms
+            msg.move_step_hnav_speed_ms      = self.move_step_hnav_speed_ms
+            msg.move_rate_hz_hnav_speed_ms   = self.move_rate_hz_hnav_speed_ms
         if self.node_if is not None:
             self.node_if.publish_pub('status_pub', msg)
 
