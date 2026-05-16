@@ -78,6 +78,10 @@ string[] available_stab_source_namespaces
 string selected_stab_source
 bool stab_source_connected
 
+string[] available_stab_processes
+string selected_stab_process
+bool stab_process_ready
+
 bool stab_pan_enabled
 bool stab_tilt_enabled
 
@@ -86,7 +90,8 @@ bool stab_tilt_enabled
 
 float32 stab_update_rate
 float32 stab_num_avg
-float32 stab_move_deg
+float32 stab_pos_deg
+float32 stab_vel_deg
 float32 stab_move_ratio
 float32 stab_reset_time_sec
 

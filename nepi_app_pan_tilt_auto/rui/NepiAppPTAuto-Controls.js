@@ -2,8 +2,8 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_rui) repo
-# (see https://github.com/nepi-engine/nepi_rui)
+# This file is part of nepi rui (nepi_apps) repo
+# (see https://github.com/nepi-engine/nepi_apps)
 #
 # License: NEPI RUI repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License", 
@@ -35,7 +35,7 @@ import RangeAdjustment from "./RangeAdjustment"
 
 
 import {setElementStyleModified, clearElementStyleModified, onChangeSwitchStateValue, onChangeChangeStateValue, onUpdateSetStateValue, round} from "./Utilities"
-import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists} from "./Utilities"
+import {createMenuBaseNames, createMenuFirstLastNames, createMenuListFromStrLists, removeStringFromMenuNames} from "./Utilities"
 
 
 
@@ -77,7 +77,8 @@ class NepiAppPTAutoControls extends Component {
 
       stab_update_rate: null,
       stab_num_avg: null,
-      stab_move_deg: null,
+      stab_pos_deg: null,
+      stab_vel_deg: null,
       stab_reset_time_sec: null,
 
       lockPanMin: -50,
@@ -135,6 +136,7 @@ class NepiAppPTAutoControls extends Component {
 
 
     this.getNamespace = this.getNamespace.bind(this)
+    this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
 
@@ -150,6 +152,16 @@ class NepiAppPTAutoControls extends Component {
     }
     return namespace
   }
+
+  getBaseNamespace(){
+    const { namespacePrefix, deviceId} = this.props.ros
+    var baseNamespace = null
+    if (namespacePrefix !== null && deviceId !== null){
+      baseNamespace = "/" + namespacePrefix + "/" + deviceId 
+    }
+    return baseNamespace
+  }
+
 
   // Callback for handling ROS Status3DX messages
   statusListener(message) {
@@ -972,7 +984,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const stateKey = {
       StabUpdateRate: 'stab_update_rate',
       StabNumAvg: 'stab_num_avg',
-      StabMoveDeg: 'stab_move_deg',
+      StabPosDeg: 'stab_pos_deg',
+      StabVelDeg: 'stab_vel_deg',
       StabResetTimeSec: 'stab_reset_time_sec'
     }[id]
     if (stateKey) {
@@ -998,11 +1011,16 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         clearElementStyleModified(element)
         if (!isNaN(val)) { sendIntMsg(namespace + "/set_stab_num_avg", Math.round(val)) }
         this.setState({stab_num_avg: null})
-      } else if (e.target.id === "StabMoveDeg") {
-        element = document.getElementById("StabMoveDeg")
+      } else if (e.target.id === "StabPosDeg") {
+        element = document.getElementById("StabPosDeg")
         clearElementStyleModified(element)
-        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_move_deg", val) }
-        this.setState({stab_move_deg: null})
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_pos_deg", val) }
+        this.setState({stab_pos_deg: null})
+      } else if (e.target.id === "StabVelDeg") {
+        element = document.getElementById("StabVelDeg")
+        clearElementStyleModified(element)
+        if (!isNaN(val)) { sendFloatMsg(namespace + "/set_stab_vel_deg", val) }
+        this.setState({stab_vel_deg: null})
       } else if (e.target.id === "StabResetTimeSec") {
         element = document.getElementById("StabResetTimeSec")
         clearElementStyleModified(element)
@@ -1323,12 +1341,21 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
   renderStabControls() {
     const namespace = this.getNamespace()
+    const baseNamespace = this.getBaseNamespace()
     const status_msg = this.state.status_msg
 
     const available_sources = status_msg.available_stab_source_namespaces
-    const sources_names = createMenuBaseNames(available_sources)
+    var sources_names = available_sources
+    sources_names = removeStringFromMenuNames(sources_names,baseNamespace + '/')
+    sources_names = removeStringFromMenuNames(sources_names,'navposes/')
+    sources_names = removeStringFromMenuNames(sources_names,'navpose/')
+    sources_names = removeStringFromMenuNames(sources_names,'npx/')
     const sources_menu = createMenuListFromStrLists(available_sources, sources_names, ['None'], [], 'None Available')
     const selected_source = status_msg.selected_stab_source
+
+    const available_processes = status_msg.available_stab_processes
+    const processes_menu = createMenuListFromStrLists(available_processes, available_processes, ['None'], [], 'None Available')
+    const selected_process = status_msg.selected_stab_process
 
     var stab_update_rate = this.state.stab_update_rate
     if (stab_update_rate == null) { stab_update_rate = status_msg.stab_update_rate }
@@ -1336,8 +1363,11 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     var stab_num_avg = this.state.stab_num_avg
     if (stab_num_avg == null) { stab_num_avg = status_msg.stab_num_avg }
 
-    var stab_move_deg = this.state.stab_move_deg
-    if (stab_move_deg == null) { stab_move_deg = status_msg.stab_move_deg }
+    var stab_pos_deg = this.state.stab_pos_deg
+    if (stab_pos_deg == null) { stab_pos_deg = status_msg.stab_pos_deg }
+
+    var stab_vel_deg = this.state.stab_vel_deg
+    if (stab_vel_deg == null) { stab_vel_deg = status_msg.stab_vel_deg }
 
     var stab_reset_time_sec = this.state.stab_reset_time_sec
     if (stab_reset_time_sec == null) { stab_reset_time_sec = status_msg.stab_reset_time_sec }
@@ -1380,6 +1410,20 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           </Select>
         </Label>
 
+        <Label title={'Select Process'}>
+          <Select
+            id="set_stab_process"
+            onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_process", e.target.value)}
+            value={selected_process}
+          >
+            {processes_menu}
+          </Select>
+        </Label>
+
+          <ButtonMenu>
+            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + "/reload_stab_processes")}>{"Reload Processes"}</Button>
+          </ButtonMenu>
+
         <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
         <Label title={"Update Rate"}>
@@ -1402,11 +1446,21 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           />
         </Label>
 
-        <Label title={"Min Deg"}>
+        <Label title={"Pos Deg Limit"}>
           <Input
-            id={"StabMoveDeg"}
+            id={"StabPosDeg"}
             style={{ width: "45%", float: "left" }}
-            value={stab_move_deg}
+            value={stab_pos_deg}
+            onChange={this.onStabUpdateText}
+            onKeyDown={this.onStabKeyText}
+          />
+        </Label>
+
+        <Label title={"Vel Deg Limit"}>
+          <Input
+            id={"StabVelDeg"}
+            style={{ width: "45%", float: "left" }}
+            value={stab_vel_deg}
             onChange={this.onStabUpdateText}
             onKeyDown={this.onStabKeyText}
           />
@@ -1480,21 +1534,18 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
         </Label>
 
         <Label title={""}>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Goal"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Speed"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Adj"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Goal"}</div>
         </Label>
 
         <Label title={"Pan"}>
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_goal, 2)} />
-          <Input disabled style={{ width: "30%" }} value={round(stab_pan_dps, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_adj, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pan_goal, 2)} />
         </Label>
 
         <Label title={"Tilt"}>
-           <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_goal, 2)} />
-          <Input disabled style={{ width: "30%" }} value={round(stab_tilt_dps, 2)} />
+           <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_adj, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_goal, 2)} />
         </Label>
 
       </React.Fragment>
