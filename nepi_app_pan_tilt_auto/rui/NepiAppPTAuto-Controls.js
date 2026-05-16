@@ -235,7 +235,6 @@ class NepiAppPTAutoControls extends Component {
     }
 
 
-    
   }
 
 
@@ -571,7 +570,7 @@ componentWillUnmount() {
 
           <ButtonMenu>
             <Button onClick={() => this.props.ros.onPTXStop(selected_pan_tilt)}>{"STOP"}</Button>
-            <Button disabled={!has_homing} onClick={() => this.props.ros.onPTXGoHome(selected_pan_tilt)}>{"GO HOME"}</Button>
+            <Button disabled={!has_homing} onClick={() => this.props.ros.onPTXGoHome(namespace)}>{"GO HOME"}</Button>
           </ButtonMenu>
 
           }
@@ -694,8 +693,6 @@ componentWillUnmount() {
 
           <div hidden={(has_speed_control === false)}>
 
-
-
               <React.Fragment>
                 <SliderAdjustment
                   disabled={disable_pan_speed}
@@ -722,40 +719,7 @@ componentWillUnmount() {
                   unit={"%"}
                 />
               </React.Fragment>
-            {/* ) : (
-              <SliderAdjustment
-                disabled={disable_speed}
-                title={"Speed"}
-                msgType={"std_msgs/Float32"}
-                adjustment={speedRatio}
-                topic={namespace + "/set_speed_ratio"}
-                scaled={0.01}
-                min={0}
-                max={100}
-                tooltip={"Speed as a percentage (0%=min, 100%=max)"}
-                unit={"%"}
-              />
-            )}
-
-
-                {(has_sep_speed === true) ?
-                <Columns>
-
-                  <Column>
-                  </Column>
-
-                  <Column>
-                      <Label title="Link Speeds">
-                      <Toggle
-                        checked={this.state.linkSpeeds === true}
-                        onClick={() => onChangeSwitchStateValue.bind(this)("linkSpeeds", this.state.linkSpeeds)}>
-                      </Toggle>
-                    </Label>
-                  </Column>
-                </Columns>
-                : null } */}
-
-
+  
           </div>
 
 
