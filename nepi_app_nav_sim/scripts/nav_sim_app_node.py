@@ -64,6 +64,8 @@ _MOVE_FIELDS = (
     'hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg', 'hnav_speed_ms',
 )
 
+_SIN_FIELDS = ('hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg')
+
 #########################################
 # HNav packet helpers
 #########################################
@@ -278,6 +280,23 @@ class NepiNavSimApp(object):
     move_rate_hz_hnav_pitch_deg   = 1.0
     move_rate_hz_hnav_speed_ms    = 1.0
 
+    # sin/wave parameters for orientation fields
+    enable_sin_hnav_heading_deg = False
+    enable_sin_hnav_roll_deg    = False
+    enable_sin_hnav_pitch_deg   = False
+    sin_amplitude_hnav_heading_deg = 5.0
+    sin_amplitude_hnav_roll_deg    = 5.0
+    sin_amplitude_hnav_pitch_deg   = 5.0
+    sin_period_s_hnav_heading_deg = 10.0
+    sin_period_s_hnav_roll_deg    = 10.0
+    sin_period_s_hnav_pitch_deg   = 10.0
+    enable_wave_hnav_heading_deg = False
+    enable_wave_hnav_roll_deg    = False
+    enable_wave_hnav_pitch_deg   = False
+    sin_spread_hnav_heading_deg  = 0.5
+    sin_spread_hnav_roll_deg     = 0.5
+    sin_spread_hnav_pitch_deg    = 0.5
+
     node_if = None
 
     _lock            = threading.Lock()
@@ -286,6 +305,9 @@ class NepiNavSimApp(object):
     _nmea_navpose_if = None
     _hnav_navpose_if = None
     _move_last_tick  = None
+    _sin_start_time  = None
+    _sin_base        = None
+    _wave_components = None
 
     def __init__(self):
         nepi_sdk.init_node(name=self.DEFAULT_NODE_NAME)
@@ -363,6 +385,21 @@ class NepiNavSimApp(object):
             'enable_move_hnav_speed_ms':    {'namespace': ns, 'factory_val': self.enable_move_hnav_speed_ms},
             'move_step_hnav_speed_ms':      {'namespace': ns, 'factory_val': self.move_step_hnav_speed_ms},
             'move_rate_hz_hnav_speed_ms':   {'namespace': ns, 'factory_val': self.move_rate_hz_hnav_speed_ms},
+            'enable_sin_hnav_heading_deg':    {'namespace': ns, 'factory_val': self.enable_sin_hnav_heading_deg},
+            'sin_amplitude_hnav_heading_deg': {'namespace': ns, 'factory_val': self.sin_amplitude_hnav_heading_deg},
+            'sin_period_s_hnav_heading_deg':  {'namespace': ns, 'factory_val': self.sin_period_s_hnav_heading_deg},
+            'enable_wave_hnav_heading_deg':   {'namespace': ns, 'factory_val': self.enable_wave_hnav_heading_deg},
+            'sin_spread_hnav_heading_deg':    {'namespace': ns, 'factory_val': self.sin_spread_hnav_heading_deg},
+            'enable_sin_hnav_roll_deg':       {'namespace': ns, 'factory_val': self.enable_sin_hnav_roll_deg},
+            'sin_amplitude_hnav_roll_deg':    {'namespace': ns, 'factory_val': self.sin_amplitude_hnav_roll_deg},
+            'sin_period_s_hnav_roll_deg':     {'namespace': ns, 'factory_val': self.sin_period_s_hnav_roll_deg},
+            'enable_wave_hnav_roll_deg':      {'namespace': ns, 'factory_val': self.enable_wave_hnav_roll_deg},
+            'sin_spread_hnav_roll_deg':       {'namespace': ns, 'factory_val': self.sin_spread_hnav_roll_deg},
+            'enable_sin_hnav_pitch_deg':      {'namespace': ns, 'factory_val': self.enable_sin_hnav_pitch_deg},
+            'sin_amplitude_hnav_pitch_deg':   {'namespace': ns, 'factory_val': self.sin_amplitude_hnav_pitch_deg},
+            'sin_period_s_hnav_pitch_deg':    {'namespace': ns, 'factory_val': self.sin_period_s_hnav_pitch_deg},
+            'enable_wave_hnav_pitch_deg':     {'namespace': ns, 'factory_val': self.enable_wave_hnav_pitch_deg},
+            'sin_spread_hnav_pitch_deg':      {'namespace': ns, 'factory_val': self.sin_spread_hnav_pitch_deg},
         }
 
         self.PUBS_DICT = {
@@ -427,6 +464,21 @@ class NepiNavSimApp(object):
             'set_enable_move_hnav_speed_ms':    {'namespace': ns, 'topic': 'set_enable_move_hnav_speed_ms',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableMoveFieldCb, 'callback_args': 'hnav_speed_ms'},
             'set_move_step_hnav_speed_ms':      {'namespace': ns, 'topic': 'set_move_step_hnav_speed_ms',      'msg': Float32, 'qsize': 10, 'callback': self.setMoveStepFieldCb,   'callback_args': 'hnav_speed_ms'},
             'set_move_rate_hz_hnav_speed_ms':   {'namespace': ns, 'topic': 'set_move_rate_hz_hnav_speed_ms',   'msg': Float32, 'qsize': 10, 'callback': self.setMoveRateHzFieldCb, 'callback_args': 'hnav_speed_ms'},
+            'set_enable_sin_hnav_heading_deg':    {'namespace': ns, 'topic': 'set_enable_sin_hnav_heading_deg',    'msg': Bool,    'qsize': 10, 'callback': self.setEnableSinFieldCb,    'callback_args': 'hnav_heading_deg'},
+            'set_sin_amplitude_hnav_heading_deg': {'namespace': ns, 'topic': 'set_sin_amplitude_hnav_heading_deg', 'msg': Float32, 'qsize': 10, 'callback': self.setSinAmplitudeFieldCb, 'callback_args': 'hnav_heading_deg'},
+            'set_sin_period_s_hnav_heading_deg':  {'namespace': ns, 'topic': 'set_sin_period_s_hnav_heading_deg',  'msg': Float32, 'qsize': 10, 'callback': self.setSinPeriodFieldCb,    'callback_args': 'hnav_heading_deg'},
+            'set_enable_wave_hnav_heading_deg':   {'namespace': ns, 'topic': 'set_enable_wave_hnav_heading_deg',   'msg': Bool,    'qsize': 10, 'callback': self.setEnableWaveFieldCb,   'callback_args': 'hnav_heading_deg'},
+            'set_sin_spread_hnav_heading_deg':    {'namespace': ns, 'topic': 'set_sin_spread_hnav_heading_deg',    'msg': Float32, 'qsize': 10, 'callback': self.setSinSpreadFieldCb,    'callback_args': 'hnav_heading_deg'},
+            'set_enable_sin_hnav_roll_deg':       {'namespace': ns, 'topic': 'set_enable_sin_hnav_roll_deg',       'msg': Bool,    'qsize': 10, 'callback': self.setEnableSinFieldCb,    'callback_args': 'hnav_roll_deg'},
+            'set_sin_amplitude_hnav_roll_deg':    {'namespace': ns, 'topic': 'set_sin_amplitude_hnav_roll_deg',    'msg': Float32, 'qsize': 10, 'callback': self.setSinAmplitudeFieldCb, 'callback_args': 'hnav_roll_deg'},
+            'set_sin_period_s_hnav_roll_deg':     {'namespace': ns, 'topic': 'set_sin_period_s_hnav_roll_deg',     'msg': Float32, 'qsize': 10, 'callback': self.setSinPeriodFieldCb,    'callback_args': 'hnav_roll_deg'},
+            'set_enable_wave_hnav_roll_deg':      {'namespace': ns, 'topic': 'set_enable_wave_hnav_roll_deg',      'msg': Bool,    'qsize': 10, 'callback': self.setEnableWaveFieldCb,   'callback_args': 'hnav_roll_deg'},
+            'set_sin_spread_hnav_roll_deg':       {'namespace': ns, 'topic': 'set_sin_spread_hnav_roll_deg',       'msg': Float32, 'qsize': 10, 'callback': self.setSinSpreadFieldCb,    'callback_args': 'hnav_roll_deg'},
+            'set_enable_sin_hnav_pitch_deg':      {'namespace': ns, 'topic': 'set_enable_sin_hnav_pitch_deg',      'msg': Bool,    'qsize': 10, 'callback': self.setEnableSinFieldCb,    'callback_args': 'hnav_pitch_deg'},
+            'set_sin_amplitude_hnav_pitch_deg':   {'namespace': ns, 'topic': 'set_sin_amplitude_hnav_pitch_deg',   'msg': Float32, 'qsize': 10, 'callback': self.setSinAmplitudeFieldCb, 'callback_args': 'hnav_pitch_deg'},
+            'set_sin_period_s_hnav_pitch_deg':    {'namespace': ns, 'topic': 'set_sin_period_s_hnav_pitch_deg',    'msg': Float32, 'qsize': 10, 'callback': self.setSinPeriodFieldCb,    'callback_args': 'hnav_pitch_deg'},
+            'set_enable_wave_hnav_pitch_deg':     {'namespace': ns, 'topic': 'set_enable_wave_hnav_pitch_deg',     'msg': Bool,    'qsize': 10, 'callback': self.setEnableWaveFieldCb,   'callback_args': 'hnav_pitch_deg'},
+            'set_sin_spread_hnav_pitch_deg':      {'namespace': ns, 'topic': 'set_sin_spread_hnav_pitch_deg',      'msg': Float32, 'qsize': 10, 'callback': self.setSinSpreadFieldCb,    'callback_args': 'hnav_pitch_deg'},
         }
 
         self.node_if = NodeClassIF(
@@ -437,7 +489,10 @@ class NepiNavSimApp(object):
         )
         self.node_if.wait_for_ready()
 
-        self._move_last_tick = {f: 0.0 for f in _MOVE_FIELDS}
+        self._move_last_tick = {f: 0.0  for f in _MOVE_FIELDS}
+        self._sin_start_time = {f: None for f in _SIN_FIELDS}
+        self._sin_base       = {f: 0.0  for f in _SIN_FIELDS}
+        self._wave_components = {f: None for f in _SIN_FIELDS}
         threading.Thread(target=self._moveThreadLoop, daemon=True).start()
 
         self.initCb(do_updates=True)
@@ -566,12 +621,104 @@ class NepiNavSimApp(object):
         self._save_param(attr, getattr(self, attr))
         self.publish_status()
 
+    def setEnableSinFieldCb(self, msg, field):
+        attr = 'enable_sin_' + field
+        with self._lock:
+            setattr(self, attr, msg.data)
+            if msg.data:
+                self._sin_start_time[field] = time.time()
+                self._sin_base[field] = getattr(self, field)
+                if getattr(self, 'enable_wave_' + field):
+                    self._wave_components[field] = self._generateWaveComponents(field)
+            else:
+                self._sin_start_time[field] = None
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setSinAmplitudeFieldCb(self, msg, field):
+        attr = 'sin_amplitude_' + field
+        with self._lock:
+            setattr(self, attr, float(msg.data))
+            if getattr(self, 'enable_wave_' + field):
+                self._wave_components[field] = self._generateWaveComponents(field)
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setSinPeriodFieldCb(self, msg, field):
+        attr = 'sin_period_s_' + field
+        with self._lock:
+            setattr(self, attr, float(msg.data))
+            if getattr(self, 'enable_wave_' + field):
+                self._wave_components[field] = self._generateWaveComponents(field)
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setEnableWaveFieldCb(self, msg, field):
+        attr = 'enable_wave_' + field
+        with self._lock:
+            setattr(self, attr, msg.data)
+            if msg.data:
+                self._wave_components[field] = self._generateWaveComponents(field)
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def setSinSpreadFieldCb(self, msg, field):
+        attr = 'sin_spread_' + field
+        with self._lock:
+            setattr(self, attr, float(msg.data))
+            if getattr(self, 'enable_wave_' + field):
+                self._wave_components[field] = self._generateWaveComponents(field)
+        self._save_param(attr, getattr(self, attr))
+        self.publish_status()
+
+    def _generateWaveComponents(self, field):
+        """Superimposed sine components approximating a wind-wave (PM-style) spectrum."""
+        import random
+        period    = getattr(self, 'sin_period_s_' + field)
+        amplitude = getattr(self, 'sin_amplitude_' + field)
+        spread    = float(getattr(self, 'sin_spread_' + field))
+        f0 = 1.0 / period if period > 0.0 else 1.0
+        if spread <= 0.0:
+            return [(f0, amplitude, 0.0)]
+        N  = 7
+        bw = spread * f0
+        freqs   = [f0 + bw * (i / (N - 1) - 0.5) for i in range(N)]
+        sigma   = bw / 3.0
+        weights = [math.exp(-0.5 * ((f - f0) / sigma) ** 2) for f in freqs]
+        total   = sum(weights) or 1.0
+        return [(f, amplitude * w / total, random.uniform(0.0, 2.0 * math.pi))
+                for f, w in zip(freqs, weights)]
+
     def _moveThreadLoop(self):
         while True:
             now = time.time()
             changed = False
             for field in _MOVE_FIELDS:
                 if not getattr(self, 'enable_move_' + field):
+                    continue
+                if field in _SIN_FIELDS and getattr(self, 'enable_sin_' + field):
+                    start = self._sin_start_time.get(field)
+                    if start is not None:
+                        elapsed = now - start
+                        if getattr(self, 'enable_wave_' + field):
+                            components = self._wave_components.get(field)
+                            if components:
+                                new_val = self._sin_base[field] + sum(
+                                    a * math.sin(2.0 * math.pi * f * elapsed + ph)
+                                    for f, a, ph in components
+                                )
+                                with self._lock:
+                                    setattr(self, field, new_val)
+                                changed = True
+                        else:
+                            period = getattr(self, 'sin_period_s_' + field)
+                            if period > 0.0:
+                                new_val = (self._sin_base[field] +
+                                           getattr(self, 'sin_amplitude_' + field) *
+                                           math.sin(2.0 * math.pi * elapsed / period))
+                                with self._lock:
+                                    setattr(self, field, new_val)
+                                changed = True
                     continue
                 rate = getattr(self, 'move_rate_hz_' + field)
                 if rate <= 0.0:
@@ -649,6 +796,21 @@ class NepiNavSimApp(object):
                 self.enable_move_hnav_speed_ms    = self.node_if.get_param('enable_move_hnav_speed_ms')
                 self.move_step_hnav_speed_ms      = float(self.node_if.get_param('move_step_hnav_speed_ms'))
                 self.move_rate_hz_hnav_speed_ms   = float(self.node_if.get_param('move_rate_hz_hnav_speed_ms'))
+                self.enable_sin_hnav_heading_deg    = self.node_if.get_param('enable_sin_hnav_heading_deg')
+                self.sin_amplitude_hnav_heading_deg = float(self.node_if.get_param('sin_amplitude_hnav_heading_deg'))
+                self.sin_period_s_hnav_heading_deg  = float(self.node_if.get_param('sin_period_s_hnav_heading_deg'))
+                self.enable_wave_hnav_heading_deg   = self.node_if.get_param('enable_wave_hnav_heading_deg')
+                self.sin_spread_hnav_heading_deg    = float(self.node_if.get_param('sin_spread_hnav_heading_deg'))
+                self.enable_sin_hnav_roll_deg       = self.node_if.get_param('enable_sin_hnav_roll_deg')
+                self.sin_amplitude_hnav_roll_deg    = float(self.node_if.get_param('sin_amplitude_hnav_roll_deg'))
+                self.sin_period_s_hnav_roll_deg     = float(self.node_if.get_param('sin_period_s_hnav_roll_deg'))
+                self.enable_wave_hnav_roll_deg      = self.node_if.get_param('enable_wave_hnav_roll_deg')
+                self.sin_spread_hnav_roll_deg       = float(self.node_if.get_param('sin_spread_hnav_roll_deg'))
+                self.enable_sin_hnav_pitch_deg      = self.node_if.get_param('enable_sin_hnav_pitch_deg')
+                self.sin_amplitude_hnav_pitch_deg   = float(self.node_if.get_param('sin_amplitude_hnav_pitch_deg'))
+                self.sin_period_s_hnav_pitch_deg    = float(self.node_if.get_param('sin_period_s_hnav_pitch_deg'))
+                self.enable_wave_hnav_pitch_deg     = self.node_if.get_param('enable_wave_hnav_pitch_deg')
+                self.sin_spread_hnav_pitch_deg      = float(self.node_if.get_param('sin_spread_hnav_pitch_deg'))
         if do_updates:
             self._apply_nmea_state()
             self._apply_hnav_state()
@@ -731,6 +893,21 @@ class NepiNavSimApp(object):
             msg.enable_move_hnav_speed_ms    = self.enable_move_hnav_speed_ms
             msg.move_step_hnav_speed_ms      = self.move_step_hnav_speed_ms
             msg.move_rate_hz_hnav_speed_ms   = self.move_rate_hz_hnav_speed_ms
+            msg.enable_sin_hnav_heading_deg    = self.enable_sin_hnav_heading_deg
+            msg.sin_amplitude_hnav_heading_deg = self.sin_amplitude_hnav_heading_deg
+            msg.sin_period_s_hnav_heading_deg  = self.sin_period_s_hnav_heading_deg
+            msg.enable_wave_hnav_heading_deg   = self.enable_wave_hnav_heading_deg
+            msg.sin_spread_hnav_heading_deg    = self.sin_spread_hnav_heading_deg
+            msg.enable_sin_hnav_roll_deg       = self.enable_sin_hnav_roll_deg
+            msg.sin_amplitude_hnav_roll_deg    = self.sin_amplitude_hnav_roll_deg
+            msg.sin_period_s_hnav_roll_deg     = self.sin_period_s_hnav_roll_deg
+            msg.enable_wave_hnav_roll_deg      = self.enable_wave_hnav_roll_deg
+            msg.sin_spread_hnav_roll_deg       = self.sin_spread_hnav_roll_deg
+            msg.enable_sin_hnav_pitch_deg      = self.enable_sin_hnav_pitch_deg
+            msg.sin_amplitude_hnav_pitch_deg   = self.sin_amplitude_hnav_pitch_deg
+            msg.sin_period_s_hnav_pitch_deg    = self.sin_period_s_hnav_pitch_deg
+            msg.enable_wave_hnav_pitch_deg     = self.enable_wave_hnav_pitch_deg
+            msg.sin_spread_hnav_pitch_deg      = self.sin_spread_hnav_pitch_deg
         if self.node_if is not None:
             self.node_if.publish_pub('status_pub', msg)
 
