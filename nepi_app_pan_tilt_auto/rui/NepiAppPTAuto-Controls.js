@@ -77,8 +77,8 @@ class NepiAppPTAutoControls extends Component {
 
       stab_update_rate: null,
       stab_num_avg: null,
-      stab_pos_deg: null,
-      stab_vel_deg: null,
+      stab_control_names: [],
+      stab_control_values: [],
       stab_reset_time_sec: null,
 
       lockPanMin: -50,
@@ -120,6 +120,10 @@ class NepiAppPTAutoControls extends Component {
     this.renderControlPanel = this.renderControlPanel.bind(this)
     this.renderScanControls = this.renderScanControls.bind(this)
 
+
+    this.onUpdateInputControlNameValue = this.onUpdateInputControlNameValue.bind(this)
+    this.onKeySaveInputControlNameValue = this.onKeySaveInputControlNameValue.bind(this)
+    this.renderStabControlValues = this.renderStabControlValues.bind(this)
     this.renderStabControls = this.renderStabControls.bind(this)
     this.onStabUpdateText = this.onStabUpdateText.bind(this)
     this.onStabKeyText = this.onStabKeyText.bind(this)
@@ -208,16 +212,28 @@ class NepiAppPTAutoControls extends Component {
                                 tilt_min_scan !== last_tilt_min_scan || tilt_max_scan !== last_tilt_max_scan)
       }
       
-      if (scan_limits_changed === true){
-        this.setState({scanPanMin: pan_min_scan,
-                      scanPanMax: pan_max_scan
-        })
-      }
-      if (scan_limits_changed === true){
-        this.setState({scanTiltMin: tilt_min_scan,
-                      scanTiltMax: tilt_max_scan
-        })
-      }
+    if (scan_limits_changed === true){
+      this.setState({scanPanMin: pan_min_scan,
+                    scanPanMax: pan_max_scan
+      })
+    }
+    if (scan_limits_changed === true){
+      this.setState({scanTiltMin: tilt_min_scan,
+                    scanTiltMax: tilt_max_scan
+      })
+    }
+
+    var stab_controls_changed = true
+   if (last_status_msg != null) {
+      stab_controls_changed = JSON.stringify(message.stab_control_values) !== JSON.stringify(last_status_msg.stab_control_values)
+   }
+    
+    if (stab_controls_changed === true){
+      this.setState({stab_control_names: message.stab_control_names,
+                    stab_control_values: message.stab_control_values
+      })
+    }
+
 
     
   }
@@ -531,7 +547,8 @@ componentWillUnmount() {
       const panMoveClean = panMove + .001
       const tiltMoveClean = tiltMove + .001
 
-
+      const disable_pan_speed = (status_msg.stab_pan_enabled === true)
+      const disable_tilt_speed = (status_msg.stab_tilt_enabled === true)
       const speedRatio = status_msg.speed_ratio
       const speedPanRatio = status_msg.pan_speed_ratio
       const speedTiltRatio = status_msg.tilt_speed_ratio
@@ -679,10 +696,9 @@ componentWillUnmount() {
 
 
 
-            {(has_sep_speed === true && this.state.linkSpeeds === false) ? (
               <React.Fragment>
                 <SliderAdjustment
-                  disabled={!has_speed_control}
+                  disabled={disable_pan_speed}
                   title={"Pan Speed"}
                   msgType={"std_msgs/Float32"}
                   adjustment={speedPanRatio}
@@ -694,7 +710,7 @@ componentWillUnmount() {
                   unit={"%"}
                 />
                 <SliderAdjustment
-                  disabled={!has_speed_control}
+                  disabled={disable_tilt_speed}
                   title={"Tilt Speed"}
                   msgType={"std_msgs/Float32"}
                   adjustment={speedTiltRatio}
@@ -706,9 +722,9 @@ componentWillUnmount() {
                   unit={"%"}
                 />
               </React.Fragment>
-            ) : (
+            {/* ) : (
               <SliderAdjustment
-                disabled={!has_speed_control}
+                disabled={disable_speed}
                 title={"Speed"}
                 msgType={"std_msgs/Float32"}
                 adjustment={speedRatio}
@@ -737,7 +753,7 @@ componentWillUnmount() {
                     </Label>
                   </Column>
                 </Columns>
-                : null }
+                : null } */}
 
 
           </div>
@@ -1342,6 +1358,56 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 }
 
 
+
+  onUpdateInputControlNameValue(event, name, index) {
+    const value = event.target.value
+    var stab_control_values = this.state.stab_control_values
+    stab_control_values[index] = value
+    this.setState({ stab_control_values: stab_control_values })
+    document.getElementById(name).style.color = Styles.vars.colors.red
+    //this.render()
+  }
+
+  onKeySaveInputControlNameValue(event, name, index) {
+    const namespace = this.getNamespace() + '/set_stab_control_value'
+
+    if(event.key === 'Enter'){
+      const value = event.target.value
+      const parsed = parseFloat(value)
+      if (!Number.isNaN(parsed)) {
+        this.props.ros.sendUpdateFloatMsg(namespace,name,parsed)
+      }
+      else {
+        const stab_control_values = this.state.status_msg.stab_control_values
+        this.setState({ stab_control_values: stab_control_values })
+      }
+      document.getElementById(name).style.color = Styles.vars.colors.black
+    }
+  }
+
+
+
+    
+    renderStabControlValues(name, value, index) {
+    return (
+
+      <React.Fragment>
+
+        <Label title={name}>
+          <Input id={name} 
+              style={{ width: "45%", float: "left" }}
+              value={value} 
+              onChange={(event) => this.onUpdateInputControlNameValue(event,name,index)} 
+              onKeyDown= {(event) => this.onKeySaveInputControlNameValue(event,name,index)} />
+        </Label>
+      </React.Fragment>
+    )
+  }
+
+
+
+
+
   renderStabControls() {
     const namespace = this.getNamespace()
     const baseNamespace = this.getBaseNamespace()
@@ -1366,22 +1432,25 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     var stab_num_avg = this.state.stab_num_avg
     if (stab_num_avg == null) { stab_num_avg = status_msg.stab_num_avg }
 
-    var stab_pos_deg = this.state.stab_pos_deg
-    if (stab_pos_deg == null) { stab_pos_deg = status_msg.stab_pos_deg }
-
-    var stab_vel_deg = this.state.stab_vel_deg
-    if (stab_vel_deg == null) { stab_vel_deg = status_msg.stab_vel_deg }
-
     var stab_reset_time_sec = this.state.stab_reset_time_sec
     if (stab_reset_time_sec == null) { stab_reset_time_sec = status_msg.stab_reset_time_sec }
 
-    const stab_move_ratio = status_msg.stab_move_ratio
+    const stab_control_names = this.state.stab_control_names
+    const stab_control_values = this.state.stab_control_values
 
     //const pan_tilt_max_speed_dps = status_msg.pan_tilt_max_speed_dps
     const stab_pt_min_speed_ratio = status_msg.stab_pt_min_speed_ratio
     const stab_pt_max_speed_ratio = status_msg.stab_pt_max_speed_ratio
+
+    const pan_deg = status_msg.pan_deg
+    const tilt_deg = status_msg.tilt_deg
+    const pan_goal = status_msg.pan_goal
+    const tilt_goal = status_msg.tilt_goal
     const pan_speed_dps = status_msg.pan_speed_dps
     const tilt_speed_dps = status_msg.tilt_speed_dps
+
+
+
 
     const stab_roll_deg = status_msg.stab_roll_deg
     const stab_roll_dps = status_msg.stab_roll_dps
@@ -1449,26 +1518,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           />
         </Label>
 
-        <Label title={"Pos Deg Limit"}>
-          <Input
-            id={"StabPosDeg"}
-            style={{ width: "45%", float: "left" }}
-            value={stab_pos_deg}
-            onChange={this.onStabUpdateText}
-            onKeyDown={this.onStabKeyText}
-          />
-        </Label>
-
-        <Label title={"Vel Deg Limit"}>
-          <Input
-            id={"StabVelDeg"}
-            style={{ width: "45%", float: "left" }}
-            value={stab_vel_deg}
-            onChange={this.onStabUpdateText}
-            onKeyDown={this.onStabKeyText}
-          />
-        </Label>
-
+{/* 
         <Label title={"Reset Timeout"}>
           <Input
             id={"StabResetTimeSec"}
@@ -1477,7 +1527,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
             onChange={this.onStabUpdateText}
             onKeyDown={this.onStabKeyText}
           />
-        </Label>
+        </Label> */}
 
         {/* <SliderAdjustment
           title={"Max Move Speed"}
@@ -1491,6 +1541,13 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           tooltip={"Sets stabilize max move speed"}
           unit={"%"}
         /> */}
+
+          <div>
+              {/* Map over the stab control names array */}
+              {stab_control_names.map((name, index) => (
+                this.renderStabControlValues(name, stab_control_values[index], index)
+              ))}
+            </div>
 
           <RangeAdjustment
             title="Min Max Speed"
@@ -1511,44 +1568,45 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Speed"}</div>
         </Label>
 
-        <Label title={"Roll"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_roll_deg, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_roll_dps, 2)} />
-        </Label>
-
-        <Label title={"Pitch"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pitch_deg, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_pitch_dps, 2)} />
-        </Label>
-
-        <Label title={"Heading"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_heading_deg, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_heading_dps, 2)} />
-        </Label>        
 
         <Label title={"Pan"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_deg, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(pan_deg, 2)} />
           <Input disabled style={{ width: "45%" }} value={round(pan_speed_dps, 2)} />
         </Label>
 
         <Label title={"Tilt"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_deg, 2)} />
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(tilt_deg, 2)} />
           <Input disabled style={{ width: "45%" }} value={round(tilt_speed_dps, 2)} />
         </Label>
 
         <Label title={""}>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Adj"}</div>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Goal"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Roll"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Pitch"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Yaw"}</div>
+        </Label>
+
+        <Label title={"Nav"}>
+          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_roll_deg, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pitch_deg, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_heading_deg, 2)} />
+        </Label>
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Goal"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"DPS"}</div>
         </Label>
 
         <Label title={"Pan"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_adj, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_pan_goal, 2)} />
+          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_adj, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pan_goal, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_pan_dps, 2)} />
         </Label>
 
         <Label title={"Tilt"}>
-           <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_adj, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_goal, 2)} />
+           <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_adj, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_tilt_goal, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_tilt_dps, 2)} />
         </Label>
 
       </React.Fragment>
