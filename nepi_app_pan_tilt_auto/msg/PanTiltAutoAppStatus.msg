@@ -117,12 +117,15 @@ float32 stab_pan_deg
 float32 stab_pan_adj
 float32 stab_pan_goal
 float32 stab_pan_dps
+float32 stab_pan_pos_rate
+float32 stab_pan_vel_rate
 
 float32 stab_tilt_deg
 float32 stab_tilt_adj
 float32 stab_tilt_goal
 float32 stab_tilt_dps
-
+float32 stab_tilt_pos_rate
+float32 stab_tilt_vel_rate
 #********
 
 #########################

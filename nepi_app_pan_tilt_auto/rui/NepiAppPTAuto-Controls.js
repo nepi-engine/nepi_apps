@@ -75,11 +75,16 @@ class NepiAppPTAutoControls extends Component {
       trackTiltMax: 50,
       trackResetTime: null,
 
+      stab_show_settings: false,
       stab_update_rate: null,
       stab_num_avg: null,
       stab_control_names: [],
       stab_control_values: [],
       stab_reset_time_sec: null,
+      stab_pan_pos_max: 0,
+      stab_pan_vel_max: 0,
+      stab_tilt_pos_max: 0,
+      stab_tilt_vel_max: 0,
 
       lockPanMin: -50,
       lockPanMax: 50,
@@ -117,7 +122,8 @@ class NepiAppPTAutoControls extends Component {
     this.onEnterSendPanScanRangeWindowValue = this.onEnterSendPanScanRangeWindowValue.bind(this)
     this.onEnterSendTiltScanRangeWindowValue = this.onEnterSendTiltScanRangeWindowValue.bind(this)
 
-    this.renderControlPanel = this.renderControlPanel.bind(this)
+    this.renderPTAuto = this.renderPTAuto.bind(this)
+    this.renderPTControls = this.renderPTControls.bind(this)
     this.renderScanControls = this.renderScanControls.bind(this)
 
 
@@ -133,7 +139,7 @@ class NepiAppPTAutoControls extends Component {
 
     this.onPTUpdateText = this.onPTUpdateText.bind(this)
     this.onPTKeyText = this.onPTKeyText.bind(this)
-    this.renderPTControlPanel = this.renderPTControlPanel.bind(this)
+    this.renderPTAutoControls = this.renderPTAutoControls.bind(this)
 
     this.onTrackUpdateText = this.onTrackUpdateText.bind(this)
     this.onTrackKeyText = this.onTrackKeyText.bind(this)
@@ -289,122 +295,6 @@ componentWillUnmount() {
 
 
 
-  onClickToggleShowSettings(){
-    const currentVal = this.state.showSettings 
-    this.setState({showSettings: !currentVal})
-    this.render()
-  }
-
-
-
-
-  renderControlPanel() {
-    const { ptxDevices, sendBoolMsg } = this.props.ros
-
-    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
-            track_source_connected, stabPanEnabled, stabTiltEnabled,
-            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
-
-    const selected_pan_tilt = this.state.selected_pan_tilt
-
-    //Unused const {sendTriggerMsg} = this.props.ros
-
-    const namespace = this.getNamespace()
-
-    const status_msg = this.state.status_msg
-
-
-    if (status_msg == null || namespace == null){
-      return(
-
-        <Columns>
-        <Column>
-
-        </Column>
-        </Columns>
-
-      )
-
-    }
-    else {
- 
-
-
-      const show_control = this.state.show_control
-        return (
-          <React.Fragment>
-   
-
-          { this.renderPTControlPanel() }
-        
-
-          <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-            <div style={{ display: 'flex' }} >
-                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'scan')} >
-
-                        <Label title="Show Scanning Controls">
-                            <Toggle
-                              checked={(show_control === 'scan')}
-                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'scan') ? 'None' : 'scan' )}>
-                            </Toggle>
-                        </Label>
-
-                </div>
-
-                <div style={{ width: '40%' }}>
-                </div>
-
-          </div>
-          <div hidden={(show_control !== 'scan')}>
-                {this.renderScanControls()}
-          </div>
-
-            <div style={{ display: 'flex' }} >
-                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'track')}>
-
-                        <Label title="Show Tracking Controls">
-                            <Toggle
-                              checked={(show_control === 'track')}
-                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'track') ? 'None' : 'track' )}>
-                            </Toggle>
-                        </Label>
-
-                </div>
-
-                <div style={{ width: '40%' }}>
-                </div>
-
-          </div>
-          <div hidden={(show_control !== 'track')}>
-                {this.renderTrackControls()}
-          </div>
-
-            <div style={{ display: 'flex' }} >
-                <div style={{ width: '60%' }} hidden={(show_control !== 'None' && show_control !== 'stab')}>
-
-                        <Label title="Show Stabilize Controls">
-                            <Toggle
-                              checked={(show_control === 'stab')}
-                              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'stab') ? 'None' : 'stab' )}>
-                            </Toggle>
-                        </Label>
-
-                </div>
-
-                <div style={{ width: '40%' }}>
-                </div>
-
-          </div>
-          <div hidden={(show_control !== 'stab')}>
-                {this.renderStabControls()}
-          </div>
-
-            </React.Fragment>
-        )
-  }
-}
-
 
 
 
@@ -481,7 +371,7 @@ componentWillUnmount() {
 
 
 
-  renderPTControlPanel() {
+  renderPTAuto() {
     const { ptxDevices, sendBoolMsg } = this.props.ros
 
     const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
@@ -639,6 +529,243 @@ componentWillUnmount() {
 
           <div hidden={(has_abs_pos === false)}>
 
+              <Label title={"Current Position"}>
+                <Input
+                  disabled
+                  style={{ width: "45%", float: "left" }}
+                  value={round(panPositionClean, 2)}
+                />
+                <Input
+                  disabled
+                  style={{ width: "45%" }}
+                  value={round(tiltPositionClean, 2)}
+                />
+              </Label>
+
+  
+          </div>
+
+
+            </React.Fragment>
+        )
+  }
+}
+
+
+
+
+  onClickToggleShowSettings(){
+    const currentVal = this.state.showSettings 
+    this.setState({showSettings: !currentVal})
+    this.render()
+  }
+
+
+
+
+  renderPTAutoControls() {
+    const { ptxDevices, sendBoolMsg } = this.props.ros
+
+    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
+            track_source_connected, stabPanEnabled, stabTiltEnabled,
+            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+
+    const selected_pan_tilt = this.state.selected_pan_tilt
+
+    //Unused const {sendTriggerMsg} = this.props.ros
+
+    const namespace = this.getNamespace()
+
+    const status_msg = this.state.status_msg
+
+
+    if (status_msg == null || namespace == null){
+      return(
+
+        <Columns>
+        <Column>
+
+        </Column>
+        </Columns>
+
+      )
+
+    }
+    else {
+ 
+
+
+        const show_control = this.state.show_control
+        return (
+          <React.Fragment>
+   
+
+          { this.renderPTAuto() }
+        
+
+          <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+
+
+
+
+        <Label title={"Show Controls"}></Label>
+
+        <div style={{ display: 'flex' }} >
+           <div style={{ display: "inline-block", width: "20%"}}>{"PT"}</div>
+           <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+          <div style={{ display: "inline-block", width: "20%"}}>{"Scan"}</div>
+          <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+          <div style={{ display: "inline-block", width: "20%" }}>{"Track"}</div>
+          <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+          <div style={{ display: "inline-block", width: "20%" }}>{"Stab"}</div>
+        </div>
+
+        <div style={{ display: 'flex' }} >
+
+          <div style={{ display: "inline-block", width: "20%", float: "left" }}>
+              <Toggle
+              checked={(show_control === 'pt')}
+              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'pt') ? 'None' : 'pt' )}>
+              </Toggle>
+          </div>
+
+          <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+
+          <div style={{ display: "inline-block", width: "20%", float: "left" }}>
+              <Toggle
+              checked={(show_control === 'scan')}
+              onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'scan') ? 'None' : 'scan' )}>
+              </Toggle>
+          </div>
+
+          <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+
+          <div style={{ display: "inline-block", width: "20%", float: "center" }}>
+              <Toggle
+                checked={(show_control === 'track')}
+                onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'track') ? 'None' : 'track' )}>
+              </Toggle>
+          </div>
+
+          <div style={{ display: "inline-block", width: "5%"}}>{}</div>
+
+          <div style={{ display: "inline-block", width: "20%", float: "right" }}>
+              <Toggle
+                checked={(show_control === 'stab')}
+                onClick={() => onChangeChangeStateValue.bind(this)("show_control",(show_control === 'stab') ? 'None' : 'stab' )}>
+              </Toggle>
+          </div>
+
+        </div>
+         
+          <div hidden={(show_control !== 'pt')}>
+                {this.renderPTControls()}
+          </div>
+
+
+          <div hidden={(show_control !== 'scan')}>
+                {this.renderScanControls()}
+          </div>
+
+         
+          <div hidden={(show_control !== 'track')}>
+                {this.renderTrackControls()}
+          </div>
+
+       
+          <div hidden={(show_control !== 'stab')}>
+                {this.renderStabControls()}
+          </div>
+
+            </React.Fragment>
+        )
+  }
+}
+
+
+
+
+
+  renderPTControls() {
+    const { ptxDevices, sendBoolMsg } = this.props.ros
+
+    const { autoPanEnabled, autoTiltEnabled, trackPanEnabled, trackTiltEnabled,
+            track_source_connected, stabPanEnabled, stabTiltEnabled,
+            click_pan_enabled, click_tilt_enabled  } = this.state /*sinPanEnabled ,sinTiltEnabled*/
+
+    const selected_pan_tilt = this.state.selected_pan_tilt
+
+    //Unused const {sendTriggerMsg} = this.props.ros
+
+    const namespace = this.getNamespace()
+
+    const status_msg = this.state.status_msg
+    const topics = Object.keys(ptxDevices)
+    const pt_connected_topics = []
+    var i
+    for (i = 0; i <topics.length; i++) {
+    if (topics[i].includes(selected_pan_tilt)){
+      pt_connected_topics.push(topics[i])
+    }
+  }
+    
+    const pt_connected = (pt_connected_topics.indexOf(selected_pan_tilt) !== -1)
+    //console.log('pt_connected: ' + pt_connected)
+
+
+    if (status_msg == null || pt_connected == false){
+      return(
+
+        <Columns>
+        <Column>
+
+        </Column>
+        </Columns>
+
+      )
+
+    }
+    else {
+
+
+    const has_scan_pan = (status_msg.pt_status_msg.has_scan_pan)
+    const has_scan_tilt = (status_msg.pt_status_msg.has_scan_tilt)
+    const has_abs_pos = (status_msg.pt_status_msg.has_absolute_positioning)
+    const has_homing = (status_msg.pt_status_msg.has_homing)
+    const has_speed_control = (status_msg.pt_status_msg.has_adjustable_speed)
+    const has_sep_speed = (status_msg.pt_status_msg.has_seperate_pan_tilt_speed)
+
+    const disable_track_enable = ((track_source_connected === false || has_scan_pan === false || has_scan_tilt === false))
+
+    const disable_stab_enable = false
+
+      const panPosition = status_msg.pt_status_msg.pan_now_deg
+      const tiltPosition = status_msg.pt_status_msg.tilt_now_deg
+
+      const panPositionClean = panPosition + .001
+      const tiltPositionClean = tiltPosition + .001
+
+      const panMove = status_msg.pt_status_msg.pan_goal_deg
+      const tiltMove = status_msg.pt_status_msg.tilt_goal_deg
+
+      const panMoveClean = panMove + .001
+      const tiltMoveClean = tiltMove + .001
+
+      const disable_pan_speed = (status_msg.stab_pan_enabled === true)
+      const disable_tilt_speed = (status_msg.stab_tilt_enabled === true)
+      const speedRatio = status_msg.speed_ratio
+      const speedPanRatio = status_msg.pan_speed_ratio
+      const speedTiltRatio = status_msg.tilt_speed_ratio
+
+
+      const show_control = this.state.show_control
+        return (
+          <React.Fragment>
+
+
+          <div hidden={(has_abs_pos === false)}>
+
               <Label title={"GoTo Position "}>
                 <Input
                   disabled={!has_abs_pos}
@@ -658,19 +785,6 @@ componentWillUnmount() {
                 />
               </Label>
 
-
-              <Label title={"Current Position"}>
-                <Input
-                  disabled
-                  style={{ width: "45%", float: "left" }}
-                  value={round(panPositionClean, 2)}
-                />
-                <Input
-                  disabled
-                  style={{ width: "45%" }}
-                  value={round(tiltPositionClean, 2)}
-                />
-              </Label>
 
               <Label title={"Goal Position"}>
                 <Input
@@ -727,8 +841,6 @@ componentWillUnmount() {
         )
   }
 }
-
-
 
 
 
@@ -1399,6 +1511,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     var stab_reset_time_sec = this.state.stab_reset_time_sec
     if (stab_reset_time_sec == null) { stab_reset_time_sec = status_msg.stab_reset_time_sec }
 
+    const show_settings = this.state.stab_show_settings
     const stab_control_names = this.state.stab_control_names
     const stab_control_values = this.state.stab_control_values
 
@@ -1431,105 +1544,23 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const stab_tilt_goal = status_msg.stab_tilt_goal
     const stab_tilt_dps = status_msg.stab_tilt_dps
 
+    const stab_pan_pos_rate = status_msg.stab_tilt_pos_rate
+    const stab_pan_vel_rate = status_msg.stab_tilt_vel_rate
+    const stab_tilt_pos_rate = status_msg.stab_tilt_pos_rate
+    const stab_tilt_vel_rate = status_msg.stab_tilt_vel_rate
+
     return (
       <React.Fragment>
 
-        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+     
 
-        <Label title={'Select Source'}>
-          <Select
-            id="set_stab_source"
-            onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_source", e.target.value)}
-            value={selected_source}
-          >
-            {sources_menu}
-          </Select>
-        </Label>
-
-        <Label title={'Select Process'}>
-          <Select
-            id="set_stab_process"
-            onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_process", e.target.value)}
-            value={selected_process}
-          >
-            {processes_menu}
-          </Select>
-        </Label>
-
-          <ButtonMenu>
-            <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + "/reload_stab_processes")}>{"Reload Processes"}</Button>
-          </ButtonMenu>
-
-        <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-        <Label title={"Update Rate"}>
-          <Input
-            id={"StabUpdateRate"}
-            style={{ width: "45%", float: "left" }}
-            value={stab_update_rate}
-            onChange={this.onStabUpdateText}
-            onKeyDown={this.onStabKeyText}
-          />
-        </Label>
-
-        <Label title={"Num Avg"}>
-          <Input
-            id={"StabNumAvg"}
-            style={{ width: "45%", float: "left" }}
-            value={stab_num_avg}
-            onChange={this.onStabUpdateText}
-            onKeyDown={this.onStabKeyText}
-          />
-        </Label>
-
-{/* 
-        <Label title={"Reset Timeout"}>
-          <Input
-            id={"StabResetTimeSec"}
-            style={{ width: "45%", float: "left" }}
-            value={stab_reset_time_sec}
-            onChange={this.onStabUpdateText}
-            onKeyDown={this.onStabKeyText}
-          />
-        </Label> */}
-
-        {/* <SliderAdjustment
-          title={"Max Move Speed"}
-          msgType={"std_msgs/Float32"}
-          adjustment={stab_pt_max_speed_ratio}
-          topic={namespace + "/set_stab_max_speed_ratio"}
-          scaled={0.01}
-          min={0}
-          max={100}
-          disabled={false}
-          tooltip={"Sets stabilize max move speed"}
-          unit={"%"}
-        /> */}
-
-          <div>
-              {/* Map over the stab control names array */}
-              {stab_control_names.map((name, index) => (
-                this.renderStabControlValues(name, stab_control_values[index], index)
-              ))}
-            </div>
-
-          <RangeAdjustment
-            title="Min Max Speed"
-            min={0}
-            max={1}
-            min_limit_m={stab_pt_min_speed_ratio}
-            max_limit_m={stab_pt_max_speed_ratio}
-            topic={namespace + "/set_stab_max_speed_ratios"}
-            tooltip={"Sets stabilize min max move ratios"}
-            noTextBox={true}
-          />        
 
         <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
 
         <Label title={""}>
           <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Deg"}</div>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Speed"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"DPS"}</div>
         </Label>
 
 
@@ -1555,10 +1586,10 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_heading_deg, 2)} />
         </Label>
 
-        <Label title={""}>
+        <Label title={"Stab Updates"}>
           <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
           <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Goal"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"DPS"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Speed"}</div>
         </Label>
 
         <Label title={"Pan"}>
@@ -1572,6 +1603,111 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_tilt_goal, 2)} />
           <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_tilt_dps, 2)} />
         </Label>
+
+        <Label title={"Stab Rates"}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pos"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Speed"}</div>
+        </Label>
+
+
+        <Label title={"Pan"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_pos_rate, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pan_vel_rate, 2)} />
+        </Label>
+
+        <Label title={"Tilt"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_pos_rate, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_vel_rate, 2)} />
+        </Label>
+
+
+            <div style={{ display: 'flex' }} >
+                <div style={{ width: '60%' }} >
+
+                        <Label title="Show Stab Settings">
+                            <Toggle
+                              checked={(show_settings)}
+                              onClick={() => onChangeSwitchStateValue.bind(this)("stab_show_settings",show_settings)}>
+                            </Toggle>
+                        </Label>
+
+                </div>
+
+                <div style={{ width: '40%' }}>
+                </div>
+
+          </div>
+          <div hidden={(show_settings === false)}>
+
+                <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+                      <Label title={'Select Source'}>
+                        <Select
+                          id="set_stab_source"
+                          onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_source", e.target.value)}
+                          value={selected_source}
+                        >
+                          {sources_menu}
+                        </Select>
+                      </Label>
+
+                      <Label title={'Select Process'}>
+                        <Select
+                          id="set_stab_process"
+                          onChange={(e) => this.props.ros.sendStringMsg(namespace + "/set_stab_process", e.target.value)}
+                          value={selected_process}
+                        >
+                          {processes_menu}
+                        </Select>
+                      </Label>
+
+
+
+                <div style={{ borderTop: "1px solid #000000", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+
+                <Label title={"Update Rate"}>
+                  <Input
+                    id={"StabUpdateRate"}
+                    style={{ width: "45%", float: "left" }}
+                    value={stab_update_rate}
+                    onChange={this.onStabUpdateText}
+                    onKeyDown={this.onStabKeyText}
+                  />
+                </Label>
+
+                <Label title={"Num Avg"}>
+                  <Input
+                    id={"StabNumAvg"}
+                    style={{ width: "45%", float: "left" }}
+                    value={stab_num_avg}
+                    onChange={this.onStabUpdateText}
+                    onKeyDown={this.onStabKeyText}
+                  />
+                </Label>
+
+
+                  <div>
+                      {/* Map over the stab control names array */}
+                      {stab_control_names.map((name, index) => (
+                        this.renderStabControlValues(name, stab_control_values[index], index)
+                      ))}
+                    </div>
+
+                  <RangeAdjustment
+                    title="Min Max Speed"
+                    min={stab_pt_min_speed_ratio}
+                    max={stab_pt_max_speed_ratio}
+                    topic={namespace + "/set_stab_max_speed_ratios"}
+                    tooltip={"Sets stabilize min max move ratios"}
+                    noTextBox={true}
+                  />        
+
+              <ButtonMenu>
+                <Button onClick={() => this.props.ros.sendTriggerMsg(namespace + "/reload_stab_processes")}>{"Reload Processes"}</Button>
+              </ButtonMenu>
+
+          </div>
 
       </React.Fragment>
     )
@@ -1598,7 +1734,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
           <React.Fragment>
 
-              { this.renderControlPanel()}
+              { this.renderPTAutoControls()}
 
 
           </React.Fragment>
@@ -1610,7 +1746,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
           <Section title={(this.props.title !== undefined) ? this.props.title : ""}>
 
 
-              {this.renderControlPanel()}
+              {this.renderPTAutoControls()}
 
 
         </Section>

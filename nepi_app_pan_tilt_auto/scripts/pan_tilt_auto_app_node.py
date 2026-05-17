@@ -62,7 +62,7 @@ TARGET_TRACK_TIMEOUT_SEC = 2
 
 class NepiPanTiltAutoApp(object):
 
-  PAN_MIN_MAX_DEG = 170
+  PAN_MIN_MAX_DEG = 165
   TILT_MIN_MAX_DEG = 50
 
   SCAN_SWITCH_DEG = 5 # If angle withing this bound, switch dir
@@ -84,7 +84,7 @@ class NepiPanTiltAutoApp(object):
   TARGET_BEST_FILTER_OPTIONS = nepi_targets.BEST_FILTER_OPTIONS
   TARGET_BEST_FILTER_DEFAULT = 'LARGEST'
 
-
+  STAB_DEFAULT_SOURCE = 'microstrain'
 
   IMAGE_PRIORITY_OPTIONS = ['IMAGES','DETECTIONS','TARGETS']
   IMAGE_PRIORITY_NAMES = ['color_image','detection_image','target_image']
@@ -200,10 +200,10 @@ class NepiPanTiltAutoApp(object):
 
   track_range_min_m = 0
   track_range_max_m = 1000
-  track_pan_min_deg = -DEFAULT_MIN_MAX_DEG
-  track_pan_max_deg = DEFAULT_MIN_MAX_DEG
-  track_tilt_min_deg = -DEFAULT_MIN_MAX_DEG
-  track_tilt_max_deg = DEFAULT_MIN_MAX_DEG
+  track_pan_min_deg = -PAN_MIN_MAX_DEG
+  track_pan_max_deg = PAN_MIN_MAX_DEG
+  track_tilt_min_deg = -TILT_MIN_MAX_DEG
+  track_tilt_max_deg = TILT_MIN_MAX_DEG
 
 
   track_move_deg = TRACK_MOVE_DEG
@@ -228,7 +228,7 @@ class NepiPanTiltAutoApp(object):
   last_navpose_time = 0
 
   stab_timeout = 2
-
+  stab_count = 0
   stab_pan_enabled = False
   stab_tilt_enabled = False
 
@@ -911,9 +911,9 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setStabNumAvgCb,
             'callback_args': ()
         },
-        'set_stab_control': {
+        'set_stab_control_value': {
             'namespace': self.node_namespace,
-            'topic': 'set_stab_control',
+            'topic': 'set_stab_control_value',
             'msg': UpdateFloat,
             'qsize': 1,
             'callback': self.setStabControlCb,
@@ -1316,14 +1316,24 @@ class NepiPanTiltAutoApp(object):
         self.selected_pan_tilt = self.available_pan_tilts[0]
     needs_publish = True
 
+    was_connected = copy.deepcopy(self.pt_connected)
     if self.selected_pan_tilt in self.available_pan_tilts and self.pt_connected_topic != selected_pan_tilt:
-      success = self.subscribe_pt_topic(self.selected_pan_tilt)
-
+        success = self.subscribe_pt_topic(self.selected_pan_tilt)
     elif self.pt_connect_if is not None:
-       self.pt_connected = self.pt_connect_if.check_connection()
-       needs_publish = True
+        self.pt_connected = self.pt_connect_if.check_connection()
+        if self.pt_connected == True:
+            limits = self.pt_connect_if.get_pan_tilt_soft_limits()
+            #self.msg_if.pub_warn("setting scan limits: " + str(limits))
+            if limits is not None:
+                self.min_pan_softstop_deg = round(limits[0], 0) + self.LIMIT_PADDING
+                self.max_pan_softstop_deg = round(limits[1], 0) - self.LIMIT_PADDING
+                self.min_tilt_softstop_deg = round(limits[2], 0) + self.LIMIT_PADDING
+                self.max_tilt_softstop_deg = round(limits[3], 0) - self.LIMIT_PADDING
+                self.setScanPanWindow(self.scan_pan_min_deg, self.scan_pan_max_deg)
+                self.setScanTiltWindow(self.scan_tilt_min_deg, self.scan_tilt_max_deg)
+        needs_publish = True
     else:
-       self.pt_connected = False
+        self.pt_connected = False
 
     ######################
     topics = nepi_sdk.find_topics_by_msg('Image', topics_list = self.active_topics, types_list = self.active_topic_types)
@@ -1455,7 +1465,7 @@ class NepiPanTiltAutoApp(object):
                 min_deg = self.min_pan_softstop_deg
             self.scan_pan_min_deg = min_deg
             self.scan_pan_max_deg = max_deg
-            self.msg_if.pub_info("Scan Pan limits set to: " + "%.2f" % min_deg  + " " + "%.2f" % max_deg )
+            #self.msg_if.pub_info("Scan Pan limits set to: " + "%.2f" % min_deg  + " " + "%.2f" % max_deg )
             self.publish_status()
             self.node_if.set_param('scan_pan_min_deg', min_deg)
             self.node_if.set_param('scan_pan_max_deg', max_deg)
@@ -1477,7 +1487,7 @@ class NepiPanTiltAutoApp(object):
               min_deg = self.min_tilt_softstop_deg
           self.scan_tilt_min_deg = min_deg
           self.scan_tilt_max_deg = max_deg
-          self.msg_if.pub_info("Scan Tilt limits set to: " + "%.2f" % min_deg  + " " + "%.2f" % max_deg )
+          #self.msg_if.pub_info("Scan Tilt limits set to: " + "%.2f" % min_deg  + " " + "%.2f" % max_deg )
           self.publish_status()
           self.node_if.set_param('scan_tilt_min_deg', min_deg)
           self.node_if.set_param('scan_tilt_max_deg', max_deg)
@@ -1653,8 +1663,6 @@ class NepiPanTiltAutoApp(object):
                 else:
                     self.goto_position[0] = self.scan_pan_min_deg
                 self.pan_track_hold = False
-            else:
-                self.goto_position[0] = 0.0
             self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
             
         self.stab_pan_enabled = enabled
@@ -1683,13 +1691,11 @@ class NepiPanTiltAutoApp(object):
             if self.scan_tilt_enabled == True:
                 last_tilt_error = self.stab_tilt_error
                 if last_tilt_error > 0:
-                    self.goto_position[0] = self.scan_tilt_max_deg
+                    self.goto_position[1] = self.scan_tilt_max_deg
                 else:
-                    self.goto_position[0] = self.scan_tilt_min_deg
+                    self.goto_position[1] = self.scan_tilt_min_deg
                 self.tilt_track_hold = False
-            else:
-                self.goto_position[0] = 0.0
-            self.pt_connect_if.goto_to_tilt_position(self.goto_position[0])
+            self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
             
         self.stab_tilt_enabled = enabled
         self.publish_status()
@@ -1775,17 +1781,18 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('tilt_speed_ratio', self.tilt_speed_ratio)
 
   def setStabControlCb(self, msg):
+      self.msg_if.pub_info("Got Stab Control update message " + str(msg))
       control = msg.name
       value = msg.value
       self.setStabControl(control,value)
 
   def setStabControl(self, control,value):
         stab_process = self.selected_stab_process
-        stab_settings_dict = self.stab_processes_dict[stab_process]
-        if control in stab_settings_dict.keys():
+        stab_controls_dict = self.stab_processes_dict[stab_process]['stab_controls_dict']
+        if control in stab_controls_dict.keys():
             self.msg_if.pub_info("Setting stab control " + str(control) + " : " + str(value))
-            stab_settings_dict[control] = value
-            self.stab_processes_dict[self.selected_stab_process] = stab_settings_dict
+            stab_controls_dict[control] = value
+            self.stab_processes_dict[stab_process]['stab_controls_dict'] = stab_controls_dict
             self.publish_status()
             if self.node_if is not None:
                 self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
@@ -2881,14 +2888,7 @@ class NepiPanTiltAutoApp(object):
 
   def publishStatusCb(self,timer):
 
-    if self.pt_connect_if is not None:
-        limits = self.pt_connect_if.get_pan_tilt_soft_limits()
-        #self.msg_if.pub_warn("setting scan limits: " + str(limits))
-        if limits is not None:
-            self.min_pan_softstop_deg = round(limits[0], 0) + self.LIMIT_PADDING
-            self.max_pan_softstop_deg = round(limits[1], 0) - self.LIMIT_PADDING
-            self.min_tilt_softstop_deg = round(limits[2], 0) + self.LIMIT_PADDING
-            self.max_tilt_softstop_deg = round(limits[3], 0) - self.LIMIT_PADDING
+
     self.publish_status()
 
 
@@ -3038,12 +3038,16 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.stab_pan_dps = self.stab_data_dict['stab_pan_dps']
     self.status_msg.stab_pan_adj = self.stab_data_dict['stab_pan_adj']
     self.status_msg.stab_pan_goal = self.stab_data_dict['stab_pan_goal']
+    self.status_msg.stab_pan_pos_rate = self.stab_data_dict['stab_pan_pos_rate']
+    self.status_msg.stab_pan_vel_rate = self.stab_data_dict['stab_pan_vel_rate']
     
 
     self.status_msg.stab_tilt_deg = self.stab_data_dict['stab_tilt_deg']
     self.status_msg.stab_tilt_dps = self.stab_data_dict['stab_tilt_dps']
     self.status_msg.stab_tilt_adj = self.stab_data_dict['stab_tilt_adj']
     self.status_msg.stab_tilt_goal = self.stab_data_dict['stab_tilt_goal']
+    self.status_msg.stab_tilt_pos_rate = self.stab_data_dict['stab_tilt_pos_rate']
+    self.status_msg.stab_tilt_vel_rate = self.stab_data_dict['stab_tilt_vel_rate']
     
 
 
@@ -3338,6 +3342,13 @@ class NepiPanTiltAutoApp(object):
     ####################
     #### Connect if needed
     needs_connect = False
+    if source_topic == 'None':
+        for source in avail_sources:
+            if self.STAB_DEFAULT_SOURCE in source:
+                source_topic = source
+                self.selected_stab_source = source_topic
+
+        
     cur_namespace = self.stab_source_connected_namespace
     if (source_topic != cur_namespace and source_topic in avail_stab_sources and source_topic != 'None'):
         if (self.stab_source_connected == False and self.stab_source_connecting == False):
@@ -3465,9 +3476,12 @@ class NepiPanTiltAutoApp(object):
     #self.msg_if.pub_warn("******")
     #self.msg_if.pub_warn("*** Stabs Process Update Starting ***")
     #self.msg_if.pub_warn("******")
+    
     start_time = nepi_utils.get_time()
+
     selected_stab_process = copy.deepcopy(self.selected_stab_process)
     stab_settings_dict = copy.deepcopy(self.stab_processes_dict[selected_stab_process])
+
     self.stab_dict_lock.acquire()
     stab_data_dict_last = copy.deepcopy(self.stab_data_dict)
     stab_data_dict = copy.deepcopy(self.stab_data_dict)
@@ -3477,24 +3491,14 @@ class NepiPanTiltAutoApp(object):
     source_dict = self.stab_source_dict
     self.stab_source_lock.release()
 
-    num_avg = stab_settings_dict['stab_num_avg']
-
     if source_dict is not None:
 
-
+        #############################
+        # Update Time Data
+        #############################
         cur_time = nepi_utils.get_time()
         stab_data_dict['data_time'] = cur_time
         stab_data_dict['process_time'] = cur_time
-            
-        heading_deg = 0.0
-        # if msg.heading_deg != -999:
-        #     heading_deg = msg.heading_deg
-        stab_data_dict['heading_deg'] = heading_deg
-        
-        [roll_deg,pitch_deg] = [source_dict['roll_deg'],source_dict['pitch_deg']]
-        stab_data_dict['roll_deg'] = roll_deg
-        stab_data_dict['pitch_deg'] = pitch_deg
-
         last_time = copy.deepcopy(stab_data_dict['last_stab_time'])
                     
         if last_time is None or stab_data_dict_last is None:
@@ -3502,12 +3506,12 @@ class NepiPanTiltAutoApp(object):
                 self.msg_if.pub_warn("Stab process got bad data: " + str(stab_data_dict_last) )
                 pass
         else:
-
             delta_time = nepi_utils.get_time() - last_time
-
+            
 
             #############################
             # Update Pan Tilt Data
+            #############################
             [pan_deg,tilt_deg] = [0,0]
             if self.pt_connect_if is not None:
                 [pan_deg,tilt_deg] = self.pt_connect_if.get_pan_tilt_position()
@@ -3533,8 +3537,15 @@ class NepiPanTiltAutoApp(object):
                 self.stab_data_dict = stab_data_dict
                 self.stab_dict_lock.release()
 
+
             #############################
             # Update Nav Data
+            #############################
+            num_avg = stab_settings_dict['stab_num_avg']
+
+            [roll_deg,pitch_deg] = [source_dict['roll_deg'],source_dict['pitch_deg']]
+            stab_data_dict['roll_deg'] = roll_deg
+            stab_data_dict['pitch_deg'] = pitch_deg
 
             roll_dps = (stab_data_dict['roll_deg'] - stab_data_dict_last['roll_deg']) / delta_time
             rolls_dps = stab_data_dict['rolls_dps']
@@ -3550,6 +3561,13 @@ class NepiPanTiltAutoApp(object):
             pitchs_dps.append(pitch_dps)
             stab_data_dict['pitch_dps'] =  sum(pitchs_dps) / len(pitchs_dps)
 
+
+            heading_deg = 0.0
+            if 'heading_deg' in source_dict.keys():
+                if source_dict['heading_deg'] != -999:
+                    heading_deg = source_dict['heading_deg']
+            stab_data_dict['heading_deg'] = heading_deg
+
             heading_dps = (stab_data_dict['heading_deg'] - stab_data_dict_last['heading_deg']) / delta_time
             headings_dps = stab_data_dict['headings_dps']
             if (len(headings_dps) >= num_avg):
@@ -3560,10 +3578,9 @@ class NepiPanTiltAutoApp(object):
 
             ##########################
             # Calculate pan tilt adjustments
-            pan_radians = np.radians(pan_deg)
-            tilt_radians = np.radians(tilt_deg)
+            ##########################
+            ## Transpose Source Frame Nav to Pan Tilt Frame
             rpy_vector = [roll_deg, -1 * pitch_deg, heading_deg ]
-            
             if -999 not in rpy_vector:
                 [ar,ap,ay] = rpy_vector
                 #self.msg_if.pub_warn("Stabs rpy input: " + str([ar,ap,ay]))
@@ -3574,44 +3591,41 @@ class NepiPanTiltAutoApp(object):
                 [ar,ap,ay] = [arp,app,ayp]
                 #self.msg_if.pub_warn("Stabs rpy at pan: " + str(pan_deg) + " : " + str([ar,ap,ay]))
 
-
-
-                stab_data_dict['heading_dps'] = 0
-
                 
-                ####
+                ## Calculate Pan Adjustment
                 p_adj = 0 #####
                 pan_adjs = stab_data_dict['stab_pan_adjs']
                 if (len(pan_adjs) >= num_avg):
                     pan_adjs.pop(0)
                 pan_adjs.append(p_adj)
                 pan_adj =  sum(pan_adjs) / len(pan_adjs)
-                
-                ####
+                stab_data_dict['stab_pan_adjs'] = pan_adjs
+                stab_data_dict['stab_pan_adj'] = pan_adj                
+                self.stab_pan_adj = pan_adj
 
+
+                ## Calculate Tilt Adjustment
                 t_adj = ap
-                
                 tilt_adjs = stab_data_dict['stab_tilt_adjs']
                 if (len(tilt_adjs) >= num_avg):
                     tilt_adjs.pop(0)
                 tilt_adjs.append(t_adj)
                 tilt_adj =  sum(tilt_adjs) / len(tilt_adjs)
-                # tilt_adj = t_adj
 
-                stab_data_dict['stab_pan_adjs'] = pan_adjs
-                stab_data_dict['stab_pan_adj'] = pan_adj
                 stab_data_dict['stab_tilt_adjs'] = tilt_adjs 
                 stab_data_dict['stab_tilt_adj'] = tilt_adj  
-
-                self.stab_pan_adj = pan_adj
                 self.stab_tilt_adj = tilt_adj
+
                 #self.msg_if.pub_warn("Stabs pan tilt adj: " + str([pan_adj,tilt_adj]))
 
 
             ##########################
             # Run Stab Process
+            ##########################
             if self.stab_process_ready == True and self.pt_connected == True and self.pan_tilt_max_speed_dps != -999:
-                
+                # self.stab_count += 1
+                # self.msg_if.pub_warn("Stab_count: " + str(self.stab_count))                 
+
                 stab_pan_enabled = self.stab_pan_enabled == True and self.pan_track_hold == False
                 stab_tilt_enabled = self.stab_tilt_enabled == True and self.tilt_track_hold == False
 
@@ -3623,8 +3637,10 @@ class NepiPanTiltAutoApp(object):
                                                                                         stab_settings_dict, 
                                                                                         self.goto_position,
                                                                                         stab_pan_enabled, 
-                                                                                        stab_tilt_enabled
-                                                                                        )
+                                                                                        stab_tilt_enabled)
+                    
+    ##########################
+    # Update stab settings and data dictionaries                                                                    
     #self.msg_if.pub_warn("Stabs update process complete", throttle_s=1)           
     stab_data_dict['last_stab_time'] = nepi_utils.get_time()
     self.stab_processes_dict[selected_stab_process] = stab_settings_dict
@@ -3632,11 +3648,14 @@ class NepiPanTiltAutoApp(object):
     self.stab_data_dict = stab_data_dict
     self.stab_dict_lock.release()
 
+    ##########################
+    # Setup next process time  
     stop_time = nepi_utils.get_time()
     stab_update_rate = stab_settings_dict['stab_update_rate']
     stab_update_time = float(1)/stab_update_rate - (stop_time - start_time)
-    if stab_update_time < 0.1:
-        stab_update_time = 0.1
+    if stab_update_time < 0.01:
+        stab_update_time = 0.01
+
     nepi_sdk.start_timer_process(stab_update_time, self.updaterStabSolutionCb, oneshot = True) 
 
 
