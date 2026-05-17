@@ -1650,7 +1650,8 @@ class NepiPanTiltAutoApp(object):
             self.stab_pan_speed_start = self.pan_speed_ratio
             if self.scan_pan_enabled == False and self.pt_connect_if is not None:
                 pt_status_msg = self.pt_connect_if.get_status_msg()
-                self.goto_position[0] = pt_status_msg.pan_goal_deg
+                if pt_status_msg is not None:
+                    self.goto_position[0] = pt_status_msg.pan_goal_deg
             
         elif self.pt_connect_if is not None:
             self.pt_connect_if.set_pan_speed_ratio(self.stab_pan_speed_start)
@@ -1682,7 +1683,8 @@ class NepiPanTiltAutoApp(object):
             self.stab_tilt_speed_start = self.tilt_speed_ratio
             if self.scan_tilt_enabled == False and self.pt_connect_if is not None:
                 pt_status_msg = self.pt_connect_if.get_status_msg()
-                self.goto_position[1] = pt_status_msg.tilt_goal_deg
+                if pt_status_msg is not None:
+                    self.goto_position[1] = pt_status_msg.tilt_goal_deg
             
         elif self.pt_connect_if is not None:
             self.pt_connect_if.set_tilt_speed_ratio(self.stab_tilt_speed_start)

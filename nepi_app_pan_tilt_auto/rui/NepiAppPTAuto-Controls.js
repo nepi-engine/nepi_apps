@@ -1274,7 +1274,7 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
         <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
-            <Label title={'Select Targets'}>
+            <Label title={'Select Source'}>
               <Select
                 id="set_targets_topic"
                 onChange={this.onMenuSelection}
@@ -1544,8 +1544,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const stab_tilt_goal = status_msg.stab_tilt_goal
     const stab_tilt_dps = status_msg.stab_tilt_dps
 
-    const stab_pan_pos_rate = status_msg.stab_tilt_pos_rate
-    const stab_pan_vel_rate = status_msg.stab_tilt_vel_rate
+    const stab_pan_pos_rate = status_msg.stab_pan_pos_rate
+    const stab_pan_vel_rate = status_msg.stab_pan_vel_rate
     const stab_tilt_pos_rate = status_msg.stab_tilt_pos_rate
     const stab_tilt_vel_rate = status_msg.stab_tilt_vel_rate
 
