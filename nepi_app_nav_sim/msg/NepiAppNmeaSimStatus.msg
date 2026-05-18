@@ -1,0 +1,25 @@
+# NMEA Sim Instance Status
+
+bool nmea_sim_enabled
+bool nmea_connected
+int32 nmea_port
+float64 nmea_latitude
+float64 nmea_longitude
+float32 nmea_altitude_m
+float32 nmea_heading_deg
+float32 nmea_speed_ms
+bool enable_move_nmea_latitude
+float32 move_step_nmea_latitude
+float32 move_rate_hz_nmea_latitude
+bool enable_move_nmea_longitude
+float32 move_step_nmea_longitude
+float32 move_rate_hz_nmea_longitude
+bool enable_move_nmea_altitude_m
+float32 move_step_nmea_altitude_m
+float32 move_rate_hz_nmea_altitude_m
+bool enable_move_nmea_heading_deg
+float32 move_step_nmea_heading_deg
+float32 move_rate_hz_nmea_heading_deg
+bool enable_move_nmea_speed_ms
+float32 move_step_nmea_speed_ms
+float32 move_rate_hz_nmea_speed_ms

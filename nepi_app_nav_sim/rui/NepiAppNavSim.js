@@ -6,7 +6,7 @@
 # (see https://github.com/nepi-engine/nepi_apps)
 #
 # License: NEPI RUI repo source-code and NEPI Images that use this source-code
-# are licensed under the "Numurus Software License", 
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
 # Redistributions in source code must retain this top-level comment block.
@@ -44,6 +44,7 @@ class NepiAppNavSim extends Component {
       appName: "app_nav_sim",
       appNamespace: null,
 
+      // NMEA status fields (filled by nmeaStatusListener)
       nmea_sim_enabled: false,
       nmea_connected:   false,
       nmea_port:        50000,
@@ -53,6 +54,7 @@ class NepiAppNavSim extends Component {
       nmea_heading_deg: 0.0,
       nmea_speed_ms:    0.0,
 
+      // HNav status fields (filled by hnavStatusListener)
       hnav_sim_enabled: false,
       hnav_connected:   false,
       hnav_port:        16718,
@@ -82,12 +84,14 @@ class NepiAppNavSim extends Component {
       hnavPitchInput:   "0.0",
       hnavSpeedInput:   "0.0",
 
-      // Move enable booleans
+      // Move enable booleans (NMEA)
       enableMoveNmeaLat:     false,
       enableMoveNmeaLon:     false,
       enableMoveNmeaAlt:     false,
       enableMoveNmeaHeading: false,
       enableMoveNmeaSpeed:   false,
+
+      // Move enable booleans (HNav)
       enableMoveHnavLat:     false,
       enableMoveHnavLon:     false,
       enableMoveHnavAlt:     false,
@@ -97,12 +101,14 @@ class NepiAppNavSim extends Component {
       enableMoveHnavPitch:   false,
       enableMoveHnavSpeed:   false,
 
-      // Move step buffers
+      // Move step buffers (NMEA)
       nmeaLatStep:     "0.0",
       nmeaLonStep:     "0.0",
       nmeaAltStep:     "0.0",
       nmeaHeadingStep: "0.0",
       nmeaSpeedStep:   "0.0",
+
+      // Move step buffers (HNav)
       hnavLatStep:     "0.0",
       hnavLonStep:     "0.0",
       hnavAltStep:     "0.0",
@@ -112,12 +118,14 @@ class NepiAppNavSim extends Component {
       hnavPitchStep:   "0.0",
       hnavSpeedStep:   "0.0",
 
-      // Move rate buffers
+      // Move rate buffers (NMEA)
       nmeaLatRateHz:     "1.0",
       nmeaLonRateHz:     "1.0",
       nmeaAltRateHz:     "1.0",
       nmeaHeadingRateHz: "1.0",
       nmeaSpeedRateHz:   "1.0",
+
+      // Move rate buffers (HNav)
       hnavLatRateHz:     "1.0",
       hnavLonRateHz:     "1.0",
       hnavAltRateHz:     "1.0",
@@ -132,7 +140,7 @@ class NepiAppNavSim extends Component {
       enableStepHnavRoll:    false,
       enableStepHnavPitch:   false,
 
-      // Sin enable booleans (orientation fields only)
+      // Sin enable booleans
       enableSinHnavHeading: false,
       enableSinHnavRoll:    false,
       enableSinHnavPitch:   false,
@@ -157,22 +165,36 @@ class NepiAppNavSim extends Component {
       hnavRollSinSpread:    "0.5",
       hnavPitchSinSpread:   "0.5",
 
-      statusListener: null,
+      // Listeners
+      masterStatusListener: null,
+      nmeaStatusListener:   null,
+      hnavStatusListener:   null,
       connected: false,
+
+      // Instance management
+      nmeaInstanceNames:    ['nmea_0'],
+      selectedNmeaInstance: 'nmea_0',
+      nmeaRenameInput:      'nmea_0',
+      hnavInstanceNames:    ['hnav_0'],
+      selectedHnavInstance: 'hnav_0',
+      hnavRenameInput:      'hnav_0',
     }
 
     this.dirtyFields = new Set()
 
-    this.getAppNamespace      = this.getAppNamespace.bind(this)
-    this.statusListener       = this.statusListener.bind(this)
-    this.updateStatusListener = this.updateStatusListener.bind(this)
-    this.onToggleNmea         = this.onToggleNmea.bind(this)
-    this.onToggleHnav         = this.onToggleHnav.bind(this)
-    this.onPublishFloat       = this.onPublishFloat.bind(this)
-    this.renderInputRow       = this.renderInputRow.bind(this)
-    this.renderNmeaSide       = this.renderNmeaSide.bind(this)
-    this.renderHnavSide       = this.renderHnavSide.bind(this)
-    this.renderConfig         = this.renderConfig.bind(this)
+    this.getAppNamespace          = this.getAppNamespace.bind(this)
+    this.getNmeaInstanceNamespace = this.getNmeaInstanceNamespace.bind(this)
+    this.getHnavInstanceNamespace = this.getHnavInstanceNamespace.bind(this)
+    this.masterStatusListener     = this.masterStatusListener.bind(this)
+    this.nmeaStatusListener       = this.nmeaStatusListener.bind(this)
+    this.hnavStatusListener       = this.hnavStatusListener.bind(this)
+    this.updateMasterStatusListener = this.updateMasterStatusListener.bind(this)
+    this.updateNmeaStatusListener = this.updateNmeaStatusListener.bind(this)
+    this.updateHnavStatusListener = this.updateHnavStatusListener.bind(this)
+    this.renderInputRow           = this.renderInputRow.bind(this)
+    this.renderNmeaSide           = this.renderNmeaSide.bind(this)
+    this.renderHnavSide           = this.renderHnavSide.bind(this)
+    this.renderConfig             = this.renderConfig.bind(this)
   }
 
   getAppNamespace() {
@@ -183,79 +205,47 @@ class NepiAppNavSim extends Component {
     return null
   }
 
-  statusListener(message) {
+  getNmeaInstanceNamespace() {
+    const appNs = this.getAppNamespace()
+    if (appNs === null) return null
+    return appNs + '/nmea_instances/' + this.state.selectedNmeaInstance
+  }
+
+  getHnavInstanceNamespace() {
+    const appNs = this.getAppNamespace()
+    if (appNs === null) return null
+    return appNs + '/hnav_instances/' + this.state.selectedHnavInstance
+  }
+
+  masterStatusListener(message) {
+    const nmeaInstanceNames = Array.isArray(message.nmea_instance_names) && message.nmea_instance_names.length > 0
+      ? message.nmea_instance_names : ['nmea_0']
+    const hnavInstanceNames = Array.isArray(message.hnav_instance_names) && message.hnav_instance_names.length > 0
+      ? message.hnav_instance_names : ['hnav_0']
+    this.setState({ nmeaInstanceNames, hnavInstanceNames, connected: true })
+  }
+
+  nmeaStatusListener(message) {
     const s = {}
 
-    // Always sync enable-move flags from backend
     s.enableMoveNmeaLat     = message.enable_move_nmea_latitude
     s.enableMoveNmeaLon     = message.enable_move_nmea_longitude
     s.enableMoveNmeaAlt     = message.enable_move_nmea_altitude_m
     s.enableMoveNmeaHeading = message.enable_move_nmea_heading_deg
     s.enableMoveNmeaSpeed   = message.enable_move_nmea_speed_ms
-    s.enableMoveHnavLat     = message.enable_move_hnav_latitude
-    s.enableMoveHnavLon     = message.enable_move_hnav_longitude
-    s.enableMoveHnavAlt     = message.enable_move_hnav_altitude_m
-    s.enableMoveHnavDepth   = message.enable_move_hnav_depth_m
-    // Move gate is local for sin-capable rows — preserve it if user has opened it
-    s.enableMoveHnavHeading = message.enable_move_hnav_heading_deg || message.enable_sin_hnav_heading_deg || this.state.enableMoveHnavHeading
-    s.enableMoveHnavRoll    = message.enable_move_hnav_roll_deg    || message.enable_sin_hnav_roll_deg    || this.state.enableMoveHnavRoll
-    s.enableMoveHnavPitch   = message.enable_move_hnav_pitch_deg   || message.enable_sin_hnav_pitch_deg   || this.state.enableMoveHnavPitch
-    s.enableMoveHnavSpeed   = message.enable_move_hnav_speed_ms
 
-    // Step is active only when move is on AND sin is not (move also serves as sin's gate)
-    s.enableStepHnavHeading = message.enable_move_hnav_heading_deg && !message.enable_sin_hnav_heading_deg
-    s.enableStepHnavRoll    = message.enable_move_hnav_roll_deg    && !message.enable_sin_hnav_roll_deg
-    s.enableStepHnavPitch   = message.enable_move_hnav_pitch_deg   && !message.enable_sin_hnav_pitch_deg
-
-    // Always sync sin enable flags
-    s.enableSinHnavHeading  = message.enable_sin_hnav_heading_deg
-    s.enableSinHnavRoll     = message.enable_sin_hnav_roll_deg
-    s.enableSinHnavPitch    = message.enable_sin_hnav_pitch_deg
-    // Wave gate: preserve local state until backend confirms (same race as Move gate)
-    s.enableWaveHnavHeading = message.enable_wave_hnav_heading_deg || this.state.enableWaveHnavHeading
-    s.enableWaveHnavRoll    = message.enable_wave_hnav_roll_deg    || this.state.enableWaveHnavRoll
-    s.enableWaveHnavPitch   = message.enable_wave_hnav_pitch_deg   || this.state.enableWaveHnavPitch
-
-    // Sync secondary parameter buffers — skip any box the user is actively editing
     const d = this.dirtyFields
-    if (!d.has('nmeaLatStep'))           s.nmeaLatStep           = String(message.move_step_nmea_latitude)
-    if (!d.has('nmeaLatRateHz'))         s.nmeaLatRateHz         = String(message.move_rate_hz_nmea_latitude)
-    if (!d.has('nmeaLonStep'))           s.nmeaLonStep           = String(message.move_step_nmea_longitude)
-    if (!d.has('nmeaLonRateHz'))         s.nmeaLonRateHz         = String(message.move_rate_hz_nmea_longitude)
-    if (!d.has('nmeaAltStep'))           s.nmeaAltStep           = String(message.move_step_nmea_altitude_m)
-    if (!d.has('nmeaAltRateHz'))         s.nmeaAltRateHz         = String(message.move_rate_hz_nmea_altitude_m)
-    if (!d.has('nmeaHeadingStep'))       s.nmeaHeadingStep       = String(message.move_step_nmea_heading_deg)
-    if (!d.has('nmeaHeadingRateHz'))     s.nmeaHeadingRateHz     = String(message.move_rate_hz_nmea_heading_deg)
-    if (!d.has('nmeaSpeedStep'))         s.nmeaSpeedStep         = String(message.move_step_nmea_speed_ms)
-    if (!d.has('nmeaSpeedRateHz'))       s.nmeaSpeedRateHz       = String(message.move_rate_hz_nmea_speed_ms)
-    if (!d.has('hnavLatStep'))           s.hnavLatStep           = String(message.move_step_hnav_latitude)
-    if (!d.has('hnavLatRateHz'))         s.hnavLatRateHz         = String(message.move_rate_hz_hnav_latitude)
-    if (!d.has('hnavLonStep'))           s.hnavLonStep           = String(message.move_step_hnav_longitude)
-    if (!d.has('hnavLonRateHz'))         s.hnavLonRateHz         = String(message.move_rate_hz_hnav_longitude)
-    if (!d.has('hnavAltStep'))           s.hnavAltStep           = String(message.move_step_hnav_altitude_m)
-    if (!d.has('hnavAltRateHz'))         s.hnavAltRateHz         = String(message.move_rate_hz_hnav_altitude_m)
-    if (!d.has('hnavDepthStep'))         s.hnavDepthStep         = String(message.move_step_hnav_depth_m)
-    if (!d.has('hnavDepthRateHz'))       s.hnavDepthRateHz       = String(message.move_rate_hz_hnav_depth_m)
-    if (!d.has('hnavHeadingStep'))       s.hnavHeadingStep       = String(message.move_step_hnav_heading_deg)
-    if (!d.has('hnavHeadingRateHz'))     s.hnavHeadingRateHz     = String(message.move_rate_hz_hnav_heading_deg)
-    if (!d.has('hnavRollStep'))          s.hnavRollStep          = String(message.move_step_hnav_roll_deg)
-    if (!d.has('hnavRollRateHz'))        s.hnavRollRateHz        = String(message.move_rate_hz_hnav_roll_deg)
-    if (!d.has('hnavPitchStep'))         s.hnavPitchStep         = String(message.move_step_hnav_pitch_deg)
-    if (!d.has('hnavPitchRateHz'))       s.hnavPitchRateHz       = String(message.move_rate_hz_hnav_pitch_deg)
-    if (!d.has('hnavSpeedStep'))         s.hnavSpeedStep         = String(message.move_step_hnav_speed_ms)
-    if (!d.has('hnavSpeedRateHz'))       s.hnavSpeedRateHz       = String(message.move_rate_hz_hnav_speed_ms)
-    if (!d.has('hnavHeadingSinAmp'))      s.hnavHeadingSinAmp      = String(message.sin_amplitude_hnav_heading_deg)
-    if (!d.has('hnavHeadingSinPeriodS'))  s.hnavHeadingSinPeriodS  = String(message.sin_period_s_hnav_heading_deg)
-    if (!d.has('hnavHeadingSinSpread'))   s.hnavHeadingSinSpread   = String(message.sin_spread_hnav_heading_deg)
-    if (!d.has('hnavRollSinAmp'))         s.hnavRollSinAmp         = String(message.sin_amplitude_hnav_roll_deg)
-    if (!d.has('hnavRollSinPeriodS'))     s.hnavRollSinPeriodS     = String(message.sin_period_s_hnav_roll_deg)
-    if (!d.has('hnavRollSinSpread'))      s.hnavRollSinSpread      = String(message.sin_spread_hnav_roll_deg)
-    if (!d.has('hnavPitchSinAmp'))        s.hnavPitchSinAmp        = String(message.sin_amplitude_hnav_pitch_deg)
-    if (!d.has('hnavPitchSinPeriodS'))    s.hnavPitchSinPeriodS    = String(message.sin_period_s_hnav_pitch_deg)
-    if (!d.has('hnavPitchSinSpread'))     s.hnavPitchSinSpread     = String(message.sin_spread_hnav_pitch_deg)
+    if (!d.has('nmeaLatStep'))       s.nmeaLatStep       = String(message.move_step_nmea_latitude)
+    if (!d.has('nmeaLatRateHz'))     s.nmeaLatRateHz     = String(message.move_rate_hz_nmea_latitude)
+    if (!d.has('nmeaLonStep'))       s.nmeaLonStep       = String(message.move_step_nmea_longitude)
+    if (!d.has('nmeaLonRateHz'))     s.nmeaLonRateHz     = String(message.move_rate_hz_nmea_longitude)
+    if (!d.has('nmeaAltStep'))       s.nmeaAltStep       = String(message.move_step_nmea_altitude_m)
+    if (!d.has('nmeaAltRateHz'))     s.nmeaAltRateHz     = String(message.move_rate_hz_nmea_altitude_m)
+    if (!d.has('nmeaHeadingStep'))   s.nmeaHeadingStep   = String(message.move_step_nmea_heading_deg)
+    if (!d.has('nmeaHeadingRateHz')) s.nmeaHeadingRateHz = String(message.move_rate_hz_nmea_heading_deg)
+    if (!d.has('nmeaSpeedStep'))     s.nmeaSpeedStep     = String(message.move_step_nmea_speed_ms)
+    if (!d.has('nmeaSpeedRateHz'))   s.nmeaSpeedRateHz   = String(message.move_rate_hz_nmea_speed_ms)
 
-    // Sync main input buffers from server; skip if user is actively editing (dirty),
-    // but always sync when Move is on (box is read-only, server is driving the value).
     const syncBuf = (key, val, moveEnabled) => {
       if (moveEnabled || !this.dirtyFields.has(key)) s[key] = val
     }
@@ -264,6 +254,70 @@ class NepiAppNavSim extends Component {
     syncBuf('nmeaAltInput',     message.nmea_altitude_m.toFixed(1), s.enableMoveNmeaAlt)
     syncBuf('nmeaHeadingInput', message.nmea_heading_deg.toFixed(1),s.enableMoveNmeaHeading)
     syncBuf('nmeaSpeedInput',   message.nmea_speed_ms.toFixed(2),   s.enableMoveNmeaSpeed)
+
+    this.setState({
+      nmea_sim_enabled: message.nmea_sim_enabled,
+      nmea_connected:   message.nmea_connected,
+      nmea_port:        message.nmea_port,
+      ...s,
+    })
+  }
+
+  hnavStatusListener(message) {
+    const s = {}
+
+    s.enableMoveHnavLat   = message.enable_move_hnav_latitude
+    s.enableMoveHnavLon   = message.enable_move_hnav_longitude
+    s.enableMoveHnavAlt   = message.enable_move_hnav_altitude_m
+    s.enableMoveHnavDepth = message.enable_move_hnav_depth_m
+    // Preserve local gate for sin-capable rows during the race window
+    s.enableMoveHnavHeading = message.enable_move_hnav_heading_deg || message.enable_sin_hnav_heading_deg || this.state.enableMoveHnavHeading
+    s.enableMoveHnavRoll    = message.enable_move_hnav_roll_deg    || message.enable_sin_hnav_roll_deg    || this.state.enableMoveHnavRoll
+    s.enableMoveHnavPitch   = message.enable_move_hnav_pitch_deg   || message.enable_sin_hnav_pitch_deg   || this.state.enableMoveHnavPitch
+    s.enableMoveHnavSpeed   = message.enable_move_hnav_speed_ms
+
+    s.enableStepHnavHeading = message.enable_move_hnav_heading_deg && !message.enable_sin_hnav_heading_deg
+    s.enableStepHnavRoll    = message.enable_move_hnav_roll_deg    && !message.enable_sin_hnav_roll_deg
+    s.enableStepHnavPitch   = message.enable_move_hnav_pitch_deg   && !message.enable_sin_hnav_pitch_deg
+
+    s.enableSinHnavHeading  = message.enable_sin_hnav_heading_deg
+    s.enableSinHnavRoll     = message.enable_sin_hnav_roll_deg
+    s.enableSinHnavPitch    = message.enable_sin_hnav_pitch_deg
+    // Wave gate: preserve until backend confirms
+    s.enableWaveHnavHeading = message.enable_wave_hnav_heading_deg || this.state.enableWaveHnavHeading
+    s.enableWaveHnavRoll    = message.enable_wave_hnav_roll_deg    || this.state.enableWaveHnavRoll
+    s.enableWaveHnavPitch   = message.enable_wave_hnav_pitch_deg   || this.state.enableWaveHnavPitch
+
+    const d = this.dirtyFields
+    if (!d.has('hnavLatStep'))          s.hnavLatStep          = String(message.move_step_hnav_latitude)
+    if (!d.has('hnavLatRateHz'))        s.hnavLatRateHz        = String(message.move_rate_hz_hnav_latitude)
+    if (!d.has('hnavLonStep'))          s.hnavLonStep          = String(message.move_step_hnav_longitude)
+    if (!d.has('hnavLonRateHz'))        s.hnavLonRateHz        = String(message.move_rate_hz_hnav_longitude)
+    if (!d.has('hnavAltStep'))          s.hnavAltStep          = String(message.move_step_hnav_altitude_m)
+    if (!d.has('hnavAltRateHz'))        s.hnavAltRateHz        = String(message.move_rate_hz_hnav_altitude_m)
+    if (!d.has('hnavDepthStep'))        s.hnavDepthStep        = String(message.move_step_hnav_depth_m)
+    if (!d.has('hnavDepthRateHz'))      s.hnavDepthRateHz      = String(message.move_rate_hz_hnav_depth_m)
+    if (!d.has('hnavHeadingStep'))      s.hnavHeadingStep      = String(message.move_step_hnav_heading_deg)
+    if (!d.has('hnavHeadingRateHz'))    s.hnavHeadingRateHz    = String(message.move_rate_hz_hnav_heading_deg)
+    if (!d.has('hnavRollStep'))         s.hnavRollStep         = String(message.move_step_hnav_roll_deg)
+    if (!d.has('hnavRollRateHz'))       s.hnavRollRateHz       = String(message.move_rate_hz_hnav_roll_deg)
+    if (!d.has('hnavPitchStep'))        s.hnavPitchStep        = String(message.move_step_hnav_pitch_deg)
+    if (!d.has('hnavPitchRateHz'))      s.hnavPitchRateHz      = String(message.move_rate_hz_hnav_pitch_deg)
+    if (!d.has('hnavSpeedStep'))        s.hnavSpeedStep        = String(message.move_step_hnav_speed_ms)
+    if (!d.has('hnavSpeedRateHz'))      s.hnavSpeedRateHz      = String(message.move_rate_hz_hnav_speed_ms)
+    if (!d.has('hnavHeadingSinAmp'))    s.hnavHeadingSinAmp    = String(message.sin_amplitude_hnav_heading_deg)
+    if (!d.has('hnavHeadingSinPeriodS'))s.hnavHeadingSinPeriodS= String(message.sin_period_s_hnav_heading_deg)
+    if (!d.has('hnavHeadingSinSpread')) s.hnavHeadingSinSpread = String(message.sin_spread_hnav_heading_deg)
+    if (!d.has('hnavRollSinAmp'))       s.hnavRollSinAmp       = String(message.sin_amplitude_hnav_roll_deg)
+    if (!d.has('hnavRollSinPeriodS'))   s.hnavRollSinPeriodS   = String(message.sin_period_s_hnav_roll_deg)
+    if (!d.has('hnavRollSinSpread'))    s.hnavRollSinSpread    = String(message.sin_spread_hnav_roll_deg)
+    if (!d.has('hnavPitchSinAmp'))      s.hnavPitchSinAmp      = String(message.sin_amplitude_hnav_pitch_deg)
+    if (!d.has('hnavPitchSinPeriodS'))  s.hnavPitchSinPeriodS  = String(message.sin_period_s_hnav_pitch_deg)
+    if (!d.has('hnavPitchSinSpread'))   s.hnavPitchSinSpread   = String(message.sin_spread_hnav_pitch_deg)
+
+    const syncBuf = (key, val, moveEnabled) => {
+      if (moveEnabled || !this.dirtyFields.has(key)) s[key] = val
+    }
     syncBuf('hnavLatInput',     message.hnav_latitude.toFixed(6),   s.enableMoveHnavLat)
     syncBuf('hnavLonInput',     message.hnav_longitude.toFixed(6),  s.enableMoveHnavLon)
     syncBuf('hnavAltInput',     message.hnav_altitude_m.toFixed(1), s.enableMoveHnavAlt)
@@ -274,67 +328,84 @@ class NepiAppNavSim extends Component {
     syncBuf('hnavSpeedInput',   message.hnav_speed_ms.toFixed(2),   s.enableMoveHnavSpeed)
 
     this.setState({
-      nmea_sim_enabled: message.nmea_sim_enabled,
-      nmea_connected:   message.nmea_connected,
-      nmea_port:        message.nmea_port,
       hnav_sim_enabled: message.hnav_sim_enabled,
       hnav_connected:   message.hnav_connected,
       hnav_port:        message.hnav_port,
-      connected: true,
       ...s,
     })
   }
 
-  updateStatusListener(namespace) {
-    const statusNamespace = namespace + '/status'
-    if (this.state.statusListener) {
-      this.state.statusListener.unsubscribe()
+  updateMasterStatusListener(appNamespace) {
+    if (this.state.masterStatusListener) {
+      this.state.masterStatusListener.unsubscribe()
     }
-    const statusListener = this.props.ros.setupStatusListener(
-      statusNamespace,
-      "nepi_app_nav_sim/NepiAppNavSimStatus",
-      this.statusListener
+    const masterStatusListener = this.props.ros.setupStatusListener(
+      appNamespace + '/status',
+      "nepi_app_nav_sim/NepiAppNavSimMasterStatus",
+      this.masterStatusListener
     )
-    this.setState({ appNamespace: namespace, statusListener })
+    this.setState({ masterStatusListener })
+  }
+
+  updateNmeaStatusListener(nmeaInstanceNs) {
+    if (this.state.nmeaStatusListener) {
+      this.state.nmeaStatusListener.unsubscribe()
+    }
+    const nmeaStatusListener = this.props.ros.setupStatusListener(
+      nmeaInstanceNs + '/status',
+      "nepi_app_nav_sim/NepiAppNmeaSimStatus",
+      this.nmeaStatusListener
+    )
+    this.setState({ nmeaStatusListener })
+  }
+
+  updateHnavStatusListener(hnavInstanceNs) {
+    if (this.state.hnavStatusListener) {
+      this.state.hnavStatusListener.unsubscribe()
+    }
+    const hnavStatusListener = this.props.ros.setupStatusListener(
+      hnavInstanceNs + '/status',
+      "nepi_app_nav_sim/NepiAppHNavSimStatus",
+      this.hnavStatusListener
+    )
+    this.setState({ hnavStatusListener })
   }
 
   componentDidMount() {
     const namespace = this.getAppNamespace()
     if (namespace !== null) {
-      this.updateStatusListener(namespace)
+      this.setState({ appNamespace: namespace })
+      this.updateMasterStatusListener(namespace)
+      this.updateNmeaStatusListener(namespace + '/nmea_instances/' + this.state.selectedNmeaInstance)
+      this.updateHnavStatusListener(namespace + '/hnav_instances/' + this.state.selectedHnavInstance)
     }
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps, prevState) {
     const namespace = this.getAppNamespace()
     const updated = this.state.appNamespace !== namespace && namespace !== null
     if (updated && namespace.indexOf('null') === -1) {
-      this.updateStatusListener(namespace)
+      this.setState({ appNamespace: namespace })
+      this.updateMasterStatusListener(namespace)
+      this.updateNmeaStatusListener(namespace + '/nmea_instances/' + this.state.selectedNmeaInstance)
+      this.updateHnavStatusListener(namespace + '/hnav_instances/' + this.state.selectedHnavInstance)
+    }
+    if (prevState.selectedNmeaInstance !== this.state.selectedNmeaInstance) {
+      this.setState({ nmeaRenameInput: this.state.selectedNmeaInstance })
+    }
+    if (prevState.selectedHnavInstance !== this.state.selectedHnavInstance) {
+      this.setState({ hnavRenameInput: this.state.selectedHnavInstance })
     }
   }
 
   componentWillUnmount() {
-    if (this.state.statusListener) {
-      this.state.statusListener.unsubscribe()
-    }
+    if (this.state.masterStatusListener) this.state.masterStatusListener.unsubscribe()
+    if (this.state.nmeaStatusListener)   this.state.nmeaStatusListener.unsubscribe()
+    if (this.state.hnavStatusListener)   this.state.hnavStatusListener.unsubscribe()
   }
 
-  onToggleNmea() {
-    const { sendBoolMsg } = this.props.ros
-    sendBoolMsg(this.getAppNamespace() + '/set_nmea_enabled', !this.state.nmea_sim_enabled)
-  }
-
-  onToggleHnav() {
-    const { sendBoolMsg } = this.props.ros
-    sendBoolMsg(this.getAppNamespace() + '/set_hnav_enabled', !this.state.hnav_sim_enabled)
-  }
-
-  onPublishFloat(topicSuffix, value) {
-    const { sendFloatMsg } = this.props.ros
-    sendFloatMsg(this.getAppNamespace() + '/' + topicSuffix, value)
-  }
-
-  renderInputRow(label, bufKey, topicSuffix, disabled,
+  // instanceNs: the per-instance namespace to route all set_* topics through
+  renderInputRow(label, bufKey, topicSuffix, disabled, instanceNs,
                  moveStateKey, stepBufKey, rateBufKey, moveTopicBase,
                  sinStateKey, sinAmpBufKey, sinPeriodBufKey, sinTopicBase,
                  stepStateKey,
@@ -343,15 +414,13 @@ class NepiAppNavSim extends Component {
     const enableMove = this.state[moveStateKey]
     const hasSin     = sinStateKey != null
     const hasWave    = hasSin && waveStateKey != null
-    // For sin-capable rows, Step is a sub-toggle; for non-sin rows, Step == Move
     const enableStep = hasSin
       ? (stepStateKey != null && !!this.state[stepStateKey])
       : enableMove
     const enableSin  = hasSin && !!this.state[sinStateKey]
     const enableWave = hasWave && !!this.state[waveStateKey]
-    // Box is locked (orange, read-only) when the field is actively being driven
-    const isLocked = hasSin ? (enableStep || enableSin) : enableMove
-    const ns = this.getAppNamespace()
+    const isLocked   = hasSin ? (enableStep || enableSin) : enableMove
+    const ns         = instanceNs
 
     const labelStyle = { fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }
 
@@ -374,7 +443,7 @@ class NepiAppNavSim extends Component {
               this.dirtyFields.delete(bufKey)
               const el = document.getElementById(bufKey)
               clearElementStyleModified(el)
-              this.onPublishFloat(topicSuffix, this.state[bufKey])
+              sendFloatMsg(ns + '/' + topicSuffix, this.state[bufKey])
             }
           }}
           readOnly={isLocked}
@@ -387,13 +456,11 @@ class NepiAppNavSim extends Component {
             checked={enableMove}
             onChange={() => {
               if (!enableMove) {
-                // Opening: non-sin rows send backend command immediately; sin rows are local-only
                 if (!hasSin) sendBoolMsg(ns + '/set_enable_move_' + moveTopicBase, true)
                 this.setState({ [moveStateKey]: true })
               } else {
-                // Closing: stop whatever is running on the backend
                 if (enableStep || enableSin) sendBoolMsg(ns + '/set_enable_move_' + moveTopicBase, false)
-                if (enableSin)  sendBoolMsg(ns + '/set_enable_sin_'  + sinTopicBase,  false)
+                if (enableSin) sendBoolMsg(ns + '/set_enable_sin_' + sinTopicBase, false)
                 const update = { [moveStateKey]: false }
                 if (stepStateKey) update[stepStateKey] = false
                 if (sinStateKey)  update[sinStateKey]  = false
@@ -404,7 +471,7 @@ class NepiAppNavSim extends Component {
           />
           <span style={{ fontSize: 11, color: '#aaa' }}>Auto</span>
         </div>
-        {/* Step group: toggle + boxes inline; hidden when Sin is active */}
+        {/* Step group */}
         {(hasSin ? (enableMove && !enableSin) : enableMove) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {hasSin && (
@@ -475,7 +542,7 @@ class NepiAppNavSim extends Component {
             </div>
           </div>
         )}
-        {/* Sin group: toggle + sub-mode + boxes; hidden when Step is active */}
+        {/* Sin group */}
         {enableMove && hasSin && !enableStep && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -499,7 +566,6 @@ class NepiAppNavSim extends Component {
               />
               <span style={{ fontSize: 11, color: '#aaa' }}>Sin</span>
             </div>
-            {/* Sub-mode: Sine | Wave */}
             {hasWave && (
               <React.Fragment>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -533,7 +599,6 @@ class NepiAppNavSim extends Component {
                 </div>
               </React.Fragment>
             )}
-            {/* Shared sin params */}
             <div>
               <span style={labelStyle}>Amp (°)</span>
               <Input
@@ -582,7 +647,6 @@ class NepiAppNavSim extends Component {
                 style={{ width: 70 }}
               />
             </div>
-            {/* Wave-only: Spread */}
             {enableWave && (
               <div>
                 <span style={labelStyle}>Spread</span>
@@ -616,8 +680,11 @@ class NepiAppNavSim extends Component {
   }
 
   renderNmeaSide() {
-    const { connected, nmea_sim_enabled, nmea_connected, nmea_port } = this.state
+    const { connected, nmea_sim_enabled, nmea_connected, nmea_port,
+            nmeaInstanceNames, selectedNmeaInstance, nmeaRenameInput } = this.state
     const dis = !connected
+    const ns  = this.getNmeaInstanceNamespace()
+    const { sendBoolMsg, sendFloatMsg, sendStringMsg, sendUpdateStringMsg } = this.props.ros
 
     const dotColor = nmea_connected ? '#00cc44' : (nmea_sim_enabled ? '#ff9900' : '#555')
     const dotTitle = nmea_connected ? "Client connected"
@@ -626,7 +693,11 @@ class NepiAppNavSim extends Component {
       display: 'inline-block', width: 10, height: 10,
       borderRadius: '50%', backgroundColor: dotColor, marginLeft: 8,
     }
-
+    const selectStyle = {
+      backgroundColor: '#333', color: '#ddd',
+      border: '1px solid #555', borderRadius: 3,
+      padding: '2px 6px', fontSize: 12,
+    }
     const divider = (
       <div style={{ borderTop: "1px solid #555",
                     marginTop: Styles.vars.spacing.small,
@@ -635,6 +706,64 @@ class NepiAppNavSim extends Component {
 
     return (
       <div>
+        {/* Instance selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: '#aaa' }}>Instance:</span>
+          <select
+            value={selectedNmeaInstance}
+            onChange={(e) => {
+              const name = e.target.value
+              this.setState({ selectedNmeaInstance: name }, () => {
+                this.updateNmeaStatusListener(this.getNmeaInstanceNamespace())
+              })
+            }}
+            disabled={dis}
+            style={selectStyle}
+          >
+            {nmeaInstanceNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <Button
+            onClick={() => {
+              const newName = 'nmea_' + nmeaInstanceNames.length
+              sendStringMsg(this.getAppNamespace() + '/add_nmea_instance', newName)
+            }}
+            disabled={dis}
+            style={{ padding: '1px 8px', fontSize: 15, lineHeight: 1 }}
+          >+</Button>
+          <Button
+            onClick={() => {
+              sendStringMsg(this.getAppNamespace() + '/remove_nmea_instance', selectedNmeaInstance)
+            }}
+            disabled={dis || nmeaInstanceNames.length <= 1}
+            style={{ padding: '1px 8px', fontSize: 15, lineHeight: 1 }}
+          >×</Button>
+          <span style={{ fontSize: 11, color: '#aaa' }}>Name:</span>
+          <Input
+            id={'nmeaRenameInput'}
+            value={nmeaRenameInput}
+            onChange={(e) => {
+              const el = document.getElementById('nmeaRenameInput')
+              setElementStyleModified(el)
+              this.setState({ nmeaRenameInput: e.target.value })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const newName = e.target.value.trim()
+                if (newName && newName !== selectedNmeaInstance) {
+                  const el = document.getElementById('nmeaRenameInput')
+                  clearElementStyleModified(el)
+                  sendUpdateStringMsg(this.getAppNamespace() + '/rename_nmea_instance', selectedNmeaInstance, newName)
+                  this.setState({ selectedNmeaInstance: newName }, () => {
+                    this.updateNmeaStatusListener(this.getNmeaInstanceNamespace())
+                  })
+                }
+              }
+            }}
+            disabled={dis}
+            style={{ width: 70, fontSize: 12 }}
+          />
+        </div>
+
         <Columns>
           <Column>
             <Label title={"NMEA Sim"} />
@@ -642,32 +771,33 @@ class NepiAppNavSim extends Component {
             <span style={dotStyle} title={dotTitle} />
           </Column>
           <Column>
-            <Toggle checked={nmea_sim_enabled} onClick={this.onToggleNmea} disabled={dis} />
+            <Toggle
+              checked={nmea_sim_enabled}
+              onClick={() => sendBoolMsg(ns + '/set_nmea_enabled', !nmea_sim_enabled)}
+              disabled={dis}
+            />
           </Column>
         </Columns>
 
         {divider}
         <Label title={"Position"} />
-        {this.renderInputRow("Latitude (°)",  "nmeaLatInput",     "set_nmea_latitude",  dis, "enableMoveNmeaLat",     "nmeaLatStep",     "nmeaLatRateHz",     "nmea_latitude")}
-        {this.renderInputRow("Longitude (°)", "nmeaLonInput",     "set_nmea_longitude", dis, "enableMoveNmeaLon",     "nmeaLonStep",     "nmeaLonRateHz",     "nmea_longitude")}
-        {this.renderInputRow("Altitude (m)",  "nmeaAltInput",     "set_nmea_altitude",  dis, "enableMoveNmeaAlt",     "nmeaAltStep",     "nmeaAltRateHz",     "nmea_altitude_m")}
+        {this.renderInputRow("Latitude (°)",  "nmeaLatInput",     "set_nmea_latitude",  dis, ns, "enableMoveNmeaLat",     "nmeaLatStep",     "nmeaLatRateHz",     "nmea_latitude")}
+        {this.renderInputRow("Longitude (°)", "nmeaLonInput",     "set_nmea_longitude", dis, ns, "enableMoveNmeaLon",     "nmeaLonStep",     "nmeaLonRateHz",     "nmea_longitude")}
+        {this.renderInputRow("Altitude (m)",  "nmeaAltInput",     "set_nmea_altitude",  dis, ns, "enableMoveNmeaAlt",     "nmeaAltStep",     "nmeaAltRateHz",     "nmea_altitude_m")}
 
         {divider}
         <Label title={"Orientation"} />
-        {this.renderInputRow("Heading (°)", "nmeaHeadingInput", "set_nmea_heading", dis, "enableMoveNmeaHeading", "nmeaHeadingStep", "nmeaHeadingRateHz", "nmea_heading_deg")}
+        {this.renderInputRow("Heading (°)", "nmeaHeadingInput", "set_nmea_heading", dis, ns, "enableMoveNmeaHeading", "nmeaHeadingStep", "nmeaHeadingRateHz", "nmea_heading_deg")}
 
         {divider}
         <Label title={"Dead-Reckoning"} />
-        {this.renderInputRow("Speed (m/s)", "nmeaSpeedInput", "set_nmea_speed", dis, "enableMoveNmeaSpeed", "nmeaSpeedStep", "nmeaSpeedRateHz", "nmea_speed_ms")}
+        {this.renderInputRow("Speed (m/s)", "nmeaSpeedInput", "set_nmea_speed", dis, ns, "enableMoveNmeaSpeed", "nmeaSpeedStep", "nmeaSpeedRateHz", "nmea_speed_ms")}
         <Columns>
           <Column>
             <Button
-              style={{}}
-              onClick={() => { this.setState({ nmeaSpeedInput: "0.0" }); this.onPublishFloat('set_nmea_speed', 0.0) }}
+              onClick={() => { this.setState({ nmeaSpeedInput: "0.0" }); sendFloatMsg(ns + '/set_nmea_speed', 0.0) }}
               disabled={dis}
-            >
-              Stop
-            </Button>
+            >Stop</Button>
           </Column>
         </Columns>
       </div>
@@ -675,8 +805,11 @@ class NepiAppNavSim extends Component {
   }
 
   renderHnavSide() {
-    const { connected, hnav_sim_enabled, hnav_connected, hnav_port } = this.state
+    const { connected, hnav_sim_enabled, hnav_connected, hnav_port,
+            hnavInstanceNames, selectedHnavInstance, hnavRenameInput } = this.state
     const dis = !connected
+    const ns  = this.getHnavInstanceNamespace()
+    const { sendBoolMsg, sendFloatMsg, sendStringMsg, sendUpdateStringMsg } = this.props.ros
 
     const dotColor = hnav_connected ? '#00cc44' : (hnav_sim_enabled ? '#ff9900' : '#555')
     const dotTitle = hnav_connected ? "Client connected"
@@ -685,7 +818,11 @@ class NepiAppNavSim extends Component {
       display: 'inline-block', width: 10, height: 10,
       borderRadius: '50%', backgroundColor: dotColor, marginLeft: 8,
     }
-
+    const selectStyle = {
+      backgroundColor: '#333', color: '#ddd',
+      border: '1px solid #555', borderRadius: 3,
+      padding: '2px 6px', fontSize: 12,
+    }
     const divider = (
       <div style={{ borderTop: "1px solid #555",
                     marginTop: Styles.vars.spacing.small,
@@ -694,6 +831,64 @@ class NepiAppNavSim extends Component {
 
     return (
       <div>
+        {/* Instance selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: '#aaa' }}>Instance:</span>
+          <select
+            value={selectedHnavInstance}
+            onChange={(e) => {
+              const name = e.target.value
+              this.setState({ selectedHnavInstance: name }, () => {
+                this.updateHnavStatusListener(this.getHnavInstanceNamespace())
+              })
+            }}
+            disabled={dis}
+            style={selectStyle}
+          >
+            {hnavInstanceNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <Button
+            onClick={() => {
+              const newName = 'hnav_' + hnavInstanceNames.length
+              sendStringMsg(this.getAppNamespace() + '/add_hnav_instance', newName)
+            }}
+            disabled={dis}
+            style={{ padding: '1px 8px', fontSize: 15, lineHeight: 1 }}
+          >+</Button>
+          <Button
+            onClick={() => {
+              sendStringMsg(this.getAppNamespace() + '/remove_hnav_instance', selectedHnavInstance)
+            }}
+            disabled={dis || hnavInstanceNames.length <= 1}
+            style={{ padding: '1px 8px', fontSize: 15, lineHeight: 1 }}
+          >×</Button>
+          <span style={{ fontSize: 11, color: '#aaa' }}>Name:</span>
+          <Input
+            id={'hnavRenameInput'}
+            value={hnavRenameInput}
+            onChange={(e) => {
+              const el = document.getElementById('hnavRenameInput')
+              setElementStyleModified(el)
+              this.setState({ hnavRenameInput: e.target.value })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const newName = e.target.value.trim()
+                if (newName && newName !== selectedHnavInstance) {
+                  const el = document.getElementById('hnavRenameInput')
+                  clearElementStyleModified(el)
+                  sendUpdateStringMsg(this.getAppNamespace() + '/rename_hnav_instance', selectedHnavInstance, newName)
+                  this.setState({ selectedHnavInstance: newName }, () => {
+                    this.updateHnavStatusListener(this.getHnavInstanceNamespace())
+                  })
+                }
+              }
+            }}
+            disabled={dis}
+            style={{ width: 70, fontSize: 12 }}
+          />
+        </div>
+
         <Columns>
           <Column>
             <Label title={"HNav Sim"} />
@@ -701,35 +896,36 @@ class NepiAppNavSim extends Component {
             <span style={dotStyle} title={dotTitle} />
           </Column>
           <Column>
-            <Toggle checked={hnav_sim_enabled} onClick={this.onToggleHnav} disabled={dis} />
+            <Toggle
+              checked={hnav_sim_enabled}
+              onClick={() => sendBoolMsg(ns + '/set_hnav_enabled', !hnav_sim_enabled)}
+              disabled={dis}
+            />
           </Column>
         </Columns>
 
         {divider}
         <Label title={"Position"} />
-        {this.renderInputRow("Latitude (°)",  "hnavLatInput",   "set_hnav_latitude",  dis, "enableMoveHnavLat",     "hnavLatStep",     "hnavLatRateHz",     "hnav_latitude")}
-        {this.renderInputRow("Longitude (°)", "hnavLonInput",   "set_hnav_longitude", dis, "enableMoveHnavLon",     "hnavLonStep",     "hnavLonRateHz",     "hnav_longitude")}
-        {this.renderInputRow("Altitude (m)",  "hnavAltInput",   "set_hnav_altitude",  dis, "enableMoveHnavAlt",     "hnavAltStep",     "hnavAltRateHz",     "hnav_altitude_m")}
-        {this.renderInputRow("Depth (m)",     "hnavDepthInput", "set_hnav_depth",     dis, "enableMoveHnavDepth",   "hnavDepthStep",   "hnavDepthRateHz",   "hnav_depth_m")}
+        {this.renderInputRow("Latitude (°)",  "hnavLatInput",   "set_hnav_latitude",  dis, ns, "enableMoveHnavLat",   "hnavLatStep",   "hnavLatRateHz",   "hnav_latitude")}
+        {this.renderInputRow("Longitude (°)", "hnavLonInput",   "set_hnav_longitude", dis, ns, "enableMoveHnavLon",   "hnavLonStep",   "hnavLonRateHz",   "hnav_longitude")}
+        {this.renderInputRow("Altitude (m)",  "hnavAltInput",   "set_hnav_altitude",  dis, ns, "enableMoveHnavAlt",   "hnavAltStep",   "hnavAltRateHz",   "hnav_altitude_m")}
+        {this.renderInputRow("Depth (m)",     "hnavDepthInput", "set_hnav_depth",     dis, ns, "enableMoveHnavDepth", "hnavDepthStep", "hnavDepthRateHz", "hnav_depth_m")}
 
         {divider}
         <Label title={"Orientation"} />
-        {this.renderInputRow("Heading (°)", "hnavHeadingInput", "set_hnav_heading", dis, "enableMoveHnavHeading", "hnavHeadingStep", "hnavHeadingRateHz", "hnav_heading_deg", "enableSinHnavHeading", "hnavHeadingSinAmp", "hnavHeadingSinPeriodS", "hnav_heading_deg", "enableStepHnavHeading", "enableWaveHnavHeading", "hnavHeadingSinSpread")}
-        {this.renderInputRow("Roll (°)",    "hnavRollInput",    "set_hnav_roll",    dis, "enableMoveHnavRoll",    "hnavRollStep",    "hnavRollRateHz",    "hnav_roll_deg",    "enableSinHnavRoll",    "hnavRollSinAmp",    "hnavRollSinPeriodS",    "hnav_roll_deg",    "enableStepHnavRoll",    "enableWaveHnavRoll",    "hnavRollSinSpread")}
-        {this.renderInputRow("Pitch (°)",   "hnavPitchInput",   "set_hnav_pitch",   dis, "enableMoveHnavPitch",   "hnavPitchStep",   "hnavPitchRateHz",   "hnav_pitch_deg",   "enableSinHnavPitch",   "hnavPitchSinAmp",   "hnavPitchSinPeriodS",   "hnav_pitch_deg",   "enableStepHnavPitch",   "enableWaveHnavPitch",   "hnavPitchSinSpread")}
+        {this.renderInputRow("Heading (°)", "hnavHeadingInput", "set_hnav_heading", dis, ns, "enableMoveHnavHeading", "hnavHeadingStep", "hnavHeadingRateHz", "hnav_heading_deg", "enableSinHnavHeading", "hnavHeadingSinAmp", "hnavHeadingSinPeriodS", "hnav_heading_deg", "enableStepHnavHeading", "enableWaveHnavHeading", "hnavHeadingSinSpread")}
+        {this.renderInputRow("Roll (°)",    "hnavRollInput",    "set_hnav_roll",    dis, ns, "enableMoveHnavRoll",    "hnavRollStep",    "hnavRollRateHz",    "hnav_roll_deg",    "enableSinHnavRoll",    "hnavRollSinAmp",    "hnavRollSinPeriodS",    "hnav_roll_deg",    "enableStepHnavRoll",    "enableWaveHnavRoll",    "hnavRollSinSpread")}
+        {this.renderInputRow("Pitch (°)",   "hnavPitchInput",   "set_hnav_pitch",   dis, ns, "enableMoveHnavPitch",   "hnavPitchStep",   "hnavPitchRateHz",   "hnav_pitch_deg",   "enableSinHnavPitch",   "hnavPitchSinAmp",   "hnavPitchSinPeriodS",   "hnav_pitch_deg",   "enableStepHnavPitch",   "enableWaveHnavPitch",   "hnavPitchSinSpread")}
 
         {divider}
         <Label title={"Dead-Reckoning"} />
-        {this.renderInputRow("Speed (m/s)", "hnavSpeedInput", "set_hnav_speed", dis, "enableMoveHnavSpeed", "hnavSpeedStep", "hnavSpeedRateHz", "hnav_speed_ms")}
+        {this.renderInputRow("Speed (m/s)", "hnavSpeedInput", "set_hnav_speed", dis, ns, "enableMoveHnavSpeed", "hnavSpeedStep", "hnavSpeedRateHz", "hnav_speed_ms")}
         <Columns>
           <Column>
             <Button
-              style={{}}
-              onClick={() => { this.setState({ hnavSpeedInput: "0.0" }); this.onPublishFloat('set_hnav_speed', 0.0) }}
+              onClick={() => { this.setState({ hnavSpeedInput: "0.0" }); sendFloatMsg(ns + '/set_hnav_speed', 0.0) }}
               disabled={dis}
-            >
-              Stop
-            </Button>
+            >Stop</Button>
           </Column>
         </Columns>
       </div>

@@ -15,7 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 add_message_files(FILES
-  NepiAppNavSimStatus.msg
+  NepiAppNmeaSimStatus.msg
+  NepiAppHNavSimStatus.msg
+  NepiAppNavSimMasterStatus.msg
 )
 
 generate_messages(
