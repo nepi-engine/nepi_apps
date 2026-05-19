@@ -439,6 +439,9 @@ class NmeaSimInstance:
             self._stop_evt = None
         for sub in self._subs:
             sub.unregister()
+        if self._navpose_if is not None:
+            self._navpose_if.unregister_pubs()
+            self._navpose_if = None
         self._status_pub.unregister()
 
 
@@ -805,6 +808,9 @@ class HNavSimInstance:
             self._stop_evt = None
         for sub in self._subs:
             sub.unregister()
+        if self._navpose_if is not None:
+            self._navpose_if.unregister_pubs()
+            self._navpose_if = None
         self._status_pub.unregister()
 
 
