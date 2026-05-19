@@ -18,14 +18,16 @@
 import copy
 import datetime
 import math
+import os
 import random
 import socket
 import struct
 import threading
 import time
+import yaml
 
 import rospy
-from std_msgs.msg import Bool, Float32, String
+from std_msgs.msg import Bool, Empty, Float32, String
 from nepi_interfaces.msg import UpdateString
 
 from nepi_app_nav_sim.msg import (
@@ -432,6 +434,49 @@ class NmeaSimInstance:
                 setattr(msg, 'move_rate_hz_' + f,  getattr(self, 'move_rate_hz_' + f))
         return msg
 
+    def to_dict(self):
+        with self._lock:
+            d = {
+                'nmea_sim_enabled': self.nmea_sim_enabled,
+                'nmea_latitude':    self.nmea_latitude,
+                'nmea_longitude':   self.nmea_longitude,
+                'nmea_altitude_m':  self.nmea_altitude_m,
+                'nmea_heading_deg': self.nmea_heading_deg,
+                'nmea_speed_ms':    self.nmea_speed_ms,
+                'nmea_port':        self.nmea_port,
+            }
+            for f in _NMEA_MOVE_FIELDS:
+                d['enable_move_'  + f] = getattr(self, 'enable_move_'  + f)
+                d['move_step_'    + f] = getattr(self, 'move_step_'    + f)
+                d['move_rate_hz_' + f] = getattr(self, 'move_rate_hz_' + f)
+        return d
+
+    def apply_dict(self, d):
+        need_apply = False
+        with self._lock:
+            for key in ('nmea_latitude', 'nmea_longitude', 'nmea_altitude_m',
+                        'nmea_heading_deg', 'nmea_speed_ms'):
+                if key in d:
+                    setattr(self, key, float(d[key]))
+            if 'nmea_port' in d:
+                self.nmea_port = int(d['nmea_port'])
+            for f in _NMEA_MOVE_FIELDS:
+                k = 'enable_move_' + f
+                if k in d: setattr(self, k, bool(d[k]))
+                k = 'move_step_' + f
+                if k in d: setattr(self, k, float(d[k]))
+                k = 'move_rate_hz_' + f
+                if k in d: setattr(self, k, float(d[k]))
+            if 'nmea_sim_enabled' in d:
+                new_enabled = bool(d['nmea_sim_enabled'])
+                if new_enabled != self.nmea_sim_enabled:
+                    self.nmea_sim_enabled = new_enabled
+                    need_apply = True
+        if need_apply:
+            self._applyState()
+        else:
+            self.publish_status()
+
     def cleanup(self):
         self._alive = False
         if self._stop_evt is not None:
@@ -801,6 +846,69 @@ class HNavSimInstance:
                 setattr(msg, 'sin_spread_' + f,    getattr(self, 'sin_spread_' + f))
         return msg
 
+    def to_dict(self):
+        with self._lock:
+            d = {
+                'hnav_sim_enabled': self.hnav_sim_enabled,
+                'hnav_latitude':    self.hnav_latitude,
+                'hnav_longitude':   self.hnav_longitude,
+                'hnav_altitude_m':  self.hnav_altitude_m,
+                'hnav_depth_m':     self.hnav_depth_m,
+                'hnav_heading_deg': self.hnav_heading_deg,
+                'hnav_roll_deg':    self.hnav_roll_deg,
+                'hnav_pitch_deg':   self.hnav_pitch_deg,
+                'hnav_speed_ms':    self.hnav_speed_ms,
+                'hnav_port':        self.hnav_port,
+            }
+            for f in _HNAV_MOVE_FIELDS:
+                d['enable_move_'  + f] = getattr(self, 'enable_move_'  + f)
+                d['move_step_'    + f] = getattr(self, 'move_step_'    + f)
+                d['move_rate_hz_' + f] = getattr(self, 'move_rate_hz_' + f)
+            for f in _SIN_FIELDS:
+                d['enable_sin_'    + f] = getattr(self, 'enable_sin_'    + f)
+                d['sin_amplitude_' + f] = getattr(self, 'sin_amplitude_' + f)
+                d['sin_period_s_'  + f] = getattr(self, 'sin_period_s_'  + f)
+                d['enable_wave_'   + f] = getattr(self, 'enable_wave_'   + f)
+                d['sin_spread_'    + f] = getattr(self, 'sin_spread_'    + f)
+        return d
+
+    def apply_dict(self, d):
+        need_apply = False
+        with self._lock:
+            for key in ('hnav_latitude', 'hnav_longitude', 'hnav_altitude_m', 'hnav_depth_m',
+                        'hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg', 'hnav_speed_ms'):
+                if key in d:
+                    setattr(self, key, float(d[key]))
+            if 'hnav_port' in d:
+                self.hnav_port = int(d['hnav_port'])
+            for f in _HNAV_MOVE_FIELDS:
+                k = 'enable_move_' + f
+                if k in d: setattr(self, k, bool(d[k]))
+                k = 'move_step_' + f
+                if k in d: setattr(self, k, float(d[k]))
+                k = 'move_rate_hz_' + f
+                if k in d: setattr(self, k, float(d[k]))
+            for f in _SIN_FIELDS:
+                k = 'enable_sin_' + f
+                if k in d: setattr(self, k, bool(d[k]))
+                k = 'sin_amplitude_' + f
+                if k in d: setattr(self, k, float(d[k]))
+                k = 'sin_period_s_' + f
+                if k in d: setattr(self, k, float(d[k]))
+                k = 'enable_wave_' + f
+                if k in d: setattr(self, k, bool(d[k]))
+                k = 'sin_spread_' + f
+                if k in d: setattr(self, k, float(d[k]))
+            if 'hnav_sim_enabled' in d:
+                new_enabled = bool(d['hnav_sim_enabled'])
+                if new_enabled != self.hnav_sim_enabled:
+                    self.hnav_sim_enabled = new_enabled
+                    need_apply = True
+        if need_apply:
+            self._applyState()
+        else:
+            self.publish_status()
+
     def cleanup(self):
         self._alive = False
         if self._stop_evt is not None:
@@ -820,6 +928,7 @@ class HNavSimInstance:
 class NepiNavSimApp:
 
     DEFAULT_NODE_NAME = "app_nav_sim"
+    _CFG_FILE = '/mnt/nepi_storage/user_cfg/app_nav_sim_instances.yaml'
 
     def __init__(self):
         nepi_sdk.init_node(name=self.DEFAULT_NODE_NAME)
@@ -846,8 +955,13 @@ class NepiNavSimApp:
         rospy.Subscriber(ns + '/remove_hnav_instance', String,       self._removeHnavInstanceCb)
         rospy.Subscriber(ns + '/rename_hnav_instance', UpdateString, self._renameHnavInstanceCb)
 
+        rospy.Subscriber(ns + '/save_config',          Empty, self._saveConfigCb)
+        rospy.Subscriber(ns + '/reset_config',         Empty, self._resetConfigCb)
+        rospy.Subscriber(ns + '/factory_reset_config', Empty, self._factoryResetConfigCb)
+
         self._createNmeaInstance('nmea_0', FACTORY_NMEA_PORT)
         self._createHnavInstance('hnav_0', FACTORY_HNAV_PORT)
+        self._loadConfig()
         self._publishMasterStatus()
 
         nepi_sdk.start_timer_process(1.0 / STATUS_RATE_HZ, self._timerCb)
@@ -978,6 +1092,94 @@ class NepiNavSimApp:
         while p in used:
             p += 1
         return p
+
+    def _loadConfig(self):
+        if not os.path.isfile(self._CFG_FILE):
+            return
+        try:
+            with open(self._CFG_FILE, 'r') as f:
+                state = yaml.safe_load(f) or {}
+        except Exception as e:
+            self.msg_if.pub_warn(f"Nav Sim: failed to load config: {e}")
+            return
+        with self._inst_lock:
+            nmea_pairs = list(self._nmea_instances.items())
+            hnav_pairs = list(self._hnav_instances.items())
+        for name, inst in nmea_pairs:
+            if name in state.get('nmea', {}):
+                inst.apply_dict(state['nmea'][name])
+        for name, inst in hnav_pairs:
+            if name in state.get('hnav', {}):
+                inst.apply_dict(state['hnav'][name])
+        self.msg_if.pub_info("Nav Sim: config loaded")
+
+    def _saveConfig(self):
+        state = {'nmea': {}, 'hnav': {}}
+        with self._inst_lock:
+            for name, inst in self._nmea_instances.items():
+                state['nmea'][name] = inst.to_dict()
+            for name, inst in self._hnav_instances.items():
+                state['hnav'][name] = inst.to_dict()
+        try:
+            os.makedirs(os.path.dirname(self._CFG_FILE), exist_ok=True)
+            with open(self._CFG_FILE, 'w') as f:
+                yaml.safe_dump(state, f, default_flow_style=False)
+            self.msg_if.pub_info("Nav Sim: config saved")
+        except Exception as e:
+            self.msg_if.pub_warn(f"Nav Sim: failed to save config: {e}")
+
+    def _saveConfigCb(self, msg):
+        self._saveConfig()
+
+    def _resetConfigCb(self, msg):
+        self._loadConfig()
+
+    def _factoryResetConfigCb(self, msg):
+        try:
+            os.remove(self._CFG_FILE)
+        except OSError:
+            pass
+        factory_nmea = {
+            'nmea_sim_enabled': FACTORY_NMEA_ENABLED,
+            'nmea_latitude':    FACTORY_LATITUDE,
+            'nmea_longitude':   FACTORY_LONGITUDE,
+            'nmea_altitude_m':  FACTORY_ALTITUDE_M,
+            'nmea_heading_deg': FACTORY_HEADING_DEG,
+            'nmea_speed_ms':    FACTORY_SPEED_MS,
+        }
+        for f in _NMEA_MOVE_FIELDS:
+            factory_nmea['enable_move_'  + f] = False
+            factory_nmea['move_step_'    + f] = 0.0
+            factory_nmea['move_rate_hz_' + f] = 1.0
+        factory_hnav = {
+            'hnav_sim_enabled': FACTORY_HNAV_ENABLED,
+            'hnav_latitude':    FACTORY_LATITUDE,
+            'hnav_longitude':   FACTORY_LONGITUDE,
+            'hnav_altitude_m':  FACTORY_ALTITUDE_M,
+            'hnav_depth_m':     FACTORY_DEPTH_M,
+            'hnav_heading_deg': FACTORY_HEADING_DEG,
+            'hnav_roll_deg':    FACTORY_ROLL_DEG,
+            'hnav_pitch_deg':   FACTORY_PITCH_DEG,
+            'hnav_speed_ms':    FACTORY_SPEED_MS,
+        }
+        for f in _HNAV_MOVE_FIELDS:
+            factory_hnav['enable_move_'  + f] = False
+            factory_hnav['move_step_'    + f] = 0.0
+            factory_hnav['move_rate_hz_' + f] = 1.0
+        for f in _SIN_FIELDS:
+            factory_hnav['enable_sin_'    + f] = False
+            factory_hnav['sin_amplitude_' + f] = 5.0
+            factory_hnav['sin_period_s_'  + f] = 10.0
+            factory_hnav['enable_wave_'   + f] = False
+            factory_hnav['sin_spread_'    + f] = 0.5
+        with self._inst_lock:
+            nmea_insts = list(self._nmea_instances.values())
+            hnav_insts = list(self._hnav_instances.values())
+        for inst in nmea_insts:
+            inst.apply_dict(factory_nmea)
+        for inst in hnav_insts:
+            inst.apply_dict(factory_hnav)
+        self.msg_if.pub_info("Nav Sim: config reset to factory defaults")
 
     def _cleanupAll(self):
         with self._inst_lock:
