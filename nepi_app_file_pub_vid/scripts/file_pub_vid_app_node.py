@@ -366,8 +366,7 @@ class NepiFilePubVidApp(object):
         current_paths = nepi_utils.get_folder_list(folder)
         current_folders = []
         for path in current_paths:
-          folder = os.path.basename(path)
-          current_folders.append(folder)
+          current_folders.append(os.path.basename(path))
         self.current_folders = sorted(current_folders)
         self.publish_status()
         #self.msg_if.pub_warn("Folders: " + str(self.current_folders))

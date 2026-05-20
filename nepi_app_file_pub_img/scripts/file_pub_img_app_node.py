@@ -513,16 +513,18 @@ class NepiFilePubImgApp(object):
         current_paths = nepi_utils.get_folder_list(folder)
         current_folders = []
         for path in current_paths:
-          folder = os.path.basename(path)
-          current_folders.append(folder)
+          current_folders.append(os.path.basename(path))
         self.current_folders = sorted(current_folders)
-        self.publish_status()
-        #self.msg_if.pub_warn("Folders: " + str(self.current_folders))
+        # self.publish_status()
+        self.msg_if.pub_warn("Folders: " + str(self.current_folders))
         num_files = 0
         for f_type in self.SUPPORTED_FILE_TYPES:
-          num_files = num_files + nepi_utils.get_file_count(folder,ext_str=f_type)
+          file_count = nepi_utils.get_file_count(folder, ext_str = f_type)
+          self.msg_if.pub_warn("Add file type count to current count: " + " : " + str(folder) + " : " + str(f_type) + " : " + str(file_count) + " : " + str(num_files))
+          num_files += file_count
         self.file_count =  num_files
-        self.publish_status()
+        self.msg_if.pub_warn("File Count: " + str(self.file_count))
+        # self.publish_status()
     self.last_folder = copy.deepcopy(self.current_folder)
 
   def updaterCb(self,timer):
