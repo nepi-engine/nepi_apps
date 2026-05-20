@@ -959,9 +959,23 @@ class NepiNavSimApp:
         rospy.Subscriber(ns + '/reset_config',         Empty, self._resetConfigCb)
         rospy.Subscriber(ns + '/factory_reset_config', Empty, self._factoryResetConfigCb)
 
-        self._createNmeaInstance('nmea_0', FACTORY_NMEA_PORT)
-        self._createHnavInstance('hnav_0', FACTORY_HNAV_PORT)
-        self._loadConfig()
+        saved_state = self._readConfigFile()
+        nmea_cfg = saved_state.get('nmea', {}) if saved_state else {}
+        hnav_cfg = saved_state.get('hnav', {}) if saved_state else {}
+        if nmea_cfg:
+            for name, inst_state in nmea_cfg.items():
+                port = int(inst_state.get('nmea_port', FACTORY_NMEA_PORT)) if inst_state else FACTORY_NMEA_PORT
+                self._createNmeaInstance(name, port)
+        else:
+            self._createNmeaInstance('nmea_0', FACTORY_NMEA_PORT)
+        if hnav_cfg:
+            for name, inst_state in hnav_cfg.items():
+                port = int(inst_state.get('hnav_port', FACTORY_HNAV_PORT)) if inst_state else FACTORY_HNAV_PORT
+                self._createHnavInstance(name, port)
+        else:
+            self._createHnavInstance('hnav_0', FACTORY_HNAV_PORT)
+        if saved_state:
+            self._applyConfigState(saved_state)
         self._publishMasterStatus()
 
         nepi_sdk.start_timer_process(1.0 / STATUS_RATE_HZ, self._timerCb)
@@ -1038,8 +1052,12 @@ class NepiNavSimApp:
                 return
             inst = self._nmea_instances.pop(old_name)
             port = inst.nmea_port
+        old_state = inst.to_dict()
         inst.cleanup()
         self._createNmeaInstance(new_name, port)
+        with self._inst_lock:
+            new_inst = self._nmea_instances[new_name]
+        new_inst.apply_dict(old_state)
         self._publishMasterStatus()
 
     def _renameHnavInstanceCb(self, msg):
@@ -1052,8 +1070,12 @@ class NepiNavSimApp:
                 return
             inst = self._hnav_instances.pop(old_name)
             port = inst.hnav_port
+        old_state = inst.to_dict()
         inst.cleanup()
         self._createHnavInstance(new_name, port)
+        with self._inst_lock:
+            new_inst = self._hnav_instances[new_name]
+        new_inst.apply_dict(old_state)
         self._publishMasterStatus()
 
     def _publishMasterStatus(self):
@@ -1093,15 +1115,17 @@ class NepiNavSimApp:
             p += 1
         return p
 
-    def _loadConfig(self):
+    def _readConfigFile(self):
         if not os.path.isfile(self._CFG_FILE):
-            return
+            return None
         try:
             with open(self._CFG_FILE, 'r') as f:
-                state = yaml.safe_load(f) or {}
+                return yaml.safe_load(f) or {}
         except Exception as e:
-            self.msg_if.pub_warn(f"Nav Sim: failed to load config: {e}")
-            return
+            self.msg_if.pub_warn(f"Nav Sim: failed to read config: {e}")
+            return None
+
+    def _applyConfigState(self, state):
         with self._inst_lock:
             nmea_pairs = list(self._nmea_instances.items())
             hnav_pairs = list(self._hnav_instances.items())
@@ -1111,7 +1135,12 @@ class NepiNavSimApp:
         for name, inst in hnav_pairs:
             if name in state.get('hnav', {}):
                 inst.apply_dict(state['hnav'][name])
-        self.msg_if.pub_info("Nav Sim: config loaded")
+
+    def _loadConfig(self):
+        state = self._readConfigFile()
+        if state:
+            self._applyConfigState(state)
+            self.msg_if.pub_info("Nav Sim: config loaded")
 
     def _saveConfig(self):
         state = {'nmea': {}, 'hnav': {}}
@@ -1139,46 +1168,16 @@ class NepiNavSimApp:
             os.remove(self._CFG_FILE)
         except OSError:
             pass
-        factory_nmea = {
-            'nmea_sim_enabled': FACTORY_NMEA_ENABLED,
-            'nmea_latitude':    FACTORY_LATITUDE,
-            'nmea_longitude':   FACTORY_LONGITUDE,
-            'nmea_altitude_m':  FACTORY_ALTITUDE_M,
-            'nmea_heading_deg': FACTORY_HEADING_DEG,
-            'nmea_speed_ms':    FACTORY_SPEED_MS,
-        }
-        for f in _NMEA_MOVE_FIELDS:
-            factory_nmea['enable_move_'  + f] = False
-            factory_nmea['move_step_'    + f] = 0.0
-            factory_nmea['move_rate_hz_' + f] = 1.0
-        factory_hnav = {
-            'hnav_sim_enabled': FACTORY_HNAV_ENABLED,
-            'hnav_latitude':    FACTORY_LATITUDE,
-            'hnav_longitude':   FACTORY_LONGITUDE,
-            'hnav_altitude_m':  FACTORY_ALTITUDE_M,
-            'hnav_depth_m':     FACTORY_DEPTH_M,
-            'hnav_heading_deg': FACTORY_HEADING_DEG,
-            'hnav_roll_deg':    FACTORY_ROLL_DEG,
-            'hnav_pitch_deg':   FACTORY_PITCH_DEG,
-            'hnav_speed_ms':    FACTORY_SPEED_MS,
-        }
-        for f in _HNAV_MOVE_FIELDS:
-            factory_hnav['enable_move_'  + f] = False
-            factory_hnav['move_step_'    + f] = 0.0
-            factory_hnav['move_rate_hz_' + f] = 1.0
-        for f in _SIN_FIELDS:
-            factory_hnav['enable_sin_'    + f] = False
-            factory_hnav['sin_amplitude_' + f] = 5.0
-            factory_hnav['sin_period_s_'  + f] = 10.0
-            factory_hnav['enable_wave_'   + f] = False
-            factory_hnav['sin_spread_'    + f] = 0.5
         with self._inst_lock:
-            nmea_insts = list(self._nmea_instances.values())
-            hnav_insts = list(self._hnav_instances.values())
-        for inst in nmea_insts:
-            inst.apply_dict(factory_nmea)
-        for inst in hnav_insts:
-            inst.apply_dict(factory_hnav)
+            all_nmea = list(self._nmea_instances.values())
+            all_hnav = list(self._hnav_instances.values())
+            self._nmea_instances.clear()
+            self._hnav_instances.clear()
+        for inst in all_nmea + all_hnav:
+            inst.cleanup()
+        self._createNmeaInstance('nmea_0', FACTORY_NMEA_PORT)
+        self._createHnavInstance('hnav_0', FACTORY_HNAV_PORT)
+        self._publishMasterStatus()
         self.msg_if.pub_info("Nav Sim: config reset to factory defaults")
 
     def _cleanupAll(self):
