@@ -507,6 +507,8 @@ class NepiFilePubImgApp(object):
   def updateFolderInfo(self, folder):
     if folder != self.last_folder:
       self.stopPub()
+      #self.paused = True
+
       if os.path.exists(folder):
         self.current_folder = folder
         #self.msg_if.pub_warn("Current Folder Exists")
@@ -525,6 +527,8 @@ class NepiFilePubImgApp(object):
         self.file_count =  num_files
         self.msg_if.pub_warn("File Count: " + str(self.file_count))
         # self.publish_status()
+        if self.file_count > 0:
+          self.startPub()
     self.last_folder = copy.deepcopy(self.current_folder)
 
   def updaterCb(self,timer):

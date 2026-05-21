@@ -2,7 +2,7 @@ APP_DICT:
   display_name: NavPose Sim
   description: NMEA and HNav TCP navigation data simulator
   pkg_name: nepi_app_nav_sim
-  group_name: DEVICE
+  group_name: DATA
   config_file: app_nav_sim.yaml
   app_file: nav_sim_app_node.py
   node_name: app_nav_sim
