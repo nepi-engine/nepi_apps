@@ -332,7 +332,7 @@ class NepiPanTiltAutoApp(object):
   tracking_available_classes = []
   tracking_available_best_filters = copy.deepcopy(nepi_track.BEST_FILTER_OPTIONS)
 
-  tracking_dict = copy.deepcopy(nepi_track.BLANK_TRACKING_DICT)
+  tracking_dict = copy.deepcopy(nepi_track.BLANK_TRACK_DICT)
 
   track_dict = None
   track_dict_check = None
@@ -1225,7 +1225,7 @@ class NepiPanTiltAutoApp(object):
         #####################
         self.tracking_manages_targeting = self.node_if.get_param('tracking_manages_targeting')
         tracking_dict = self.node_if.get_param('tracking_dict')
-        blank_dict = copy.deepcopy(nepi_track.BLANK_TRACKING_DICT)
+        blank_dict = copy.deepcopy(nepi_track.BLANK_TRACK_DICT)
         if tracking_dict is not None:
             for key in blank_dict.keys():
                 if key not in tracking_dict.keys():
