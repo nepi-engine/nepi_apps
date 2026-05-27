@@ -32,7 +32,7 @@ from nepi_sdk import nepi_track
 from nepi_sdk import nepi_nav
 
 
-from nepi_sdk import nepi_pt_stab
+from nepi_sdk import nepi_stab_pt
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
@@ -244,13 +244,13 @@ class NepiPanTiltAutoApp(object):
   stab_subpub_dict = None
   stab_subpub_lock = threading.Lock()
 
-  available_stab_processes = list(nepi_pt_stab.PROCESSES_DICT.keys())
-  stab_processes_dict = nepi_pt_stab.create_processes_dict()
-  selected_stab_process = nepi_pt_stab.DEFAULT_PROCESS
+  available_stab_processes = list(nepi_stab_pt.PROCESSES_DICT.keys())
+  stab_processes_dict = nepi_stab_pt.create_processes_dict()
+  selected_stab_process = nepi_stab_pt.DEFAULT_PROCESS
   stab_process_ready = True
 
 
-  stab_data_dict = nepi_pt_stab.get_blank_data_dict()
+  stab_data_dict = nepi_stab_pt.get_blank_data_dict()
   stab_data_dict_last = None
   stab_dict_lock = threading.Lock()
   stab_pan_speed_start = 1.0
@@ -1224,7 +1224,7 @@ class NepiPanTiltAutoApp(object):
         self.selected_stab_source = self.node_if.get_param('selected_stab_source')
 
         stab_processes_dict =  self.node_if.get_param('stab_processes_dict')
-        stab_processes_dict = nepi_pt_stab.update_processes_dict(stab_processes_dict)
+        stab_processes_dict = nepi_stab_pt.update_processes_dict(stab_processes_dict)
         self.stab_processes_dict = stab_processes_dict
 
         selected_stab_process = self.node_if.get_param('selected_stab_process')
@@ -3316,8 +3316,8 @@ class NepiPanTiltAutoApp(object):
     self.stab_process_ready = False
     nepi_sdk.sleep(1)
     try:
-        importlib.reload(nepi_pt_stab)
-        self.stab_processes_dict = nepi_pt_stab.update_processes_dict(self.stab_processes_dict)
+        importlib.reload(nepi_stab_pt)
+        self.stab_processes_dict = nepi_stab_pt.update_processes_dict(self.stab_processes_dict)
         stab_processes = list(self.stab_processes_dict.keys())
         if self.selected_stab_process not in stab_processes:
             self.selected_stab_process = stab_processes[0]
@@ -3365,12 +3365,12 @@ class NepiPanTiltAutoApp(object):
     needs_publish = False
     avail_stab_sources = []
     avail_stab_sources_dict = dict()
-    for message in nepi_pt_stab.SOURCE_MESSAGE_DICT.keys():
+    for message in nepi_stab_pt.SOURCE_MESSAGE_DICT.keys():
         avail_sources = nepi_sdk.find_topics_by_msg(message,self.active_topics,self.active_topic_types)
         for source in avail_sources:
             if message != 'NavPose' or (message == 'NavPose' and 'navposes' in source and os.path.basename(source) == 'navpose'):
                 avail_stab_sources.append(source)
-                avail_stab_sources_dict[source] = nepi_pt_stab.SOURCE_MESSAGE_DICT[message]              
+                avail_stab_sources_dict[source] = nepi_stab_pt.SOURCE_MESSAGE_DICT[message]              
     self.available_stab_source_dict = avail_stab_sources_dict
     source_topic = self.selected_stab_source
 
@@ -3445,7 +3445,7 @@ class NepiPanTiltAutoApp(object):
                 self.msg_if.pub_warn("Clearing stab status message on timeout")
 
                 self.stab_dict_lock.acquire()
-                self.stab_data_dict = nepi_pt_stab.get_blank_data_dict()
+                self.stab_data_dict = nepi_stab_pt.get_blank_data_dict()
                 self.stab_dict_lock.release()  
                 self.stab_pan_adj = 0.0
                 self.stab_tilt_adj = 0.0
@@ -3701,8 +3701,8 @@ class NepiPanTiltAutoApp(object):
                 stab_pan_enabled = self.stab_pan_enabled == True and self.pan_track_hold == False
                 stab_tilt_enabled = self.stab_tilt_enabled == True and self.tilt_track_hold == False
 
-                if selected_stab_process in nepi_pt_stab.PROCESSES_DICT.keys():
-                    stab_process_function = nepi_pt_stab.PROCESSES_DICT[selected_stab_process]['process_function']
+                if selected_stab_process in nepi_stab_pt.PROCESSES_DICT.keys():
+                    stab_process_function = nepi_stab_pt.PROCESSES_DICT[selected_stab_process]['process_function']
                     #self.msg_if.pub_warn("Stabs calling process function: " + str(stab_process_function), throttle_s=1)
                     [stab_data_dict, stab_settings_dict] = stab_process_function(self.pt_connect_if, 
                                                                                         stab_data_dict, 
