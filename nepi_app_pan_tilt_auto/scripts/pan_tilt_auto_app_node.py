@@ -32,7 +32,7 @@ from nepi_sdk import nepi_track
 from nepi_sdk import nepi_nav
 
 
-from nepi_sdk import nepi_stab
+from nepi_sdk import nepi_pt_stab
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
@@ -246,7 +246,7 @@ class NepiPanTiltAutoApp(object):
   stab_subpub_lock = threading.Lock()
 
   available_stab_processes = list(nepi_stab.PAN_TILT_STAB_PROCESSES_DICT.keys())
-  stab_processes_dict = nepi_stab.create_pan_tilt_processes_dict()
+  stab_processes_dict = nepi_stab.create_processes_dict()
   selected_stab_process = nepi_stab.DEFAULT_PAN_TILT_STAB_PROCESS
   stab_process_ready = True
 
@@ -1199,7 +1199,7 @@ class NepiPanTiltAutoApp(object):
         self.selected_stab_source = self.node_if.get_param('selected_stab_source')
 
         stab_processes_dict =  self.node_if.get_param('stab_processes_dict')
-        stab_processes_dict = nepi_stab.update_pan_tilt_processes_dict(stab_processes_dict)
+        stab_processes_dict = nepi_stab.update_processes_dict(stab_processes_dict)
         self.stab_processes_dict = stab_processes_dict
 
         selected_stab_process = self.node_if.get_param('selected_stab_process')
@@ -2656,7 +2656,7 @@ class NepiPanTiltAutoApp(object):
     targets_topic =  tracking_dict['targets_topic']
     source_topic = tracking_dict['source_topic']
     
-    track_sources = nepi_track.get_track_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
+    track_sources = nepi_track.get_source_namespaces(topics_list = self.active_topics, types_list = self.active_topic_types)
     self.tracking_available_targets = track_sources
 
     # self.msg_if.pub_warn("")
@@ -3248,7 +3248,7 @@ class NepiPanTiltAutoApp(object):
     nepi_sdk.sleep(1)
     try:
         importlib.reload(nepi_stab)
-        self.stab_processes_dict = nepi_stab.update_pan_tilt_processes_dict(self.stab_processes_dict)
+        self.stab_processes_dict = nepi_stab.update_processes_dict(self.stab_processes_dict)
         stab_processes = list(self.stab_processes_dict.keys())
         if self.selected_stab_process not in stab_processes:
             self.selected_stab_process = stab_processes[0]
@@ -3296,12 +3296,12 @@ class NepiPanTiltAutoApp(object):
     needs_publish = False
     avail_stab_sources = []
     avail_stab_sources_dict = dict()
-    for message in nepi_stab.PAN_TILT_SOURCE_MESSAGE_DICT.keys():
+    for message in nepi_stab.SOURCE_MESSAGE_DICT.keys():
         avail_sources = nepi_sdk.find_topics_by_msg(message,self.active_topics,self.active_topic_types)
         for source in avail_sources:
             if message != 'NavPose' or (message == 'NavPose' and 'navposes' in source and os.path.basename(source) == 'navpose'):
                 avail_stab_sources.append(source)
-                avail_stab_sources_dict[source] = nepi_stab.PAN_TILT_SOURCE_MESSAGE_DICT[message]              
+                avail_stab_sources_dict[source] = nepi_stab.SOURCE_MESSAGE_DICT[message]              
     self.available_stab_source_dict = avail_stab_sources_dict
     source_topic = self.selected_stab_source
 
