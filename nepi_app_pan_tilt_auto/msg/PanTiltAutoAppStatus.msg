@@ -44,6 +44,9 @@ bool tilt_stabing
 bool scan_pan_enabled
 bool scan_tilt_enabled
 
+float32 scan_pan_speed_ratio
+float32 scan_tilt_speed_ratio
+
 float32 scan_pan_min_deg
 float32 scan_pan_max_deg
 float32 scan_tilt_min_deg
@@ -58,6 +61,10 @@ float32 scan_tilt_sec
 
 bool track_pan_enabled
 bool track_tilt_enabled
+
+float32 track_pt_min_speed_ratio
+float32 track_pt_max_speed_ratio
+float32 track_pt_max_speed_dps
 
 float32 track_pan_min_deg
 float32 track_pan_max_deg
@@ -86,9 +93,8 @@ string[] available_stab_processes
 string selected_stab_process
 bool stab_process_ready
 
-bool stab_pan_enabled
-bool stab_tilt_enabled
-
+float32 stab_pan_enabled
+float32 stab_tilt_enabled
 
 #********
 

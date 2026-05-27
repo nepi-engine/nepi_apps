@@ -169,16 +169,14 @@ class NepiPanTiltAutoApp(object):
   sin_tilt_enabled = False
   scan_tilt_sin_ind = 0
 
+  scan_pan_speed_ratio = 1.0
+  scan_tilt_speed_ratio = 1.0
 
   scan_pan_min_deg = -PAN_MIN_MAX_DEG
   scan_pan_max_deg = PAN_MIN_MAX_DEG
   scan_tilt_min_deg = -TILT_MIN_MAX_DEG
   scan_tilt_max_deg = TILT_MIN_MAX_DEG
 
-  scan_pan_deg = 0
-  scan_pan_speed = 0
-  scan_pan_deg = 0
-  scan_pan_speed = 0
 
   scan_tilt_sins = 0
   scan_tilt_sin_ind = 0
@@ -229,6 +227,7 @@ class NepiPanTiltAutoApp(object):
 
   stab_timeout = 2
   stab_count = 0
+
   stab_pan_enabled = False
   stab_tilt_enabled = False
 
@@ -472,7 +471,14 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val':self.scan_tilt_max_deg
         },    
-
+        'scan_pan_speed_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.scan_pan_speed_ratio
+        },
+        'scan_tilt_speed_ratio': {
+            'namespace': self.node_namespace,
+            'factory_val': self.scan_tilt_speed_ratio
+        },
         'sin_pan_enabled': {
             'namespace': self.node_namespace,
             'factory_val': False
@@ -559,7 +565,7 @@ class NepiPanTiltAutoApp(object):
             'namespace': self.node_namespace,
             'factory_val': False
         },
-
+ 
 
 
         #####################
@@ -713,6 +719,22 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setScanTiltWindowCb, 
             'callback_args': ()
         },
+        'set_scan_pan_speed_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_scan_pan_speed_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setScanPanSpeedRatioCb,
+            'callback_args': ()
+        },
+        'set_scan_tilt_speed_ratio': {
+            'namespace': self.node_namespace,
+            'topic': 'set_scan_tilt_speed_ratio',
+            'msg': Float32,
+            'qsize': 1,
+            'callback': self.setScanTiltSpeedRatioCb,
+            'callback_args': ()
+        },
 
         #####################
         ###Tracking
@@ -765,6 +787,7 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setTrackBestFilterCb, 
             'callback_args': ()
         },
+
 
         #####################
         ###Track
@@ -833,6 +856,7 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setTrackMoveDegCb,
             'callback_args': ()
         },
+
 
 
         #####################
@@ -919,6 +943,7 @@ class NepiPanTiltAutoApp(object):
             'callback': self.setStabControlCb,
             'callback_args': ()
         },
+
 
         #####################
         ###Misc
@@ -1422,7 +1447,8 @@ class NepiPanTiltAutoApp(object):
         self.scan_pan_enabled = enabled
         if enabled == True:
             self.goto_position[0] = 0.0
-        if (was_scanning == True and enabled == False and self.track_pan_enabled == False):
+        if (was_scanning == True and enabled == False and self.track_pan_enabled == False and self.pt_connect_if is not None):
+            self.pt_connect_if.set_pan_speed_ratio(self.pan_speed_ratio)
             self.pt_connect_if.goto_to_pan_position(0.0)
         self.publish_status()
         self.node_if.set_param('scan_pan_enabled', enabled)
@@ -1435,16 +1461,48 @@ class NepiPanTiltAutoApp(object):
         self.setScanTilt(enabled)
 
 
+
   def setScanTilt(self,enabled):
         was_scanning = copy.deepcopy(self.scan_tilt_enabled)
         self.scan_tilt_enabled = enabled
         if enabled == True:
             self.goto_position[1] = 0.0
-        if (was_scanning == True and enabled == False):
+        if (was_scanning == True and enabled == False and self.track_tilt_enabled == False and self.pt_connect_if is not None):
+               self.pt_connect_if.set_tilt_speed_ratio(self.tilt_speed_ratio)
                self.pt_connect_if.goto_to_tilt_position(0.0)      
         self.publish_status()  
         self.node_if.set_param('scan_tilt_enabled', self.scan_tilt_enabled)
 
+
+  def setScanPanSpeedRatioCb(self, msg):
+      self.setScanPanSpeedRatio(msg.data)
+
+  def setScanPanSpeedRatio(self, speed_ratio):
+        speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        if speed_ratio < 0.1:
+            speed_ratio = 0.1
+        self.scan_pan_speed_ratio = speed_ratio
+        if self.scan_pan_enabled == True and self.track_pan_enabled == False and self.pt_connect_if is not None:
+            self.pt_connect_if.set_pan_speed_ratio(speed_ratio)
+            self.pt_connect_if.goto_to_pan_position(self.goto_position[0])    
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('scan_pan_speed_ratio', speed_ratio)
+
+  def setScanTiltSpeedRatioCb(self, msg):
+      self.setScanTiltSpeedRatio(msg.data)
+
+  def setScanTiltSpeedRatio(self, speed_ratio):
+        speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        if speed_ratio < 0.1:
+            speed_ratio = 0.1
+        self.scan_tilt_speed_ratio = speed_ratio
+        if self.scan_tilt_enabled == True and self.track_tilt_enabled == False and self.pt_connect_if is not None:
+            self.pt_connect_if.set_pan_speed_ratio(speed_ratio)
+            self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])    
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('scan_tilt_speed_ratio', speed_ratio)
 
 
 
@@ -1747,6 +1805,8 @@ class NepiPanTiltAutoApp(object):
 
   def setSpeedRatio(self, speed_ratio):
         speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        if speed_ratio < 0.1:
+            speed_ratio = 0.1
         self.speed_ratio = speed_ratio
         self.pan_speed_ratio = speed_ratio
         self.tilt_speed_ratio = speed_ratio
@@ -1763,6 +1823,8 @@ class NepiPanTiltAutoApp(object):
 
   def setPanSpeedRatio(self, speed_ratio):
         speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        if speed_ratio < 0.1:
+            speed_ratio = 0.1
         self.pan_speed_ratio = speed_ratio
         if self.pt_connect_if is not None:
             self.pt_connect_if.set_pan_speed_ratio(speed_ratio)
@@ -1775,60 +1837,14 @@ class NepiPanTiltAutoApp(object):
 
   def setTiltSpeedRatio(self, speed_ratio):
         speed_ratio = nepi_utils.check_ratio(speed_ratio)
+        if speed_ratio < 0.1:
+            speed_ratio = 0.1
         self.tilt_speed_ratio = speed_ratio
         if self.pt_connect_if is not None:
             self.pt_connect_if.set_tilt_speed_ratio(speed_ratio)
         self.publish_status()
         if self.node_if is not None:
             self.node_if.set_param('tilt_speed_ratio', self.tilt_speed_ratio)
-
-  def setStabControlCb(self, msg):
-      self.msg_if.pub_info("Got Stab Control update message " + str(msg))
-      control = msg.name
-      value = msg.value
-      self.setStabControl(control,value)
-
-  def setStabControl(self, control,value):
-        stab_process = self.selected_stab_process
-        stab_controls_dict = self.stab_processes_dict[stab_process]['stab_controls_dict']
-        if control in stab_controls_dict.keys():
-            self.msg_if.pub_info("Setting stab control " + str(control) + " : " + str(value))
-            stab_controls_dict[control] = value
-            self.stab_processes_dict[stab_process]['stab_controls_dict'] = stab_controls_dict
-            self.publish_status()
-            if self.node_if is not None:
-                self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
-                #self.node_if.save_config()
-
-  def setStabUpdateRateCb(self, msg):
-      rate = msg.data
-      self.setStabUpdateRate(rate)
-
-  def setStabUpdateRate(self, rate):
-        if rate < 0:
-            rate = 1
-        rate = round(rate,1)
-        self.msg_if.pub_info("Setting stab update rate to: " + str(rate))
-        self.stab_processes_dict[self.selected_stab_process]['stab_update_rate'] = rate
-        self.publish_status()
-        if self.node_if is not None:
-            self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
-            #self.node_if.save_config()
-
-  def setStabNumAvgCb(self, msg):
-      num_avg = msg.data
-      self.setStabNumAvg(num_avg)
-
-  def setStabNumAvg(self, num_avg):
-        if num_avg < 1:
-            num_avg = 1
-        self.msg_if.pub_info("Setting stab num avg to: " + str(num_avg))
-        self.stab_processes_dict[self.selected_stab_process]['stab_num_avg'] = num_avg
-        self.publish_status()
-        if self.node_if is not None:
-            self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
-            #self.node_if.save_config()
-
 
   '''
   def setSinPanCb(self, msg):
@@ -2069,6 +2085,7 @@ class NepiPanTiltAutoApp(object):
             if self.goto_position[0] != self.scan_pan_min_deg and self.goto_position[0] != self.scan_pan_max_deg:
                 #self.msg_if.pub_warn("goto pan scan pos: " + str(self.scan_pan_min_deg)) 
                 self.goto_position[0] = self.scan_pan_min_deg
+                self.pt_connect_if.set_pan_speed_ratio(self.scan_pan_speed_ratio)
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)  
               
             elif (pan_cur < (self.scan_pan_min_deg + self.SCAN_SWITCH_DEG)):
@@ -2079,6 +2096,7 @@ class NepiPanTiltAutoApp(object):
 
                 #self.msg_if.pub_warn("goto pan pos: " + str(self.scan_pan_max_deg)) 
                 self.goto_position[0] = self.scan_pan_max_deg
+                self.pt_connect_if.set_pan_speed_ratio(self.scan_pan_speed_ratio)
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_max_deg)
 
                 
@@ -2088,8 +2106,10 @@ class NepiPanTiltAutoApp(object):
                     scan_time =  cur_time - self.scan_pan_last_time
                 self.scan_pan_last_time = nepi_utils.get_time()
                 self.goto_position[0] = self.scan_pan_min_deg
+                self.pt_connect_if.set_pan_speed_ratio(self.scan_pan_speed_ratio)
                 self.pt_connect_if.goto_to_pan_position(self.scan_pan_min_deg)
             elif (self.pt_connect_if.check_pan_moving() == False):
+                self.pt_connect_if.set_pan_speed_ratio(self.scan_pan_speed_ratio)
                 self.pt_connect_if.goto_to_pan_position(self.goto_position[0])
 
 
@@ -2104,8 +2124,6 @@ class NepiPanTiltAutoApp(object):
                 if len(times) > 0:
                     scan_pan_time = sum(times) / len(times)
                 self.scan_pan_time = scan_time # scan_pan_time
-                self.scan_pan_deg = abs(self.scan_pan_max_deg - self.scan_pan_min_deg)
-                self.scan_pan_speed = self.scan_pan_deg/self.scan_pan_time
 
                 # sin_len = math.ceil(scan_pan_time) *2
                 # self.scan_pan_sins = list( (np.sin(  (np.linspace(0,1,sin_len)*4*math.pi) - (math.pi)/2) + 1  ) /2 )
@@ -2131,6 +2149,7 @@ class NepiPanTiltAutoApp(object):
             tilt_cur = self.current_position[1]
             if self.goto_position[1] != self.scan_tilt_min_deg and self.goto_position[1] != self.scan_tilt_max_deg:
                 self.goto_position[1] = self.scan_tilt_min_deg
+                self.pt_connect_if.set_tilt_speed_ratio(self.scan_tilt_speed_ratio)
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min_deg)  
             elif (tilt_cur < (self.scan_tilt_min_deg + self.SCAN_SWITCH_DEG)):
                 last_time = self.scan_tilt_last_time
@@ -2138,6 +2157,7 @@ class NepiPanTiltAutoApp(object):
                     scan_time =  cur_time - self.scan_tilt_last_time
                 self.scan_tilt_last_time = nepi_utils.get_time()
                 self.goto_position[1] = self.scan_tilt_max_deg
+                self.pt_connect_if.set_tilt_speed_ratio(self.scan_tilt_speed_ratio)
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_max_deg)
 
             elif (tilt_cur > (self.scan_tilt_max_deg - self.SCAN_SWITCH_DEG)):
@@ -2146,8 +2166,10 @@ class NepiPanTiltAutoApp(object):
                     scan_time =  cur_time - self.scan_tilt_last_time
                 self.scan_tilt_last_time = nepi_utils.get_time()
                 self.goto_position[1] = self.scan_tilt_min_deg
+                self.pt_connect_if.set_tilt_speed_ratio(self.scan_tilt_speed_ratio)
                 self.pt_connect_if.goto_to_tilt_position(self.scan_tilt_min_deg)
             elif (self.pt_connect_if.check_tilt_moving() == False):
+                self.pt_connect_if.set_tilt_speed_ratio(self.scan_tilt_speed_ratio)
                 self.pt_connect_if.goto_to_tilt_position(self.goto_position[1])
 
             if scan_time is not None:
@@ -2161,8 +2183,6 @@ class NepiPanTiltAutoApp(object):
                 if len(times) > 0:
                     scan_tilt_time = sum(times) / len(times)
                 self.scan_tilt_time = scan_time # scan_tilt_time
-                self.scan_tilt_deg = abs(self.scan_tilt_max_deg - self.scan_tilt_min_deg)
-                self.scan_tilt_speed = self.scan_tilt_deg/self.scan_tilt_time
 
                 # sin_len = math.ceil(scan_tilt_time) *2
                 # self.scan_tilt_sins = list( (np.sin(  (np.linspace(0,1,sin_len)*4*math.pi) - (math.pi)/2) + 1  ) /2 )
@@ -2615,8 +2635,6 @@ class NepiPanTiltAutoApp(object):
             self.sendTargetsConfig()
         nepi_sdk.sleep(1)
         
-
-  
   
 
 
@@ -2957,6 +2975,8 @@ class NepiPanTiltAutoApp(object):
 
     self.status_msg.scan_pan_enabled = self.scan_pan_enabled
     self.status_msg.scan_tilt_enabled = self.scan_tilt_enabled
+    self.status_msg.scan_pan_speed_ratio = self.scan_pan_speed_ratio
+    self.status_msg.scan_tilt_speed_ratio = self.scan_tilt_speed_ratio
     self.status_msg.scan_pan_min_deg = round(self.scan_pan_min_deg, 0)
     self.status_msg.scan_pan_max_deg = round(self.scan_pan_max_deg, 0)
     self.status_msg.scan_tilt_min_deg = round(self.scan_tilt_min_deg, 0)
@@ -3242,6 +3262,55 @@ class NepiPanTiltAutoApp(object):
 ##########################
 ### Stab
 ##########################  
+
+
+  def setStabControlCb(self, msg):
+      self.msg_if.pub_info("Got Stab Control update message " + str(msg))
+      control = msg.name
+      value = msg.value
+      self.setStabControl(control,value)
+
+  def setStabControl(self, control,value):
+        stab_process = self.selected_stab_process
+        stab_controls_dict = self.stab_processes_dict[stab_process]['stab_controls_dict']
+        if control in stab_controls_dict.keys():
+            self.msg_if.pub_info("Setting stab control " + str(control) + " : " + str(value))
+            stab_controls_dict[control] = value
+            self.stab_processes_dict[stab_process]['stab_controls_dict'] = stab_controls_dict
+            self.publish_status()
+            if self.node_if is not None:
+                self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
+                #self.node_if.save_config()
+
+  def setStabUpdateRateCb(self, msg):
+      rate = msg.data
+      self.setStabUpdateRate(rate)
+
+  def setStabUpdateRate(self, rate):
+        if rate < 0:
+            rate = 1
+        rate = round(rate,1)
+        self.msg_if.pub_info("Setting stab update rate to: " + str(rate))
+        self.stab_processes_dict[self.selected_stab_process]['stab_update_rate'] = rate
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
+            #self.node_if.save_config()
+
+  def setStabNumAvgCb(self, msg):
+      num_avg = msg.data
+      self.setStabNumAvg(num_avg)
+
+  def setStabNumAvg(self, num_avg):
+        if num_avg < 1:
+            num_avg = 1
+        self.msg_if.pub_info("Setting stab num avg to: " + str(num_avg))
+        self.stab_processes_dict[self.selected_stab_process]['stab_num_avg'] = num_avg
+        self.publish_status()
+        if self.node_if is not None:
+            self.node_if.set_param('stab_processes_dict', self.stab_processes_dict)
+            #self.node_if.save_config()
+
 
   def reloadStabsCb(self,msg):
     self.stab_process_ready = False

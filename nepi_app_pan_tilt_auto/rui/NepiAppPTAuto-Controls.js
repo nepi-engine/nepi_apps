@@ -945,6 +945,35 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
 
 
+              <React.Fragment>
+                <SliderAdjustment
+                  disabled={false}
+                  title={"Pan Speed"}
+                  msgType={"std_msgs/Float32"}
+                  adjustment={status_msg.scan_pan_speed_ratio}
+                  topic={namespace + "/set_scan_pan_speed_ratio"}
+                  scaled={0.01}
+                  min={0}
+                  max={100}
+                  tooltip={"Speed as a percentage (0%=min, 100%=max)"}
+                  unit={"%"}
+                />
+                <SliderAdjustment
+                  disabled={false}
+                  title={"Tilt Speed"}
+                  msgType={"std_msgs/Float32"}
+                  adjustment={status_msg.scan_tilt_speed_ratio}
+                  topic={namespace + "/set_scan_tilt_speed_ratio"}
+                  scaled={0.01}
+                  min={0}
+                  max={100}
+                  tooltip={"Speed as a percentage (0%=min, 100%=max)"}
+                  unit={"%"}
+                />
+              </React.Fragment>
+  
+
+
 
             <Label title={""}>
               <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pan"}</div>
