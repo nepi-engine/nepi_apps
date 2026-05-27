@@ -245,13 +245,13 @@ class NepiPanTiltAutoApp(object):
   stab_subpub_dict = None
   stab_subpub_lock = threading.Lock()
 
-  available_stab_processes = list(nepi_stab.PAN_TILT_STAB_PROCESSES_DICT.keys())
+  available_stab_processes = list(nepi_stab.PROCESSES_DICT.keys())
   stab_processes_dict = nepi_stab.create_processes_dict()
-  selected_stab_process = nepi_stab.DEFAULT_PAN_TILT_STAB_PROCESS
+  selected_stab_process = nepi_stab.DEFAULT_PROCESS
   stab_process_ready = True
 
 
-  stab_data_dict = nepi_stab.get_blank_pan_tilt_data_dict()
+  stab_data_dict = nepi_stab.get_blank_data_dict()
   stab_data_dict_last = None
   stab_dict_lock = threading.Lock()
   stab_pan_speed_start = 1.0
@@ -3376,7 +3376,7 @@ class NepiPanTiltAutoApp(object):
                 self.msg_if.pub_warn("Clearing stab status message on timeout")
 
                 self.stab_dict_lock.acquire()
-                self.stab_data_dict = nepi_stab.get_blank_pan_tilt_data_dict()
+                self.stab_data_dict = nepi_stab.get_blank_data_dict()
                 self.stab_dict_lock.release()  
                 self.stab_pan_adj = 0.0
                 self.stab_tilt_adj = 0.0
@@ -3631,8 +3631,8 @@ class NepiPanTiltAutoApp(object):
                 stab_pan_enabled = self.stab_pan_enabled == True and self.pan_track_hold == False
                 stab_tilt_enabled = self.stab_tilt_enabled == True and self.tilt_track_hold == False
 
-                if selected_stab_process in nepi_stab.PAN_TILT_STAB_PROCESSES_DICT.keys():
-                    stab_process_function = nepi_stab.PAN_TILT_STAB_PROCESSES_DICT[selected_stab_process]['process_function']
+                if selected_stab_process in nepi_stab.PROCESSES_DICT.keys():
+                    stab_process_function = nepi_stab.PROCESSES_DICT[selected_stab_process]['process_function']
                     #self.msg_if.pub_warn("Stabs calling process function: " + str(stab_process_function), throttle_s=1)
                     [stab_data_dict, stab_settings_dict] = stab_process_function(self.pt_connect_if, 
                                                                                         stab_data_dict, 
