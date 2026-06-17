@@ -96,8 +96,14 @@ class NepiAppPTAutoControls extends Component {
       autoPanEnabled: false,
       autoTiltEnabled: false,
 
+      stabPanReady: false,
+      stabTiltReady: false,
+
       stabPanEnabled: false,
       stabTiltEnabled: false,
+
+      stabPanRunning: false,
+      stabTiltRunning: false,
 
       click_pan_enabled: false,
       click_tilt_enabled: false,
@@ -188,8 +194,14 @@ class NepiAppPTAutoControls extends Component {
       trackPanEnabled: message.track_pan_enabled,
       trackTiltEnabled: message.track_tilt_enabled,
       
+      stabPanReady: message.stab_pan_ready,
+      stabTiltReady: message.stab_tilt_ready,
+
       stabPanEnabled: message.stab_pan_enabled,
       stabTiltEnabled: message.stab_tilt_enabled,
+
+      stabPanRunning: message.pan_stabing,
+      stabTiltRunning: message.pan_stabing,
 
       sinPanEnabled: message.sin_pan_enabled,
       sinTiltEnabled: message.sin_tilt_enabled,
@@ -509,18 +521,16 @@ componentWillUnmount() {
 
               <Label title={"Enable Stabilize"}>
 
-                <div style={{ display: "inline-block", width: "45%", float: "left" }}>
+                <div style={{ display: "inline-block", width: "45%", float: "left" }} hidden={this.stabPanReady}>
                   <Toggle style={{justifyContent: "flex-left"}} 
-                    disabled={true}
-                    checked={stabPanEnabled === true && disable_stab_enable === false} 
+                    checked={stabPanEnabled === true} 
                     onClick={() => sendBoolMsg.bind(this)(namespace + "/set_stab_pan_enable",!stabPanEnabled)} />
                 </div>
 
 
-                <div style={{ display: "inline-block", width: "45%", float: "right" }}>
+                <div style={{ display: "inline-block", width: "45%", float: "right" }}hidden={this.stabTiltReady}>
                   <Toggle style={{justifyContent: "flex-right"}} 
-                    disabled={disable_stab_enable === true}
-                    checked={stabTiltEnabled === true && disable_stab_enable === false} 
+                    checked={stabTiltEnabled === true} 
                     onClick={() => sendBoolMsg.bind(this)(namespace + "/set_stab_tilt_enable",!stabTiltEnabled)} />
                 </div>
 
@@ -1581,74 +1591,26 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     return (
       <React.Fragment>
 
+<div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Ready"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Running"}</div>
+        </Label>
+
+
+        <Label title={"Pan"}>
+          <BooleanIndicator value={this.stabPanReady} style={{ align: "left" }} />
+           <BooleanIndicator value={this.stabPanRunning} style={{ align: "left"}} />
+        </Label>
+
+        <Label title={"Tilt"}>
+          <BooleanIndicator value={this.stabTiltReady} style={{ align: "left" }} />
+           <BooleanIndicator value={this.stabTiltRunning} style={{ align: "left" }} />
+        </Label>
      
 
-
-        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-
-        <Label title={""}>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Deg"}</div>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"DPS"}</div>
-        </Label>
-
-
-        <Label title={"Pan"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(pan_deg, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(pan_speed_dps, 2)} />
-        </Label>
-
-        <Label title={"Tilt"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(tilt_deg, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(tilt_speed_dps, 2)} />
-        </Label>
-
-        <Label title={""}>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Roll"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Pitch"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Yaw"}</div>
-        </Label>
-
-        <Label title={"Nav"}>
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_roll_deg, 2)} />
-          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pitch_deg, 2)} />
-          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_heading_deg, 2)} />
-        </Label>
-
-        <Label title={"Stab Updates"}>
-          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Goal"}</div>
-          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Speed"}</div>
-        </Label>
-
-        <Label title={"Pan"}>
-          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pan_goal, 2)} />
-          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_pan_dps, 2)} />
-        </Label>
-
-        <Label title={"Tilt"}>
-           <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_adj, 2)} />
-          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_tilt_goal, 2)} />
-          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_tilt_dps, 2)} />
-        </Label>
-
-        <Label title={"Stab Rates"}>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pos"}</div>
-          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Speed"}</div>
-        </Label>
-
-
-        <Label title={"Pan"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_pos_rate, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_pan_vel_rate, 2)} />
-        </Label>
-
-        <Label title={"Tilt"}>
-          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_pos_rate, 2)} />
-          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_vel_rate, 2)} />
-        </Label>
-
+<div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 
             <div style={{ display: 'flex' }} >
                 <div style={{ width: '60%' }} >
@@ -1666,9 +1628,10 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
                 </div>
 
           </div>
+          
           <div hidden={(show_settings === false)}>
 
-                <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+                
 
                       <Label title={'Select Source'}>
                         <Select
@@ -1737,6 +1700,74 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
               </ButtonMenu>
 
           </div>
+
+
+        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Deg"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"DPS"}</div>
+        </Label>
+
+
+        <Label title={"Pan"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(pan_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(pan_speed_dps, 2)} />
+        </Label>
+
+        <Label title={"Tilt"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(tilt_deg, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(tilt_speed_dps, 2)} />
+        </Label>
+
+        <Label title={""}>
+          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Roll"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Pitch"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Yaw"}</div>
+        </Label>
+
+        <Label title={"Nav"}>
+          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_roll_deg, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pitch_deg, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_heading_deg, 2)} />
+        </Label>
+
+        <Label title={"Stab Updates"}>
+          <div style={{ display: "inline-block", width: "30%", float: "left" }}>{"Adj"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "center" }}>{"Goal"}</div>
+          <div style={{ display: "inline-block", width: "30%", float: "right" }}>{"Speed"}</div>
+        </Label>
+
+        <Label title={"Pan"}>
+          <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_pan_adj, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_pan_goal, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_pan_dps, 2)} />
+        </Label>
+
+        <Label title={"Tilt"}>
+           <Input disabled style={{ width: "30%", float: "left" }} value={round(stab_tilt_adj, 2)} />
+          <Input disabled style={{ width: "30%", float: "center" }} value={round(stab_tilt_goal, 2)} />
+          <Input disabled style={{ width: "30%", float: "right" }} value={round(stab_tilt_dps, 2)} />
+        </Label>
+
+        <Label title={"Stab Rates"}>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Pos"}</div>
+          <div style={{ display: "inline-block", width: "45%", float: "left" }}>{"Speed"}</div>
+        </Label>
+
+
+        <Label title={"Pan"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_pan_pos_rate, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_pan_vel_rate, 2)} />
+        </Label>
+
+        <Label title={"Tilt"}>
+          <Input disabled style={{ width: "45%", float: "left" }} value={round(stab_tilt_pos_rate, 2)} />
+          <Input disabled style={{ width: "45%" }} value={round(stab_tilt_vel_rate, 2)} />
+        </Label>
+
+
 
       </React.Fragment>
     )

@@ -228,6 +228,9 @@ class NepiPanTiltAutoApp(object):
   stab_timeout = 2
   stab_count = 0
 
+  stab_pan_ready = False
+  stab_tilt_ready = False
+
   stab_pan_enabled = False
   stab_tilt_enabled = False
 
@@ -3018,6 +3021,9 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.selected_stab_process = selected_stab_process
     self.status_msg.stab_process_ready = self.stab_process_ready
     
+    self.status_msg.stab_pan_ready = self.stab_pan_ready
+    self.status_msg.stab_tilt_ready = self.stab_tilt_ready
+
     self.status_msg.stab_pan_enabled = self.stab_pan_enabled
     self.status_msg.stab_tilt_enabled = self.stab_tilt_enabled
 
@@ -3633,27 +3639,32 @@ class NepiPanTiltAutoApp(object):
             pitchs_dps.append(pitch_dps)
             stab_data_dict['pitch_dps'] =  sum(pitchs_dps) / len(pitchs_dps)
 
-
+            stab_pan_ready = False
             heading_deg = 0.0
+            heading_dps = 0.0
             if 'heading_deg' in source_dict.keys():
                 if source_dict['heading_deg'] != -999:
+                    stab_pan_ready = True
                     heading_deg = source_dict['heading_deg']
+                    heading_dps = (stab_data_dict['heading_deg'] - stab_data_dict_last['heading_deg']) / delta_time
+                    headings_dps = stab_data_dict['headings_dps']
+                    if (len(headings_dps) >= num_avg):
+                        headings_dps.pop(0)
+                    headings_dps.append(heading_dps)
+                    heading_dps = sum(headings_dps) / len(headings_dps)
+            
+            self.stab_pan_ready = stab_pan_ready
             stab_data_dict['heading_deg'] = heading_deg
-
-            heading_dps = (stab_data_dict['heading_deg'] - stab_data_dict_last['heading_deg']) / delta_time
-            headings_dps = stab_data_dict['headings_dps']
-            if (len(headings_dps) >= num_avg):
-                headings_dps.pop(0)
-            headings_dps.append(heading_dps)
-            stab_data_dict['heading_dps'] =  sum(headings_dps) / len(headings_dps)
-
+            stab_data_dict['heading_dps'] = heading_dps
 
             ##########################
             # Calculate pan tilt adjustments
             ##########################
             ## Transpose Source Frame Nav to Pan Tilt Frame
+            stab_tilt_ready = False
             rpy_vector = [roll_deg, -1 * pitch_deg, heading_deg ]
             if -999 not in rpy_vector:
+                stab_tilt_ready = True
                 [ar,ap,ay] = rpy_vector
                 #self.msg_if.pub_warn("Stabs rpy input: " + str([ar,ap,ay]))
                 [art,apt,ayt]  = nepi_nav.rotate_enu_angles([ar,ap,ay],tilt_deg,'y')
@@ -3689,7 +3700,7 @@ class NepiPanTiltAutoApp(object):
                 self.stab_tilt_adj = tilt_adj
 
                 #self.msg_if.pub_warn("Stabs pan tilt adj: " + str([pan_adj,tilt_adj]))
-
+            self.stab_tilt_ready = stab_tilt_ready
 
             ##########################
             # Run Stab Process

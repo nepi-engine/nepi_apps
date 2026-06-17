@@ -93,8 +93,11 @@ string[] available_stab_processes
 string selected_stab_process
 bool stab_process_ready
 
-float32 stab_pan_enabled
-float32 stab_tilt_enabled
+bool stab_pan_ready
+bool stab_tilt_ready
+
+bool stab_pan_enabled
+bool stab_tilt_enabled
 
 #********
 
