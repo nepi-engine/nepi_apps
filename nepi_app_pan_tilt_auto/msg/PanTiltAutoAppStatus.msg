@@ -3,6 +3,7 @@
 ## Reverse axis conversions are handled by the TMP IF class
 
 #####################
+# Pan Tilt Info
 string[] available_pan_tilts
 string selected_pan_tilt
 bool pt_connected
@@ -12,7 +13,6 @@ nepi_interfaces/DevicePTXStatus pt_status_msg
 
 #unset values are -999
 float32 pan_tilt_max_speed_dps
-
 float32 pan_tilt_avg_move_delay
 
 float32 speed_ratio
@@ -28,7 +28,10 @@ float32 tilt_goal
 float32 pan_speed_dps
 float32 tilt_speed_dps
 
+
+
 ###################
+# Auto Pan Tilt Info
 
 bool pan_scanning
 bool tilt_scanning
@@ -38,6 +41,12 @@ bool tilt_tracking
 
 bool pan_stabing
 bool tilt_stabing
+
+float32 pan_goto
+float32 tilt_goto
+
+bool pan_control_disabled
+bool tilt_control_disabled
 
 #################
 
@@ -98,6 +107,9 @@ bool stab_tilt_ready
 
 bool stab_pan_enabled
 bool stab_tilt_enabled
+
+float32 stab_pan_pos
+float32 stab_tilt_pos
 
 #********
 

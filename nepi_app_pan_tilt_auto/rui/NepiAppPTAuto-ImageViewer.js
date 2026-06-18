@@ -250,6 +250,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
   render() {
     const { ptxDevices, onPTXJogPan, onPTXJogTilt, onPTXStop, onPTXPanStop, onPTXTiltStop } = this.props.ros
     const pt_status_msg = this.state.pt_status_msg
+
     var panGoalRatio = 0.5
     var tiltGoalRatio = 0.5
     if (pt_status_msg != null){
@@ -274,6 +275,25 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     const show_pt_controls = (tiltSliderHeight === 1) ? false : (has_abs_pos === true)
 
 
+    var pan_slider_disabled = false
+    var pan_slider_topic = ptNamespace + "/goto_pan_ratio"
+    var tilt_slider_disabled = false
+    var tilt_slider_topic = ptNamespace + "/goto_tilt_ratio"
+    const namespace = (this.props.namespace !== null) ? this.props.namespace : 'None'
+    const status_msg = this.state.status_msg
+    if (status_msg != null){
+      pan_slider_disabled = (status_msg.pan_scanning === true || status_msg.pan_tracking === true)
+      const pan_stabing = status_msg.pan_stabing
+      if (pan_stabing === true){
+        pan_slider_topic = namespace  + "/set_stab_pan_pos_ratio"
+      }
+      tilt_slider_disabled = (status_msg.tilt_scanning === true || status_msg.tilt_tracking === true)
+      const tilt_stabing = status_msg.tilt_stabing
+      if (tilt_stabing === true){
+        tilt_slider_topic = namespace  + "/set_stab_tilt_pos_ratio"
+      }
+    }
+  
     return (
 
 
@@ -293,7 +313,8 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                     title={"Pan"}
                     msgType={"std_msgs/Float32"}
                     adjustment={panGoalRatio}
-                    topic={ptNamespace + "/goto_pan_ratio"}
+                    disabled={pan_slider_disabled === true}
+                    topic={pan_slider_topic}
                     scaled={0.01}
                     min={0}
                     max={100}
@@ -358,7 +379,8 @@ componentDidUpdate(prevProps, prevState, snapshot) {
               title={"Tilt"}
               msgType={"std_msgs/Float32"}
               adjustment={tiltGoalRatio}
-              topic={ptNamespace + "/goto_tilt_ratio"}
+              disabled={tilt_slider_disabled === true}
+              topic={tilt_slider_topic}
               scaled={0.01}
               min={0}
               max={100}
