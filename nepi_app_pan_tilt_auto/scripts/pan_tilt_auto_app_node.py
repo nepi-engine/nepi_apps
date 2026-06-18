@@ -1390,7 +1390,7 @@ class NepiPanTiltAutoApp(object):
     self.click_pan_enabled = True
     #self.stab_pan_enabled = False
     if self.pt_connect_if is not None:
-        self.pt_connect_if.set_pan_speed_ratio(1)
+        #self.pt_connect_if.set_pan_speed_ratio(1)
         pt_status_msg = self.pt_connect_if.get_status_msg()
         self.goto_position[0] = pt_status_msg.pan_now_deg
 
@@ -1403,7 +1403,7 @@ class NepiPanTiltAutoApp(object):
     self.click_tilt_enabled = True
     #self.stab_tilt_enabled = False
     if self.pt_connect_if is not None:
-        self.pt_connect_if.set_tilt_speed_ratio(1)
+        #self.pt_connect_if.set_tilt_speed_ratio(1)
         pt_status_msg = self.pt_connect_if.get_status_msg()
         self.goto_position[1] = pt_status_msg.tilt_now_deg
 
@@ -3114,10 +3114,13 @@ class NepiPanTiltAutoApp(object):
 
 
   def setStabPan(self,enabled):
+        if enabled == True and self.scan_pan_enabled == True:
+            self.stab_position[0] = 0
         self.scan_pan_enabled = False
         self.track_pan_enabled = False
         self.stab_pan_enabled = enabled
         self.publish_status()
+
         if enabled == False and self.pt_connect_if is not None:
             self.pt_connect_if.set_pan_speed_ratio(1)
             self.pt_connect_if.goto_to_pan_position(self.stab_position[0])
@@ -3130,6 +3133,8 @@ class NepiPanTiltAutoApp(object):
         self.setStabTilt(enabled)
 
   def setStabTilt(self,enabled):
+        if enabled == True and self.scan_tilt_enabled == True:
+            self.stab_position[1] = 0
         self.scan_tilt_enabled = False
         self.track_tilt_enabled = False
         self.stab_tilt_enabled = enabled

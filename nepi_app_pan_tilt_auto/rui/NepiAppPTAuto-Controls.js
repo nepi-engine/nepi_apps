@@ -56,6 +56,10 @@ class NepiAppPTAutoControls extends Component {
       show_control: 'None',
 
       selected_pan_tilt: 'None',
+      panGoto: null,
+      panDisabled: null,
+      tiltGoto: 0,
+      tiltDisabled: null,
       linkSpeeds: true,
 
       scanPanMin: -50,
@@ -436,18 +440,6 @@ componentWillUnmount() {
 
     const disable_stab_enable = false
 
-      const panPosition = status_msg.pt_status_msg.pan_now_deg
-      const tiltPosition = status_msg.pt_status_msg.tilt_now_deg
-
-      const panPositionClean = panPosition + .001
-      const tiltPositionClean = tiltPosition + .001
-
-      const panMove = status_msg.pt_status_msg.pan_goal_deg
-      const tiltMove = status_msg.pt_status_msg.tilt_goal_deg
-
-      const panMoveClean = panMove + .001
-      const tiltMoveClean = tiltMove + .001
-
       const pan_control_disabled = (status_msg.pan_control_disabled === true)
       const tilt_control_disabled = (status_msg.tilt_control_disabled === true)
       const speedRatio = status_msg.speed_ratio
@@ -543,23 +535,7 @@ componentWillUnmount() {
               </Label>
 
 
-          <div hidden={(has_abs_pos === false)}>
 
-              <Label title={"Current Position"}>
-                <Input
-                  disabled
-                  style={{ width: "45%", float: "left" }}
-                  value={round(panPositionClean, 2)}
-                />
-                <Input
-                  disabled
-                  style={{ width: "45%" }}
-                  value={round(tiltPositionClean, 2)}
-                />
-              </Label>
-
-  
-          </div>
             {this.renderPTControls()}
 
             </React.Fragment>
@@ -762,6 +738,14 @@ componentWillUnmount() {
       const panPositionClean = panPosition + .001
       const tiltPositionClean = tiltPosition + .001
 
+      if (this.state.panGoto == null){
+        this.setState({panGoto: panPositionClean})
+      }
+
+      if (this.state.tiltGoto == null){
+        this.setState({tiltGoto: tiltPositionClean})
+      }
+
       const panMove = status_msg.pt_status_msg.pan_goal_deg
       const tiltMove = status_msg.pt_status_msg.tilt_goal_deg
 
@@ -769,13 +753,36 @@ componentWillUnmount() {
       const tiltMoveClean = tiltMove + .001
 
       const pan_control_disabled = (status_msg.pan_control_disabled === true)
+      
+      if (pan_control_disabled !== this.state.panDisabled){
+        this.setState({panGoto: panMoveClean, panDisabled: pan_control_disabled})
+      }
+      const pan_pos = pan_control_disabled === true ? panMoveClean : this.state.panGoto
+
       const tilt_control_disabled = (status_msg.tilt_control_disabled === true)
+      if (tilt_control_disabled !== this.state.tiltDisabled){
+        this.setState({tiltGoto: tiltMoveClean, tiltDisabled: tilt_control_disabled})
+      }      
+      const tilt_pos = tilt_control_disabled === true ? tiltMoveClean : this.state.tiltGoto
+
+
+      const panCurSpeed = status_msg.pt_status_msg.speed_pan_dps
+      const tiltCurSpeed = status_msg.pt_status_msg.speed_tilt_dps
+
+      const panCurSpeedClean = panCurSpeed + .001
+      const tiltCurSpeedClean = tiltCurSpeed + .001
+
       const speedRatio = status_msg.speed_ratio
       const speedPanRatio = status_msg.pan_speed_ratio
       const speedTiltRatio = status_msg.tilt_speed_ratio
 
+      const maxSpeed = status_msg.pan_tilt_max_speed_dps
+      const panSetSpeed = speedPanRatio * maxSpeed
+      const tiltSetSpeed = speedTiltRatio * maxSpeed
 
-      const show_control = this.state.show_control
+      const panSetSpeedClean = panSetSpeed + .001
+      const tiltSetSpeedClean = tiltSetSpeed + .001
+
         return (
           <React.Fragment>
 
@@ -783,26 +790,12 @@ componentWillUnmount() {
           <div hidden={(has_abs_pos === false)}>
 
 
-              <Label title={"Goal Position"}>
-                <Input
-                  disabled
-                  style={{ width: "45%", float: "left" }}
-                  value={round(panMoveClean, 2)}
-                />
-                <Input
-                  disabled
-                  style={{ width: "45%" }}
-                  value={round(tiltMoveClean, 2)}
-                />
-              </Label>
-
-
               <Label title={"GoTo Position "}>
                 <Input
                   disabled={pan_control_disabled === true}
                   id={"PTXPanGoto"}
                   style={{ width: "45%", float: "left" }}
-                  value={this.state.panGoto}
+                  value={round(pan_pos,1)}
                   onChange= {this.onPTUpdateText}
                   onKeyDown= {this.onPTKeyText}
                 />
@@ -810,13 +803,40 @@ componentWillUnmount() {
                   disabled={tilt_control_disabled === true}
                   id={"PTXTiltGoto"}
                   style={{ width: "45%" }}
-                  value={this.state.tiltGoto}
+                  value={round(tilt_pos,1)}
                   onChange= {this.onPTUpdateText}
                   onKeyDown= {this.onPTKeyText}
                 />
               </Label>
 
 
+              <Label title={"Current Position"}>
+                <Input
+                  disabled
+                  style={{ width: "45%", float: "left" }}
+                  value={round(panPositionClean, 1)}
+                />
+                <Input
+                  disabled
+                  style={{ width: "45%" }}
+                  value={round(tiltPositionClean, 1)}
+                />
+              </Label>
+
+              <Label title={"Average Speed"}>
+                <Input
+                  disabled
+                  style={{ width: "45%", float: "left" }}
+                  value={round(panCurSpeedClean, 1)}
+                />
+                <Input
+                  disabled
+                  style={{ width: "45%" }}
+                  value={round(tiltCurSpeedClean, 1)}
+                />
+              </Label>
+
+  
           </div>
 
 
@@ -834,7 +854,8 @@ componentWillUnmount() {
                   min={0}
                   max={100}
                   tooltip={"Speed as a percentage (0%=min, 100%=max)"}
-                  unit={"%"}
+                  displayValue={round(panSetSpeedClean,1)}
+                  unit={""}
                 />
                 <SliderAdjustment
                   disabled={tilt_control_disabled}
@@ -846,7 +867,8 @@ componentWillUnmount() {
                   min={0}
                   max={100}
                   tooltip={"Speed as a percentage (0%=min, 100%=max)"}
-                  unit={"%"}
+                  displayValue={round(tiltSetSpeedClean,1)}
+                  unit={""}
                 />
               </React.Fragment>
   
