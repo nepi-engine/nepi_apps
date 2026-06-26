@@ -1,1 +1,0 @@
-Files and Folders in this folder will be synced to NEPI's system config folder (/mnt/nepi_config/system_cfg) by the deploy_nepi_repo.sh script in the repos parent folder when run.  Files in NEPI's system config folder are then used during NEPI's build and runtime processes on top of NEPI's defualt source-code files. 

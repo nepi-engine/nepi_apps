@@ -1,1 +1,0 @@
-Files and Folders in this folder will be synced to NEPI's RUI system folder (/opt/nepi/nepi_rui/src/rui_webserver/rui-app/src), then used during NEPI's build and runtime processes on top of NEPI's defualt source-code files. 

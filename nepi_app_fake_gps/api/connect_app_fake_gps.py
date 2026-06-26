@@ -5,10 +5,10 @@
 # This file is part of nepi applications (nepi_apps) repo
 # (see https://https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: nepi applications are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
@@ -17,19 +17,21 @@
 
 import time
 
-from std_msgs.msg import Bool, Empty, String, Float32
+from std_msgs.msg import Bool, Empty, Float32, String
+from geometry_msgs.msg import Point
+from geographic_msgs.msg import GeoPoint
 
-from nepi_app_template.msg import NepiAppTemplateStatus
+from nepi_app_fake_gps.msg import NepiAppFakeGpsStatus
 
 from nepi_sdk import nepi_sdk
 
 from nepi_api.messages_if import MsgIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
 
-APP_NODE_NAME = 'app_template'
+APP_NODE_NAME = 'app_fake_gps'
 
 
-class ConnectAppTemplate:
+class ConnectAppFakeGps:
     msg_if = None
     ready = False
     namespace = '~'
@@ -56,75 +58,33 @@ class ConnectAppTemplate:
             namespace = nepi_sdk.create_namespace(self.base_namespace, APP_NODE_NAME)
         self.namespace = nepi_sdk.get_full_namespace(namespace)
 
-        # Configs Config Dict ####################
-        self.CFGS_DICT = {
-            'namespace': self.namespace
-        }
-
-        # Services Config Dict ####################
+        self.CFGS_DICT = {'namespace': self.namespace}
         self.SRVS_DICT = None
 
-        # Publishers Config Dict ####################
+        ns = self.namespace
         self.PUBS_DICT = {
-            'set_enabled': {
-                'namespace': self.node_namespace,
-                'topic': 'set_enabled',
-                'msg': Bool,
-                'qsize': 1
-            },
-            'set_option': {
-                'namespace': self.node_namespace,
-                'topic': 'set_option',
-                'msg': String,
-                'qsize': 1
-            },
-            'set_value': {
-                'namespace': self.node_namespace,
-                'topic': 'set_value',
-                'msg': Float32,
-                'qsize': 1
-            },
-            'trigger_action': {
-                'namespace': self.node_namespace,
-                'topic': 'trigger_action',
-                'msg': Empty,
-                'qsize': 1
-            },
-            'save_config': {
-                'namespace': self.node_namespace,
-                'topic': 'save_config',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'reset_config': {
-                'namespace': self.node_namespace,
-                'topic': 'reset_config',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'factory_reset_config': {
-                'namespace': self.node_namespace,
-                'topic': 'factory_reset_config',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            }
+            'select_mavros_node': {'namespace': ns, 'topic': 'select_mavros_node', 'msg': String,   'qsize': 1},
+            'enable':            {'namespace': ns, 'topic': 'enable',            'msg': Bool,     'qsize': 1},
+            'reset':             {'namespace': ns, 'topic': 'reset',             'msg': GeoPoint, 'qsize': 1},
+            'go_stop':           {'namespace': ns, 'topic': 'go_stop',           'msg': Empty,    'qsize': 1},
+            'goto_position':     {'namespace': ns, 'topic': 'goto_position',     'msg': Point,    'qsize': 1},
+            'goto_location':     {'namespace': ns, 'topic': 'goto_location',     'msg': GeoPoint, 'qsize': 1},
+            'set_gps_pub_rate':  {'namespace': ns, 'topic': 'set_gps_pub_rate',  'msg': Float32,  'qsize': 1},
+            'save_config':          {'namespace': ns, 'topic': 'save_config',          'msg': Empty, 'qsize': None, 'latch': False},
+            'reset_config':         {'namespace': ns, 'topic': 'reset_config',         'msg': Empty, 'qsize': None, 'latch': False},
+            'factory_reset_config': {'namespace': ns, 'topic': 'factory_reset_config', 'msg': Empty, 'qsize': None, 'latch': False},
         }
 
-        # Subscribers Config Dict ####################
         self.SUBS_DICT = {
             'status_sub': {
-                'namespace': self.node_namespace,
-                'topic': 'status',
-                'msg': NepiAppTemplateStatus,
-                'qsize': 1,
-                'callback': self._statusCb
+                'namespace': ns,
+                'topic':     'status',
+                'msg':       NepiAppFakeGpsStatus,
+                'qsize':     1,
+                'callback':  self._statusCb,
             }
         }
 
-        # Create Node Class ####################
         self.con_node_if = ConnectNodeClassIF(
             namespace=self.namespace,
             configs_dict=self.CFGS_DICT,
@@ -132,9 +92,8 @@ class ConnectAppTemplate:
             pubs_dict=self.PUBS_DICT,
             subs_dict=self.SUBS_DICT,
             log_class_name=True,
-            msg_if=self.msg_if
+            msg_if=self.msg_if,
         )
-
         self.con_node_if.wait_for_ready()
 
         self.ready = True
@@ -162,27 +121,51 @@ class ConnectAppTemplate:
             return nepi_sdk.convert_msg2dict(self.status_msg)
         return None
 
+    def select_mavros_node(self, node_namespace):
+        """Select the target mavros (mavlink) node namespace to inject HilGPS into."""
+        msg = String()
+        msg.data = str(node_namespace)
+        self.con_node_if.publish_pub('select_mavros_node', msg)
+
     def set_enabled(self, enabled):
-        """Enable or disable the app."""
+        """Enable or disable the fake GPS HilGPS injection."""
         msg = Bool()
         msg.data = enabled
-        self.con_node_if.publish_pub('set_enabled', msg)
+        self.con_node_if.publish_pub('enable', msg)
 
-    def set_option(self, option):
-        """Set the selected option string."""
-        msg = String()
-        msg.data = option
-        self.con_node_if.publish_pub('set_option', msg)
+    def reset_location(self, latitude, longitude, altitude):
+        """Reset the simulated GPS home position to a new WGS84 geopoint."""
+        msg = GeoPoint()
+        msg.latitude = float(latitude)
+        msg.longitude = float(longitude)
+        msg.altitude = float(altitude)
+        self.con_node_if.publish_pub('reset', msg)
 
-    def set_value(self, value):
-        """Set the float value."""
+    def go_stop(self):
+        """Stop any active simulated move and hold the current position."""
+        self.con_node_if.publish_pub('go_stop', Empty())
+
+    def goto_position(self, x, y, z):
+        """Move the simulated position by an ENU offset in meters (east, north, up)."""
+        msg = Point()
+        msg.x = float(x)
+        msg.y = float(y)
+        msg.z = float(z)
+        self.con_node_if.publish_pub('goto_position', msg)
+
+    def goto_location(self, latitude, longitude, altitude):
+        """Move the simulated position to an absolute WGS84 geopoint."""
+        msg = GeoPoint()
+        msg.latitude = float(latitude)
+        msg.longitude = float(longitude)
+        msg.altitude = float(altitude)
+        self.con_node_if.publish_pub('goto_location', msg)
+
+    def set_gps_pub_rate(self, rate_hz):
+        """Set the fake GPS publish rate in Hz (clamped to 1-100 by the node)."""
         msg = Float32()
-        msg.data = value
-        self.con_node_if.publish_pub('set_value', msg)
-
-    def trigger_action(self):
-        """Trigger the one-shot action."""
-        self.con_node_if.publish_pub('trigger_action', Empty())
+        msg.data = float(rate_hz)
+        self.con_node_if.publish_pub('set_gps_pub_rate', msg)
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config', Empty())

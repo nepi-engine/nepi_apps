@@ -7,23 +7,16 @@ This file is part of nepi-engine
 License: 3-clause BSD, see https://opensource.org/licenses/BSD-3-Clause
 ]]
 cmake_minimum_required(VERSION 3.5)
-project(nepi_app_template)
+project(nepi_app_fake_gps)
 
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   std_msgs
 )
 
-## Generate messages in the 'msg' folder
 add_message_files(FILES
-  NepiAppTemplateStatus.msg
+  NepiAppFakeGpsStatus.msg
 )
-
-## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   ServiceName.srv
-# )
 
 generate_messages(
   DEPENDENCIES
@@ -40,7 +33,7 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/template_app_node.py
+  scripts/fake_gps_app_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -61,37 +54,17 @@ if(NOT NEPI_ENGINE)
   set(NEPI_ENGINE ${NEPI_BASE}/nepi_engine)
 endif()
 
-## Install NEPI Engine App Files
-set(NEPI_APP_PARAMS_FOLDER
-  ${NEPI_ENGINE}/share/nepi_apps/params
-)
+set(NEPI_APP_PARAMS_FOLDER ${NEPI_ENGINE}/share/nepi_apps/params)
+install(DIRECTORY params/ DESTINATION ${NEPI_APP_PARAMS_FOLDER})
 
-install(DIRECTORY params/
-  DESTINATION ${NEPI_APP_PARAMS_FOLDER}
-)
-
-set(NEPI_API_FOLDER
-  ${NEPI_ENGINE}/lib/python3/dist-packages/nepi_api
-)
-
+set(NEPI_API_FOLDER ${NEPI_ENGINE}/lib/python3/dist-packages/nepi_api)
 install(DIRECTORY api/
   DESTINATION ${NEPI_API_FOLDER}
   FILES_MATCHING PATTERN "*.py"
 )
 
-## Install NEPI RUI Files
-set(NEPI_RUI_PARAMS_FOLDER
-  ${NEPI_RUI}/src/rui_webserver/rui-app/src/apps
-)
+set(NEPI_RUI_PARAMS_FOLDER ${NEPI_RUI}/src/rui_webserver/rui-app/src/apps)
+install(DIRECTORY params/ DESTINATION ${NEPI_RUI_PARAMS_FOLDER})
 
-install(DIRECTORY params/
-  DESTINATION ${NEPI_RUI_PARAMS_FOLDER}
-)
-
-set(NEPI_RUI_SOURCE_FOLDER
-  ${NEPI_RUI}/src/rui_webserver/rui-app/src
-)
-
-install(DIRECTORY rui/
-  DESTINATION ${NEPI_RUI_SOURCE_FOLDER}
-)
+set(NEPI_RUI_SOURCE_FOLDER ${NEPI_RUI}/src/rui_webserver/rui-app/src)
+install(DIRECTORY rui/ DESTINATION ${NEPI_RUI_SOURCE_FOLDER})

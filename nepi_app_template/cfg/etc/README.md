@@ -1,1 +1,0 @@
-Files and Folders in this folder will be synced to NEPI's system config etc folder (/mnt/nepi_config/system_cfg/etc), then used during NEPI's build processes on top of NEPI's defualt source-code files. 

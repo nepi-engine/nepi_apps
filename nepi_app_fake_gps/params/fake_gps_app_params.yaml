@@ -1,0 +1,15 @@
+APP_DICT:
+  display_name: Fake GPS
+  description: Simulates a moving GPS position and injects it into an ArduPilot autopilot as a MAVLink HilGPS message
+  pkg_name: nepi_app_fake_gps
+  group_name: DATA
+  config_file: app_fake_gps.yaml
+  app_file: fake_gps_app_node.py
+  node_name: app_fake_gps
+  license_type: 3-clause BSD
+  license_link: https://opensource.org/licenses/BSD-3-Clause
+RUI_DICT:
+  rui_files:
+  - NepiAppFakeGps.js
+  rui_main_file: NepiAppFakeGps.js
+  rui_main_class: NepiAppFakeGps

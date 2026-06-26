@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>nepi_app_template</name>
+  <name>nepi_app_fake_gps</name>
   <version>0.0.0</version>
-  <description>Template NEPI application package demonstrating the standard app pattern</description>
+  <description>NEPI fake GPS application — simulates a moving GPS position and injects it into an ArduPilot autopilot as a MAVLink HilGPS message published to a user-selected mavros node</description>
 
   <maintainer email="nepi@numurus.com">numurus</maintainer>
 
@@ -21,6 +21,11 @@
   <exec_depend>time</exec_depend>
   <exec_depend>sys</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>geographic_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>mavros_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>
 
   <export>

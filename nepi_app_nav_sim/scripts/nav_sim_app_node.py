@@ -26,7 +26,6 @@ import threading
 import time
 import yaml
 
-import rospy
 from std_msgs.msg import Bool, Empty, Float32, String
 from nepi_interfaces.msg import UpdateString
 
@@ -241,7 +240,7 @@ class NmeaSimInstance:
         self._move_last_tick = {f: 0.0 for f in _NMEA_MOVE_FIELDS}
         self._alive          = True
 
-        self._status_pub = rospy.Publisher(
+        self._status_pub = nepi_sdk.create_publisher(
             self._ns + '/status', NepiAppNmeaSimStatus, queue_size=1, latch=True
         )
         self._subs = []
@@ -250,18 +249,18 @@ class NmeaSimInstance:
 
     def _registerSubs(self, ns):
         S = self._subs.append
-        S(rospy.Subscriber(ns + '/set_nmea_enabled',   Bool,    self._setNmeaEnabledCb))
-        S(rospy.Subscriber(ns + '/set_nmea_latitude',  Float32, self._setLatitudeCb))
-        S(rospy.Subscriber(ns + '/set_nmea_longitude', Float32, self._setLongitudeCb))
-        S(rospy.Subscriber(ns + '/set_nmea_altitude',  Float32, self._setAltitudeCb))
-        S(rospy.Subscriber(ns + '/set_nmea_heading',   Float32, self._setHeadingCb))
-        S(rospy.Subscriber(ns + '/set_nmea_speed',     Float32, self._setSpeedCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_enabled',   Bool,    self._setNmeaEnabledCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_latitude',  Float32, self._setLatitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_longitude', Float32, self._setLongitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_altitude',  Float32, self._setAltitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_heading',   Float32, self._setHeadingCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_nmea_speed',     Float32, self._setSpeedCb))
         for field in _NMEA_MOVE_FIELDS:
-            S(rospy.Subscriber(ns + '/set_enable_move_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_enable_move_' + field,
                                Bool,    lambda msg, f=field: self._setEnableMoveCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_move_step_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_move_step_' + field,
                                Float32, lambda msg, f=field: self._setMoveStepCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_move_rate_hz_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_move_rate_hz_' + field,
                                Float32, lambda msg, f=field: self._setMoveRateHzCb(msg, f)))
 
     def _setNmeaEnabledCb(self, msg):
@@ -533,7 +532,7 @@ class HNavSimInstance:
         self._wave_components = {f: None for f in _SIN_FIELDS}
         self._alive           = True
 
-        self._status_pub = rospy.Publisher(
+        self._status_pub = nepi_sdk.create_publisher(
             self._ns + '/status', NepiAppHNavSimStatus, queue_size=1, latch=True
         )
         self._subs = []
@@ -542,32 +541,32 @@ class HNavSimInstance:
 
     def _registerSubs(self, ns):
         S = self._subs.append
-        S(rospy.Subscriber(ns + '/set_hnav_enabled',   Bool,    self._setHnavEnabledCb))
-        S(rospy.Subscriber(ns + '/set_hnav_latitude',  Float32, self._setLatitudeCb))
-        S(rospy.Subscriber(ns + '/set_hnav_longitude', Float32, self._setLongitudeCb))
-        S(rospy.Subscriber(ns + '/set_hnav_altitude',  Float32, self._setAltitudeCb))
-        S(rospy.Subscriber(ns + '/set_hnav_depth',     Float32, self._setDepthCb))
-        S(rospy.Subscriber(ns + '/set_hnav_heading',   Float32, self._setHeadingCb))
-        S(rospy.Subscriber(ns + '/set_hnav_roll',      Float32, self._setRollCb))
-        S(rospy.Subscriber(ns + '/set_hnav_pitch',     Float32, self._setPitchCb))
-        S(rospy.Subscriber(ns + '/set_hnav_speed',     Float32, self._setSpeedCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_enabled',   Bool,    self._setHnavEnabledCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_latitude',  Float32, self._setLatitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_longitude', Float32, self._setLongitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_altitude',  Float32, self._setAltitudeCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_depth',     Float32, self._setDepthCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_heading',   Float32, self._setHeadingCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_roll',      Float32, self._setRollCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_pitch',     Float32, self._setPitchCb))
+        S(nepi_sdk.create_subscriber(ns + '/set_hnav_speed',     Float32, self._setSpeedCb))
         for field in _HNAV_MOVE_FIELDS:
-            S(rospy.Subscriber(ns + '/set_enable_move_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_enable_move_' + field,
                                Bool,    lambda msg, f=field: self._setEnableMoveCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_move_step_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_move_step_' + field,
                                Float32, lambda msg, f=field: self._setMoveStepCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_move_rate_hz_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_move_rate_hz_' + field,
                                Float32, lambda msg, f=field: self._setMoveRateHzCb(msg, f)))
         for field in _SIN_FIELDS:
-            S(rospy.Subscriber(ns + '/set_enable_sin_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_enable_sin_' + field,
                                Bool,    lambda msg, f=field: self._setEnableSinCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_sin_amplitude_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_sin_amplitude_' + field,
                                Float32, lambda msg, f=field: self._setSinAmplitudeCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_sin_period_s_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_sin_period_s_' + field,
                                Float32, lambda msg, f=field: self._setSinPeriodCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_enable_wave_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_enable_wave_' + field,
                                Bool,    lambda msg, f=field: self._setEnableWaveCb(msg, f)))
-            S(rospy.Subscriber(ns + '/set_sin_spread_' + field,
+            S(nepi_sdk.create_subscriber(ns + '/set_sin_spread_' + field,
                                Float32, lambda msg, f=field: self._setSinSpreadCb(msg, f)))
 
     def _setHnavEnabledCb(self, msg):
@@ -944,20 +943,20 @@ class NepiNavSimApp:
 
         ns = self.node_namespace
 
-        self._master_pub = rospy.Publisher(
+        self._master_pub = nepi_sdk.create_publisher(
             ns + '/status', NepiAppNavSimMasterStatus, queue_size=1, latch=True
         )
 
-        rospy.Subscriber(ns + '/add_nmea_instance',    String,       self._addNmeaInstanceCb)
-        rospy.Subscriber(ns + '/remove_nmea_instance', String,       self._removeNmeaInstanceCb)
-        rospy.Subscriber(ns + '/rename_nmea_instance', UpdateString, self._renameNmeaInstanceCb)
-        rospy.Subscriber(ns + '/add_hnav_instance',    String,       self._addHnavInstanceCb)
-        rospy.Subscriber(ns + '/remove_hnav_instance', String,       self._removeHnavInstanceCb)
-        rospy.Subscriber(ns + '/rename_hnav_instance', UpdateString, self._renameHnavInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/add_nmea_instance',    String,       self._addNmeaInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/remove_nmea_instance', String,       self._removeNmeaInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/rename_nmea_instance', UpdateString, self._renameNmeaInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/add_hnav_instance',    String,       self._addHnavInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/remove_hnav_instance', String,       self._removeHnavInstanceCb)
+        nepi_sdk.create_subscriber(ns + '/rename_hnav_instance', UpdateString, self._renameHnavInstanceCb)
 
-        rospy.Subscriber(ns + '/save_config',          Empty, self._saveConfigCb)
-        rospy.Subscriber(ns + '/reset_config',         Empty, self._resetConfigCb)
-        rospy.Subscriber(ns + '/factory_reset_config', Empty, self._factoryResetConfigCb)
+        nepi_sdk.create_subscriber(ns + '/save_config',          Empty, self._saveConfigCb)
+        nepi_sdk.create_subscriber(ns + '/reset_config',         Empty, self._resetConfigCb)
+        nepi_sdk.create_subscriber(ns + '/factory_reset_config', Empty, self._factoryResetConfigCb)
 
         saved_state = self._readConfigFile()
         nmea_cfg = saved_state.get('nmea', {}) if saved_state else {}
