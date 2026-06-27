@@ -2750,9 +2750,9 @@ class NepiPanTiltAutoApp(object):
                 #self.msg_if.pub_warn("Got track dict" + str(track_dict))
 
 
-                # track_msg = nepi_targets.convert_target_dict2msg(best_target_dict)
-                # if self.node_if is not None:
-                #     self.node_if.publish_pub('track', track_msg) 
+                track_msg = nepi_targets.convert_target_dict2msg(best_target_dict)
+                if self.node_if is not None:
+                    self.node_if.publish_pub('track', track_msg) 
 
   def targetsStatusCb(self,msg, args):
     #self.msg_if.pub_info("Targets callback got new targets mgs")
