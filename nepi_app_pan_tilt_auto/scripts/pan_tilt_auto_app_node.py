@@ -333,9 +333,9 @@ class NepiPanTiltAutoApp(object):
   tracking_available_targets = []
   tracking_available_sources = []
   tracking_available_classes = []
-  tracking_available_best_filters = copy.deepcopy(nepi_track.BEST_FILTER_OPTIONS)
+  tracking_best_filter_options = copy.deepcopy(nepi_track.BEST_FILTER_OPTIONS)
 
-  tracking_dict = copy.deepcopy(nepi_track.BLANK_DATA_DICT)
+  tracking_dict = copy.deepcopy(nepi_track.BLANK_SETTINGS_DICT)
 
   track_dict = None
   track_dict_check = None
@@ -1210,7 +1210,7 @@ class NepiPanTiltAutoApp(object):
         #####################
         self.tracking_manages_targeting = self.node_if.get_param('tracking_manages_targeting')
         tracking_dict = self.node_if.get_param('tracking_dict')
-        blank_dict = copy.deepcopy(nepi_track.BLANK_DATA_DICT)
+        blank_dict = copy.deepcopy(nepi_track.BLANK_SETTINGS_DICT)
         if tracking_dict is not None:
             for key in blank_dict.keys():
                 if key not in tracking_dict.keys():
@@ -3025,7 +3025,7 @@ class NepiPanTiltAutoApp(object):
     self.tracking_status_msg.range_filter_min = tracking_dict['range_min_filter']
     self.tracking_status_msg.range_filter_max = tracking_dict['range_max_filter']
 
-    self.tracking_status_msg.available_best_filters = self.tracking_available_best_filters
+    self.tracking_status_msg.available_best_filters = self.tracking_best_filter_options
     self.tracking_status_msg.selected_best_filter  = tracking_dict['best_filter']
 
 
