@@ -1828,118 +1828,6 @@ class NepiPanTiltAutoApp(object):
             self.node_if.set_param('tracking_dict', self.tracking_dict)
             ##self.node_if.save_config()
 
-  #   ##############################
-  #   # Predict
-  #   #############################
-
-
- 
-  # def setPredictSourceTopicCb(self, msg):
-  #     value = msg.data
-  #     self.setPredictSourceTopic(value)
-
-  # def setPredictSourceTopic(self,value):
-  #       #self.msg_if.pub_info("Setting track move ratio to: " + str(ratio))
-  #       self.predict_settings_dict = nepi_predict.update_predict_dict('source_topic', value, self.predict_settings_dict)
-  #       self.publish_status()
-  #       if self.node_if is not None:
-  #           self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #           #self.node_if.save_config()
-
-
-  # def setPredictMaxLogTimeCb(self, msg):
-  #     max_time = msg.data
-  #     self.setPredictTime(max_time)
-
-  # def setPredictMaxLogTime(self,max_time):
-  #       if max_time < self.PREDICT_MIN_LOG_TIME:
-  #           max_time = self.PREDICT_MIN_LOG_TIME
-  #       if max_time > self.PREDICT_MAX_LOG_TIME:
-  #           max_time = self.PREDICT_MAX_LOG_TIME
-
-  #       self.msg_if.pub_info("Setting Max Log Time to: " + str(max_time))
-  #       last_val = copy.deepcopy(self.predict_settings_dict['max_log_sec'])
-  #       self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_sec', max_time, self.predict_settings_dict)
-  #       if last_val != max_time:
-  #           self.publish_status()
-  #           if self.node_if is not None:
-  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #               #self.node_if.save_config()
-
-
-  # def setPredictMaxLogRateCb(self, msg):
-  #     max_rate = msg.data
-  #     self.setPredictRate(max_rate)
-
-  # def setPredictMaxLogRate(self,max_rate):
-  #       if max_rate < self.PREDICT_MIN_LOG_RATE:
-  #           max_rate = self.PREDICT_MIN_LOG_RATE
-  #       if max_rate > self.PREDICT_MAX_LOG_RATE:
-  #           max_rate = self.PREDICT_MAX_LOG_RATE
-  #       self.msg_if.pub_info("Setting Max Log Rate to: " + str(max_rate))
-  #       last_val = copy.deepcopy(self.predict_settings_dict['max_log_rate'])
-  #       self.predict_settings_dict = nepi_predict.update_predict_dict('max_log_rate', max_rate, self.predict_settings_dict)
-  #       if last_val != max_rate:
-  #           self.publish_status()
-  #           if self.node_if is not None:
-  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #               #self.node_if.save_config()
-
-
-  # def setPredictQualityFilterCb(self, msg):
-  #     ratio = msg.data
-  #     self.setPredictQualityFilter(ratio)
-
-  # def setPredictQualityFilter(self,ratio):
-  #       ratio = nepi_utils.check_ratio(ratio)
-  #       self.msg_if.pub_info("Setting predict quality filter to: " + str(ratio))
-  #       last_val = copy.deepcopy(self.predict_settings_dict['quality_filter'])
-  #       self.predict_settings_dict = nepi_predict.update_predict_dict('quality_filter', ratio, self.predict_settings_dict)
-  #       if last_val != ratio:
-  #           self.publish_status()
-  #           if self.node_if is not None:
-  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #               #self.node_if.save_config()
-
-
-  # def setPredictTimeCb(self, msg):
-  #     predict_time = msg.data
-  #     self.setPredictTime(predict_time)
-
-  # def setPredictTime(self,predict_time):
-  #       if max_time < self.PREDICT_MIN_PREDICT_TIME:
-  #           max_time = self.PREDICT_MIN_PREDICT_TIME
-  #       if max_time > self.PREDICT_MAX_PREDICT_TIME:
-  #           max_time = self.PREDICT_MAX_PREDICT_TIME
-  #       self.msg_if.pub_info("Setting track move ratio to: " + str(predict_time))
-  #       last_val = copy.deepcopy(self.tracking_dict['predict_time_sec'])
-  #       self.predict_settings_dict = nepi_predict.update_predict_dict('predict_time_sec', predict_time, self.predict_settings_dict)
-  #       if last_val != predict_time:
-  #           self.publish_status()
-  #           if self.node_if is not None:
-  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #               #self.node_if.save_config()
-
-  # def setPredictProcessValueCb(self, msg):
-  #     process = msg.name
-  #     key_name = msg.name2
-  #     value = msg.data
-  #     arg_name = msg.name3
-  #     if arg_name == '':
-  #         arg_name = None
-
-  #     self.setPredictProcessValue(process,key_name,value,arg_name)
-
-  # def setPredictProcessValue(self,process,key_name,value,arg_name = None):
-  #       self.msg_if.pub_info("Setting predict process to: " + str(value))
-  #       predict_settings_dict = copy.deepcopy(self.predict_settings_dict)
-  #       if arg_name is None:
-  #           self.predict_settings_dict = nepi_predict.update_process_dict(process,key_name,value, predict_settings_dict)
-  #       if predict_settings_dict != self.predict_settings_dict:
-  #           self.publish_status()
-  #           if self.node_if is not None:
-  #               self.node_if.set_param('predict_settings_dict', self.predict_settings_dict)
-  #               #self.node_if.save_config()
 
     ##############################
     # Proccesses
@@ -2492,7 +2380,7 @@ class NepiPanTiltAutoApp(object):
             # cur_class_source = self.tracking_dict['class_filter']
             # if cur_class_source in self.tracking_available_classes and  cur_tracking_source not in msg.selected_classes:
             #     msg.selected_classes.append(cur_class_source)
-            msg.selected_classes = self.tracking_available_classes
+            # msg.selected_classes = self.tracking_available_classes
             #self.msg_if.pub_warn("Resetting Targeting source with original config: " + str(msg))
             self.sendTargetsMsg('config_pub',msg)
             
