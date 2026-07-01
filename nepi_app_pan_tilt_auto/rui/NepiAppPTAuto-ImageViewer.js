@@ -228,6 +228,7 @@ componentDidUpdate(prevProps, prevState, snapshot) {
                               image_topics={image_topics}
                               titles={topics_text}
                               show_save_controls={false}
+                              show_browser_save_button={true}
                               num_windows={num_windows}
                               num_windows_updated_topic={num_windows_updated_topic}
                               select_updated_topics={select_updated_topics}
