@@ -1791,12 +1791,13 @@ class NepiPanTiltAutoApp(object):
       self.setTrackClassFilter(value)
 
   def setTrackClassFilter(self,value):
-        self.msg_if.pub_info("Setting track class filter to: " + str(value))
-        self.tracking_dict['class_filter'] = value
-        self.publish_status()
-        if self.node_if is not None:
-            self.node_if.set_param('tracking_dict', self.tracking_dict)
-            #self.node_if.save_config()
+        pass
+        # self.msg_if.pub_info("Setting track class filter to: " + str(value))
+        # self.tracking_dict['class_filter'] = value
+        # self.publish_status()
+        # if self.node_if is not None:
+        #     self.node_if.set_param('tracking_dict', self.tracking_dict)
+        #     #self.node_if.save_config()
 
 
   def setTrackThresholdFilterCb(self, msg):
@@ -2488,9 +2489,10 @@ class NepiPanTiltAutoApp(object):
             if cur_tracking_source != 'None':
                 if cur_tracking_source in self.tracking_available_sources and  cur_tracking_source not in msg.selected_sources:
                     msg.selected_sources.append(cur_tracking_source)
-            cur_class_source = self.tracking_dict['class_filter']
-            if cur_class_source in self.tracking_available_classes and  cur_tracking_source not in msg.selected_classes:
-                msg.selected_classes.append(cur_class_source)
+            # cur_class_source = self.tracking_dict['class_filter']
+            # if cur_class_source in self.tracking_available_classes and  cur_tracking_source not in msg.selected_classes:
+            #     msg.selected_classes.append(cur_class_source)
+            msg.selected_classes = self.tracking_available_classes
             #self.msg_if.pub_warn("Resetting Targeting source with original config: " + str(msg))
             self.sendTargetsMsg('config_pub',msg)
             
@@ -3068,16 +3070,16 @@ class NepiPanTiltAutoApp(object):
 
                 
         ##################
-        track_classes = targets_status_msg.available_classes
-        self.tracking_status_msg.available_classes = track_classes
-        classes_selected = targets_status_msg.selected_classes
-        class_filter = tracking_dict['class_filter']
-        if class_filter not in track_classes:
-            class_filter = 'None'
-        self.tracking_status_msg.selected_class = class_filter
-        if class_filter != 'None' and [class_filter] != classes_selected and self.tracking_enabled == True:
-            #self.msg_if.pub_warn("Status sending class update: " + str([class_filter]))
-            self.sendTargetsMsg('class_pub',class_filter)
+        # track_classes = targets_status_msg.available_classes
+        # self.tracking_status_msg.available_classes = track_classes
+        # classes_selected = targets_status_msg.selected_classes
+        # class_filter = tracking_dict['class_filter']
+        # if class_filter not in track_classes:
+        #     class_filter = 'None'
+        # self.tracking_status_msg.selected_class = class_filter
+        # if class_filter != 'None' and [class_filter] != classes_selected and self.tracking_enabled == True:
+        #     #self.msg_if.pub_warn("Status sending class update: " + str([class_filter]))
+        #     self.sendTargetsMsg('class_pub',class_filter)
 
         #################
         if round(threshold,2) != round(self.targets_status_msg.threshold_filter,2) and self.tracking_enabled == True:
