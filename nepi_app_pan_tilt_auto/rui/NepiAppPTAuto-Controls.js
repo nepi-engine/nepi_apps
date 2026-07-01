@@ -1590,8 +1590,8 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
     const tilt_deg = status_msg.tilt_deg
     const pan_goal = status_msg.pan_goal
     const tilt_goal = status_msg.tilt_goal
-    const pan_speed_dps = status_msg.pan_speed_dps
-    const tilt_speed_dps = status_msg.tilt_speed_dps
+    const pan_deg_per_sec = status_msg.pan_deg_per_sec
+    const tilt_deg_per_sec = status_msg.tilt_deg_per_sec
 
 
     const stab_pan_pos = status_msg.stab_pan_pos
@@ -1761,12 +1761,12 @@ onEnterSendTiltScanRangeWindowValue(event, topicName, entryName, other_val) {
 
           <Label title={"Pan"}>
             <Input disabled style={{ width: "45%", float: "left" }} value={round(pan_deg, 2)} />
-            <Input disabled style={{ width: "45%" }} value={round(pan_speed_dps, 2)} />
+            <Input disabled style={{ width: "45%" }} value={round(pan_deg_per_sec, 2)} />
           </Label>
 
           <Label title={"Tilt"}>
             <Input disabled style={{ width: "45%", float: "left" }} value={round(tilt_deg, 2)} />
-            <Input disabled style={{ width: "45%" }} value={round(tilt_speed_dps, 2)} />
+            <Input disabled style={{ width: "45%" }} value={round(tilt_deg_per_sec, 2)} />
           </Label>
 
           <Label title={""}>

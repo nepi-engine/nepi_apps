@@ -25,8 +25,8 @@ float32 tilt_deg
 float32 pan_goal
 float32 tilt_goal
 
-float32 pan_speed_dps
-float32 tilt_speed_dps
+float32 pan_deg_per_sec
+float32 tilt_deg_per_sec
 
 
 

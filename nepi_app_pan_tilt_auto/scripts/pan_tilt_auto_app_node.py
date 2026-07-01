@@ -110,8 +110,8 @@ class NepiPanTiltAutoApp(object):
 
   pan_tilt_max_speed_dps = -999
   pan_tilt_avg_move_delay = 0.2
-  pan_speed_dps = -999
-  tilt_speed_dps = -999
+  pan_deg_per_sec = -999
+  tilt_deg_per_sec = -999
 
   speed_ratio = 1.0
   pan_speed_ratio = 1.0
@@ -2717,10 +2717,10 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.pt_status_msg = pt_status_msg
     self.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
     self.status_msg.pan_tilt_max_speed_dps = pt_status_msg.speed_max_dps
-    self.pan_speed_dps = pt_status_msg.speed_pan_dps
-    self.status_msg.pan_speed_dps = pt_status_msg.speed_pan_dps
-    self.tilt_speed_dps = pt_status_msg.speed_tilt_dps
-    self.status_msg.tilt_speed_dps = pt_status_msg.speed_tilt_dps
+    self.pan_deg_per_sec = pt_status_msg.speed_pan_dps
+    self.status_msg.pan_deg_per_sec = pt_status_msg.speed_pan_dps
+    self.tilt_deg_per_sec = pt_status_msg.speed_tilt_dps
+    self.status_msg.tilt_deg_per_sec = pt_status_msg.speed_tilt_dps
     
     self.status_msg.pan_tilt_avg_move_delay = self.pan_tilt_avg_move_delay
 
