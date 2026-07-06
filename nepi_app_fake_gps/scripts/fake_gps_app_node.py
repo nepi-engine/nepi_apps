@@ -44,7 +44,7 @@ from geographic_msgs.msg import GeoPoint
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import Odometry
 
-from mavros_msgs.msg import HilGPS
+from mavros_msgs.msg import HilGPS, GPSINPUT
 
 from nepi_app_fake_gps.msg import NepiAppFakeGpsStatus
 
@@ -85,6 +85,17 @@ DISCOVER_RATE_HZ       = 1.0
 MAVROS_STATE_MSG   = 'State'
 MAVROS_STATE_SUFFIX = '/state'
 MAVROS_HILGPS_TOPIC = 'hil/gps'
+# GPS_INPUT carries a yaw field (HilGPS does not), letting the fake GPS supply the
+# heading the EKF would otherwise get from a compass. Injected via the mavros
+# gps_input plugin; consumed by the ArduPilot MAV GPS backend (GPS_TYPE=14).
+MAVROS_GPS_INPUT_TOPIC = 'gps_input/gps_input'
+
+# GPS_INPUT ignore-flags bits (mavlink GPS_INPUT_IGNORE_FLAGS). We provide
+# lat/lon/alt + yaw but do not simulate velocity, so tell the FCU to disregard
+# the velocity/speed-accuracy fields.
+GPS_INPUT_IGNORE_VEL_HORIZ = 8
+GPS_INPUT_IGNORE_VEL_VERT  = 16
+GPS_INPUT_IGNORE_SPEED_ACC = 32
 
 
 #########################################
@@ -397,10 +408,10 @@ class NepiFakeGpsApp(object):
 
     def bindMavros(self, mavros_ns):
         self.unbindMavros()
-        topic = nepi_sdk.create_namespace(mavros_ns, MAVROS_HILGPS_TOPIC)
-        self.mavlink_pub = nepi_sdk.create_publisher(topic, HilGPS, queue_size=1)
+        topic = nepi_sdk.create_namespace(mavros_ns, MAVROS_GPS_INPUT_TOPIC)
+        self.mavlink_pub = nepi_sdk.create_publisher(topic, GPSINPUT, queue_size=1)
         self.bound_mavros_node = mavros_ns
-        self.msg_if.pub_info("Fake GPS will publish HilGPS to: " + topic)
+        self.msg_if.pub_info("Fake GPS will publish GPS_INPUT (with yaw) to: " + topic)
 
     def unbindMavros(self):
         if self.mavlink_pub is not None:
@@ -688,17 +699,34 @@ class NepiFakeGpsApp(object):
         # Optional NavPose output (location + altitude + heading + orientation)
         self.publishNavpose(geo, heading_deg, yaw_enu_deg)
 
-        # MAVLink HilGPS injection (the primary required output)
+        # MAVLink GPS_INPUT injection (the primary required output). GPS_INPUT
+        # carries a yaw field, so the fake GPS also supplies the heading the EKF
+        # would otherwise take from a compass. With EK3_SRC1_YAW=2 (GPS) and the
+        # compass disabled on the FCU, this lets a compass-less vehicle hold yaw.
         mavlink_pub = self.mavlink_pub
         if mavlink_pub is not None:
-            hilgps = HilGPS()
-            hilgps.header = Header(stamp=stamp, frame_id="mavlink_fake_gps")
-            hilgps.fix_type = 3
-            hilgps.geo.latitude = geo.latitude
-            hilgps.geo.longitude = geo.longitude
-            hilgps.geo.altitude = geo.altitude
-            hilgps.satellites_visible = self.satellites_visible
-            mavlink_pub.publish(hilgps)
+            gpsin = GPSINPUT()
+            gpsin.header = Header(stamp=stamp, frame_id="mavlink_fake_gps")
+            gpsin.fix_type = 3  # 3D fix
+            gpsin.gps_id = 0
+            gpsin.ignore_flags = (GPS_INPUT_IGNORE_VEL_HORIZ
+                                  | GPS_INPUT_IGNORE_VEL_VERT
+                                  | GPS_INPUT_IGNORE_SPEED_ACC)
+            gpsin.lat = int(round(geo.latitude * 1e7))
+            gpsin.lon = int(round(geo.longitude * 1e7))
+            gpsin.alt = float(geo.altitude)
+            gpsin.hdop = 1.0
+            gpsin.vdop = 1.0
+            gpsin.horiz_accuracy = 1.0
+            gpsin.vert_accuracy = 1.0
+            gpsin.satellites_visible = self.satellites_visible
+            # yaw: centidegrees true north, 0 = "not available", 36000 = north.
+            # Map heading (0..360) so a 0-deg (north) heading still reports a value.
+            yaw_cdeg = int(round(heading_deg * 100.0)) % 36000
+            if yaw_cdeg == 0:
+                yaw_cdeg = 36000
+            gpsin.yaw = yaw_cdeg
+            mavlink_pub.publish(gpsin)
 
 
     #######################
