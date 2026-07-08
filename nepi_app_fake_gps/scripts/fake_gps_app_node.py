@@ -90,12 +90,24 @@ MAVROS_HILGPS_TOPIC = 'hil/gps'
 # gps_input plugin; consumed by the ArduPilot MAV GPS backend (GPS_TYPE=14).
 MAVROS_GPS_INPUT_TOPIC = 'gps_input/gps_input'
 
-# GPS_INPUT ignore-flags bits (mavlink GPS_INPUT_IGNORE_FLAGS). We provide
-# lat/lon/alt + yaw but do not simulate velocity, so tell the FCU to disregard
-# the velocity/speed-accuracy fields.
+# GPS_INPUT ignore-flags bits (mavlink GPS_INPUT_IGNORE_FLAGS). We now provide
+# lat/lon/alt + yaw AND an earth-frame NED velocity (finite-differenced from the
+# simulated ENU position), so no fields are ignored. The EKF velocity source is
+# GPS (EK3_SRC1_VELXY/VELZ = GPS); injecting velocity (0 while hovering) rather
+# than ignoring it is what lets the EKF declare a healthy horizontal position,
+# which ArduPilot GUIDED mode requires ("Mode change to GUIDED failed: requires
+# position" otherwise).
 GPS_INPUT_IGNORE_VEL_HORIZ = 8
 GPS_INPUT_IGNORE_VEL_VERT  = 16
 GPS_INPUT_IGNORE_SPEED_ACC = 32
+# Reject finite-difference velocity spikes from a position reset/teleport (m/s).
+MAX_FAKE_GPS_SPEED_MPS = 100.0
+# GPS week/epoch for deriving GPS_INPUT time-of-week from system UTC. A real GPS
+# always reports valid, advancing GPS time; without it AP_GPS marks the receiver
+# unhealthy ("GPS: Fail") and the EKF will not declare a healthy position.
+GPS_EPOCH_UNIX_S = 315964800   # 1980-01-06 00:00:00 UTC, in Unix seconds
+GPS_LEAP_SECONDS = 18          # current GPS-UTC offset (leap seconds)
+SECONDS_PER_WEEK = 604800
 
 
 #########################################
@@ -138,6 +150,9 @@ class NepiFakeGpsApp(object):
             self.start_latitude, self.start_longitude, self.start_altitude_m)
         self.current_point = self._zeroPoint()
         self.new_point = self._zeroPoint()
+        # Previous ENU point + monotonic time for finite-difference velocity
+        self._prev_vel_point = None
+        self._prev_vel_time = None
         # Simulated orientation: heading (deg true north) and ENU yaw (deg).
         # Derived from the horizontal direction of travel during a move; held
         # at the last value when stopped. Vehicle is treated as level (roll/pitch 0).
@@ -699,6 +714,11 @@ class NepiFakeGpsApp(object):
         # Optional NavPose output (location + altitude + heading + orientation)
         self.publishNavpose(geo, heading_deg, yaw_enu_deg)
 
+        # Earth-frame NED velocity for GPS_INPUT (0 while hovering, move velocity
+        # during a goto). Computed every publish so the previous-sample state
+        # stays fresh regardless of whether MAVLink injection is active.
+        vn, ve, vd = self._computeNedVelocity(point)
+
         # MAVLink GPS_INPUT injection (the primary required output). GPS_INPUT
         # carries a yaw field, so the fake GPS also supplies the heading the EKF
         # would otherwise take from a compass. With EK3_SRC1_YAW=2 (GPS) and the
@@ -709,14 +729,24 @@ class NepiFakeGpsApp(object):
             gpsin.header = Header(stamp=stamp, frame_id="mavlink_fake_gps")
             gpsin.fix_type = 3  # 3D fix
             gpsin.gps_id = 0
-            gpsin.ignore_flags = (GPS_INPUT_IGNORE_VEL_HORIZ
-                                  | GPS_INPUT_IGNORE_VEL_VERT
-                                  | GPS_INPUT_IGNORE_SPEED_ACC)
+            # GPS time-of-week. Without valid, advancing GPS time AP_GPS reports
+            # the receiver unhealthy and the EKF refuses a position solution, so
+            # arming in a GPS mode fails with "Need Position Estimate". Derive it
+            # from system UTC (absolute accuracy is not critical; it must be a
+            # plausible current week and advance at real rate).
+            gps_tow_s = time.time() - GPS_EPOCH_UNIX_S + GPS_LEAP_SECONDS
+            gpsin.time_week = int(gps_tow_s // SECONDS_PER_WEEK)
+            gpsin.time_week_ms = int((gps_tow_s % SECONDS_PER_WEEK) * 1000.0)
+            gpsin.ignore_flags = 0  # provide position, altitude, and velocity
             gpsin.lat = int(round(geo.latitude * 1e7))
             gpsin.lon = int(round(geo.longitude * 1e7))
             gpsin.alt = float(geo.altitude)
             gpsin.hdop = 1.0
             gpsin.vdop = 1.0
+            gpsin.vn = float(vn)
+            gpsin.ve = float(ve)
+            gpsin.vd = float(vd)
+            gpsin.speed_accuracy = 0.5
             gpsin.horiz_accuracy = 1.0
             gpsin.vert_accuracy = 1.0
             gpsin.satellites_visible = self.satellites_visible
@@ -727,6 +757,27 @@ class NepiFakeGpsApp(object):
                 yaw_cdeg = 36000
             gpsin.yaw = yaw_cdeg
             mavlink_pub.publish(gpsin)
+
+    def _computeNedVelocity(self, point):
+        # Finite-difference the simulated ENU position (point) into an
+        # earth-frame NED velocity for GPS_INPUT. Returns (vn, ve, vd) m/s: 0
+        # while hovering (point constant), the move velocity during a goto.
+        # A reset/teleport produces a huge one-sample spike, which is rejected.
+        now_s = time.monotonic()
+        vn = ve = vd = 0.0
+        prev = self._prev_vel_point
+        prev_t = self._prev_vel_time
+        if prev is not None and prev_t is not None:
+            dt = now_s - prev_t
+            if dt > 1e-3:
+                cand_vn = (point.y - prev.y) / dt   # ENU north -> NED north
+                cand_ve = (point.x - prev.x) / dt   # ENU east  -> NED east
+                cand_vd = -(point.z - prev.z) / dt  # ENU up    -> NED down
+                if max(abs(cand_vn), abs(cand_ve), abs(cand_vd)) < MAX_FAKE_GPS_SPEED_MPS:
+                    vn, ve, vd = cand_vn, cand_ve, cand_vd
+        self._prev_vel_point = copy.deepcopy(point)
+        self._prev_vel_time = now_s
+        return vn, ve, vd
 
 
     #######################
