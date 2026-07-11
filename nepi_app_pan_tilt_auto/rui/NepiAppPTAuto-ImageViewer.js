@@ -284,13 +284,13 @@ componentDidUpdate(prevProps, prevState, snapshot) {
     const status_msg = this.state.status_msg
     if (status_msg != null){
       pan_slider_disabled = (status_msg.pan_scanning === true || status_msg.pan_tracking === true)
-      const pan_stabing = status_msg.pan_stabing
-      if (pan_stabing === true){
+      const pan_stabbing = status_msg.pan_stabbing
+      if (pan_stabbing === true){
         pan_slider_topic = namespace  + "/set_stab_pan_pos_ratio"
       }
       tilt_slider_disabled = (status_msg.tilt_scanning === true || status_msg.tilt_tracking === true)
-      const tilt_stabing = status_msg.tilt_stabing
-      if (tilt_stabing === true){
+      const tilt_stabbing = status_msg.tilt_stabbing
+      if (tilt_stabbing === true){
         tilt_slider_topic = namespace  + "/set_stab_tilt_pos_ratio"
       }
     }

@@ -204,8 +204,8 @@ class NepiAppPTAutoControls extends Component {
       stabPanEnabled: message.stab_pan_enabled,
       stabTiltEnabled: message.stab_tilt_enabled,
 
-      stabPanRunning: message.pan_stabing,
-      stabTiltRunning: message.tilt_stabing,
+      stabPanRunning: message.pan_stabbing,
+      stabTiltRunning: message.tilt_stabbing,
 
       sinPanEnabled: message.sin_pan_enabled,
       sinTiltEnabled: message.sin_tilt_enabled,

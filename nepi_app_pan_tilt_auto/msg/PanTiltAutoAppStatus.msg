@@ -39,8 +39,8 @@ bool tilt_scanning
 bool pan_tracking
 bool tilt_tracking
 
-bool pan_stabing
-bool tilt_stabing
+bool pan_stabbing
+bool tilt_stabbing
 
 float32 pan_goto
 float32 tilt_goto

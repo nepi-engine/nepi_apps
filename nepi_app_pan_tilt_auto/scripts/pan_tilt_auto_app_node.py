@@ -143,8 +143,8 @@ class NepiPanTiltAutoApp(object):
   pan_tracking = False
   tilt_tracking = False
 
-  pan_stabing = False
-  tilt_stabing = False
+  pan_stabbing = False
+  tilt_stabbing = False
 
   #####################
 
@@ -1371,14 +1371,14 @@ class NepiPanTiltAutoApp(object):
 
   def panHomeCb(self, msg):
       self.stopPanControls()
-      if self.pan_stabing == True:
+      if self.pan_stabbing == True:
           self.stab_position[0] = 0
       elif self.pt_connect_if is not None:
           self.pt_connect_if.goto_to_pan_position(0.0)
 
   def tiltHomeCb(self, msg):
       self.stopTiltControls()
-      if self.tilt_stabing == True:
+      if self.tilt_stabbing == True:
           self.stab_position[1] = 0
       elif self.pt_connect_if is not None:
           self.pt_connect_if.goto_to_tilt_position(0.0)
@@ -1963,7 +1963,7 @@ class NepiPanTiltAutoApp(object):
     if self.track_pan_enabled == False or self.tracking_targets_connected == False:
            self.pan_tracking = False
     else:
-          if self.current_position == None or self.pan_stabing == True:
+          if self.current_position == None or self.pan_stabbing == True:
             self.pan_tracking = False
           else:
             pan_cur = self.current_position[0]
@@ -2014,7 +2014,7 @@ class NepiPanTiltAutoApp(object):
     if self.track_tilt_enabled == False or self.tracking_targets_connected == False:
            self.tilt_tracking = False
     else:
-          if self.current_position == None or self.tilt_stabing == True:
+          if self.current_position == None or self.tilt_stabbing == True:
             self.tilt_tracking = False
           else:
             tilt_cur = self.current_position[1]
@@ -2738,15 +2738,15 @@ class NepiPanTiltAutoApp(object):
     self.status_msg.tilt_tracking = self.tilt_tracking
     self.status_msg.track_source_connected = self.targets_status_msg is not None and self.tracking_targets_connected == True
 
-    self.status_msg.pan_stabing = self.pan_stabing
-    self.status_msg.tilt_stabing = self.tilt_stabing
+    self.status_msg.pan_stabbing = self.pan_stabbing
+    self.status_msg.tilt_stabbing = self.tilt_stabbing
 
     goto_pos = copy.deepcopy(self.goto_position)
     self.status_msg.pan_goto = goto_pos[0]
     self.status_msg.tilt_goto = goto_pos[1]
 
-    self.status_msg.pan_control_disabled = self.pan_scanning or self.pan_tracking or self.pan_stabing
-    self.status_msg.tilt_control_disabled = self.tilt_scanning or self.tilt_tracking or self.tilt_stabing
+    self.status_msg.pan_control_disabled = self.pan_scanning or self.pan_tracking or self.pan_stabbing
+    self.status_msg.tilt_control_disabled = self.tilt_scanning or self.tilt_tracking or self.tilt_stabbing
 
 
     self.status_msg.scan_pan_enabled = self.scan_pan_enabled
@@ -3550,8 +3550,8 @@ class NepiPanTiltAutoApp(object):
                 stab_tilt_enabled = self.stab_tilt_enabled == True and self.tilt_track_hold == False
 
 
-                self.pan_stabing = stab_pan_enabled and self.stab_pan_ready
-                self.tilt_stabing = stab_tilt_enabled and self.stab_tilt_ready
+                self.pan_stabbing = stab_pan_enabled and self.stab_pan_ready
+                self.tilt_stabbing = stab_tilt_enabled and self.stab_tilt_ready
                 if selected_stab_process in nepi_stab_pt.PROCESSES_DICT.keys():
                     stab_process_function = nepi_stab_pt.PROCESSES_DICT[selected_stab_process]['process_function']
                     #self.msg_if.pub_warn("Stabs calling process function: " + str(stab_process_function), throttle_s=1)
