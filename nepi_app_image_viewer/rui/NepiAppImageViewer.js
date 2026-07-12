@@ -190,12 +190,12 @@ class ImageViewerApp extends Component {
                               id="imageviewers"
                               image_topics={selected_image_topics}
                               titles={topics_text}
-                              show_save_controls={true}
-                              show_image_options={true}
+                              show_save_controls={false}
+                              show_image_controls={true}
                               num_windows_updated_topic={num_windows_updated_topic}
                               auto_select_image={false}
                               select_updated_topics={select_updated_topics}
-                              mouse_event_topics={mouse_event_topics}
+                              //mouse_event_topics={mouse_event_topics}
                               image_filters={image_filters}
                               make_section={false}
                             />
