@@ -1,0 +1,15 @@
+APP_DICT:
+  display_name: Stereo Depth
+  description: Application for producing depth maps and point clouds from a two-camera USB stereo pair
+  pkg_name: nepi_app_stereo_depth
+  group_name: DATA
+  config_file: app_stereo_depth.yaml
+  app_file: stereo_depth_app_node.py
+  node_name: app_stereo_depth
+  license_type: 3-clause BSD
+  license_link: https://opensource.org/licenses/BSD-3-Clause
+RUI_DICT:
+  rui_files:
+  - NepiAppStereoDepth.js
+  rui_main_file: NepiAppStereoDepth.js
+  rui_main_class: StereoDepthApp
