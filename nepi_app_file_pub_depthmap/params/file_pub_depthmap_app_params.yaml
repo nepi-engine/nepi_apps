@@ -1,0 +1,15 @@
+APP_DICT:
+  display_name: Depthmap File Publisher
+  description: Application for publishing synchronized color image, depth map, and depth map image collections from files
+  pkg_name: nepi_app_file_pub_depthmap
+  group_name: DATA
+  config_file: app_file_pub_depthmap.yaml
+  app_file: file_pub_depthmap_app_node.py
+  node_name: app_file_pub_depthmap
+  license_type: 3-clause BSD
+  license_link: https://opensource.org/licenses/BSD-3-Clause
+RUI_DICT:
+  rui_files:
+  - NepiAppFilePubDepthmap.js
+  rui_main_file: NepiAppFilePubDepthmap.js
+  rui_main_class: FilePubDepthmapApp
