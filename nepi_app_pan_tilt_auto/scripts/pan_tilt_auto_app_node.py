@@ -36,7 +36,7 @@ from nepi_sdk import nepi_stab_pt
 
 from nepi_app_pan_tilt_auto.msg import PanTiltAutoAppStatus
 from nepi_interfaces.msg import DevicePTXStatus, RangeWindow, ImageMouseEvent, MgrSystemStatus
-from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus, TargetingUpdate
+from nepi_interfaces.msg import RangeWindow, Target, Targets, TargetingStatus
 from nepi_interfaces.msg import Track, TrackingStatus
 from nepi_interfaces.msg import NavPose, NavPoseOrientation
 from nepi_interfaces.msg import Predict, PredictStatus, PredictProcess
@@ -2382,7 +2382,7 @@ class NepiPanTiltAutoApp(object):
             #     msg.selected_classes.append(cur_class_source)
             # msg.selected_classes = self.tracking_available_classes
             #self.msg_if.pub_warn("Resetting Targeting source with original config: " + str(msg))
-            self.sendTargetsMsg('config_pub',msg)
+            # self.sendTargetsMsg('config_pub',msg)
             
 
   def setTrackingEnable(self,enabled):
@@ -2546,7 +2546,6 @@ class NepiPanTiltAutoApp(object):
             tracking_subpub_dict['class_pub'] = nepi_sdk.create_publisher(namespace + '/set_class', String, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['threshold_pub'] = nepi_sdk.create_publisher(namespace + '/set_threshold', Float32, queue_size = 10, log_name_list = [])
             tracking_subpub_dict['save_pub'] = nepi_sdk.create_publisher(namespace + '/set_save_config_enable', Bool, queue_size = 10, log_name_list = [])
-            tracking_subpub_dict['config_pub'] = nepi_sdk.create_publisher(namespace + '/set_config', TargetingUpdate, queue_size = 10, log_name_list = [])
 
             self.tracking_subpub_lock.acquire()
             self.tracking_subpub_dict = tracking_subpub_dict
