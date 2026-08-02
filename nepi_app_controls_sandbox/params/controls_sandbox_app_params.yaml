@@ -11,7 +11,6 @@ APP_DICT:
 RUI_DICT:
   rui_files:
   - NepiAppControlsSandbox.js
-  - NepiAppControlsSandbox-Controls.js
   - NepiAppControlsSandbox-Settings.js
   rui_main_file: NepiAppControlsSandbox.js
   rui_main_class: NepiAppControlsSandbox

@@ -27,6 +27,10 @@ This app is the first consumer of the `nepi_controls` (SDK) / `ControlsStatus` /
 ## RUI
 
 - `NepiAppControlsSandbox.js` — main panel.
-- `NepiAppControlsSandbox-Controls.js` — the Controls box (one widget per control).
+- `Nepi_IF_Controls.js` — the reusable Controls box (one widget per control).
+  This component lives in the shared `nepi_rui` source tree
+  (`src/rui_webserver/rui-app/src/`) alongside the other controls components, and
+  is imported by the main panel; it is not shipped in this app package.
 - `NepiAppControlsSandbox-Settings.js` — the Controls Settings box (display
-  management), shown only in `develop` run mode or when admin mode is set.
+  management), a Select-dropdown settings panel (Nepi_IF_Settings pattern) shown
+  only in `develop` run mode or when admin mode is set.

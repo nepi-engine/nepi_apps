@@ -12,20 +12,23 @@ import { observer, inject } from "mobx-react"
 import Toggle from "react-toggle"
 import Section from "./Section"
 import { Columns, Column } from "./Columns"
+import Select from "./Select"
 import Label from "./Label"
 import Input from "./Input"
 import Styles from "./Styles"
 import Button, { ButtonMenu } from "./Button"
 
-import { setElementStyleModified, clearElementStyleModified } from "./Utilities"
+import { createMenuListFromStrList, setElementStyleModified, clearElementStyleModified } from "./Utilities"
 
 
 @inject("ros")
 @observer
 
 // Controls Settings box: per-control display management (order, display name,
-// description, hidden, reset, factory-reset). Rendered only in develop run mode
-// or when admin mode is set (gated by the parent and re-checked here).
+// description, hidden, reset, factory-reset). A Select dropdown picks one
+// control at a time (Nepi_IF_Settings pattern); the chosen control's edit
+// fields are rendered below. Rendered only in develop run mode or when admin
+// mode is set (gated by the parent and re-checked here).
 class NepiAppControlsSandboxSettings extends Component {
   constructor(props) {
     super(props)
@@ -33,6 +36,8 @@ class NepiAppControlsSandboxSettings extends Component {
     this.state = {
       controlsNamespace: null,
       status_msg: null,
+
+      selectedControlName: "",
 
       // (name + '_dn' | name + '_desc') -> in-progress edit string
       editValues: {},
@@ -44,9 +49,11 @@ class NepiAppControlsSandboxSettings extends Component {
     this.getNamespace = this.getNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
+    this.getControlMsg = this.getControlMsg.bind(this)
+    this.updateSelectedControl = this.updateSelectedControl.bind(this)
     this.onFieldChange = this.onFieldChange.bind(this)
     this.onFieldKey = this.onFieldKey.bind(this)
-    this.renderControlSettings = this.renderControlSettings.bind(this)
+    this.renderSelectedControl = this.renderSelectedControl.bind(this)
   }
 
   getNamespace() {
@@ -78,7 +85,7 @@ class NepiAppControlsSandboxSettings extends Component {
       )
       this.setState({ statusListener: statusListener })
     }
-    this.setState({ controlsNamespace: namespace, needs_update: false })
+    this.setState({ controlsNamespace: namespace, needs_update: false, editValues: {} })
   }
 
   componentDidUpdate(prevProps, prevState, snapshot) {
@@ -97,6 +104,24 @@ class NepiAppControlsSandboxSettings extends Component {
       this.state.statusListener.unsubscribe()
       this.setState({ statusListener: null })
     }
+  }
+
+  // Return the Control message for a control by name, or null.
+  getControlMsg(name) {
+    const status_msg = this.state.status_msg
+    if (status_msg == null) { return null }
+    const names = status_msg.controls_name_list || []
+    const i = names.indexOf(name)
+    if (i === -1) { return null }
+    const msgs = status_msg.controls_msg_list || []
+    return (msgs[i] != null) ? msgs[i] : null
+  }
+
+  // Dropdown onChange: pick the control whose name matches the selected option.
+  updateSelectedControl(event) {
+    const ind = event.nativeEvent.target.selectedIndex
+    const name = event.nativeEvent.target[ind].text
+    this.setState({ selectedControlName: name, editValues: {} })
   }
 
   onFieldChange(editKey, e) {
@@ -119,7 +144,18 @@ class NepiAppControlsSandboxSettings extends Component {
     this.setState({ editValues: editValues })
   }
 
-  renderControlSettings(name, control_msg, index) {
+  renderSelectedControl() {
+    const name = this.state.selectedControlName
+    const control_msg = this.getControlMsg(name)
+    if (name === "" || name === "Select" || control_msg == null) {
+      return (
+        <Columns>
+          <Column>
+          </Column>
+        </Columns>
+      )
+    }
+
     const namespace = this.getNamespace()
     const { sendUpdateBoolMsg, sendUpdateStringMsg, sendUpdateOrderMsg } = this.props.ros
 
@@ -133,58 +169,60 @@ class NepiAppControlsSandboxSettings extends Component {
     const descValue = (descKey in this.state.editValues) ? this.state.editValues[descKey] : description
 
     return (
-      <div key={name}>
+      <Columns>
+        <Column>
 
-        <div style={{ borderTop: "1px solid #777777", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }} />
+          <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }} />
 
-        <Label title={"Control"} style={{ fontWeight: 'bold' }}>
-          <div style={{ display: "inline-block" }}>{name + "  (" + control_msg.type + ")"}</div>
-        </Label>
+          <Label title={"Control"} style={{ fontWeight: 'bold' }}>
+            <div style={{ display: "inline-block" }}>{name + "  (" + control_msg.type + ")"}</div>
+          </Label>
 
-        <Label title={"Display Name"}>
-          <Input
-            id={'csbxset_' + dnKey}
-            style={{ width: "70%", float: "left" }}
-            value={dnValue}
-            onChange={(e) => this.onFieldChange(dnKey, e)}
-            onKeyDown={(e) => this.onFieldKey("/set_control_display_name", name, dnKey, e)}
-          />
-        </Label>
+          <Label title={"Display Name"}>
+            <Input
+              id={'csbxset_' + dnKey}
+              style={{ width: "70%", float: "left" }}
+              value={dnValue}
+              onChange={(e) => this.onFieldChange(dnKey, e)}
+              onKeyDown={(e) => this.onFieldKey("/set_control_display_name", name, dnKey, e)}
+            />
+          </Label>
 
-        <Label title={"Description"}>
-          <Input
-            id={'csbxset_' + descKey}
-            style={{ width: "70%", float: "left" }}
-            value={descValue}
-            onChange={(e) => this.onFieldChange(descKey, e)}
-            onKeyDown={(e) => this.onFieldKey("/set_control_description", name, descKey, e)}
-          />
-        </Label>
+          <Label title={"Description"}>
+            <Input
+              id={'csbxset_' + descKey}
+              style={{ width: "70%", float: "left" }}
+              value={descValue}
+              onChange={(e) => this.onFieldChange(descKey, e)}
+              onKeyDown={(e) => this.onFieldKey("/set_control_description", name, descKey, e)}
+            />
+          </Label>
 
-        <Label title={"Hidden"}>
-          <Toggle
-            checked={hidden}
-            onClick={() => sendUpdateBoolMsg(namespace + "/set_control_hidden", name, !hidden)}
-          />
-        </Label>
+          <Label title={"Hidden"}>
+            <Toggle
+              checked={hidden}
+              onClick={() => sendUpdateBoolMsg(namespace + "/set_control_hidden", name, !hidden)}
+            />
+          </Label>
 
-        <Label title={"Display Order"}>
-          <ButtonMenu>
-            <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "top")}>{"Top"}</Button>
-            <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "up")}>{"Up"}</Button>
-            <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "down")}>{"Down"}</Button>
-            <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "bottom")}>{"Bottom"}</Button>
-          </ButtonMenu>
-        </Label>
+          <Label title={"Display Order"}>
+            <ButtonMenu>
+              <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "top")}>{"Top"}</Button>
+              <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "up")}>{"Up"}</Button>
+              <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "down")}>{"Down"}</Button>
+              <Button onClick={() => sendUpdateOrderMsg(namespace + "/set_control_move", name, "bottom")}>{"Bottom"}</Button>
+            </ButtonMenu>
+          </Label>
 
-        <Label title={"Reset"}>
-          <ButtonMenu>
-            <Button onClick={() => sendUpdateStringMsg(namespace + "/set_control_reset", name, "")}>{"Reset"}</Button>
-            <Button onClick={() => sendUpdateStringMsg(namespace + "/set_control_factory_reset", name, "")}>{"Factory Reset"}</Button>
-          </ButtonMenu>
-        </Label>
+          <Label title={"Reset"}>
+            <ButtonMenu>
+              <Button onClick={() => sendUpdateStringMsg(namespace + "/set_control_reset", name, "")}>{"Reset"}</Button>
+              <Button onClick={() => sendUpdateStringMsg(namespace + "/set_control_factory_reset", name, "")}>{"Factory Reset"}</Button>
+            </ButtonMenu>
+          </Label>
 
-      </div>
+        </Column>
+      </Columns>
     )
   }
 
@@ -215,15 +253,30 @@ class NepiAppControlsSandboxSettings extends Component {
     }
 
     const names = status_msg.controls_name_list || []
-    const msgs = status_msg.controls_msg_list || []
 
     const body = (
       <React.Fragment>
-        {names.map((name, i) => {
-          const control_msg = msgs[i]
-          if (control_msg == null) { return null }
-          return this.renderControlSettings(name, control_msg, i)
-        })}
+
+        <Columns>
+          <Column>
+
+            <Label title={"Select Control"}>
+              <Select
+                id="selectedControlName"
+                onChange={this.updateSelectedControl}
+                value={this.state.selectedControlName}
+              >
+                {createMenuListFromStrList(names, false, [], ['Select'], [])}
+              </Select>
+            </Label>
+
+          </Column>
+          <Column>
+          </Column>
+        </Columns>
+
+        {this.renderSelectedControl()}
+
       </React.Fragment>
     )
 
