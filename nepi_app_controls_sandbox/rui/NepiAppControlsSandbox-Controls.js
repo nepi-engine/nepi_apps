@@ -43,22 +43,6 @@ const TYPE_HELP = {
   FloatSliders: "A min/max decimal range dragged between two limits (set_floatsliders_control_value)."
 }
 
-// Accent colour used down the left edge of each control card, keyed loosely by
-// interaction style so related controls read as a group. Purely cosmetic.
-const TYPE_ACCENT = {
-  Menu:         Styles.vars.colors.blue,
-  Selection:    Styles.vars.colors.blue,
-  Selections:   Styles.vars.colors.blue,
-  Trigger:      Styles.vars.colors.orange,
-  Bool:         Styles.vars.colors.green,
-  String:       Styles.vars.colors.grey1,
-  Int:          Styles.vars.colors.grey1,
-  Float:        Styles.vars.colors.grey1,
-  FloatSlider:  Styles.vars.colors.blue,
-  FloatSliders: Styles.vars.colors.blue
-}
-
-
 @inject("ros")
 @observer
 
@@ -74,6 +58,11 @@ class NepiAppControlsSandboxControls extends Component {
       // name -> in-progress edit string for editable text/number inputs
       editValues: {},
 
+      // name -> { baseline, typed, type } for values we have sent but not yet
+      // seen confirmed in an incoming status. Keeps the optimistic override in
+      // editValues alive until statusListener() reconciles it (see below).
+      pending: {},
+
       statusListener: null,
       needs_update: false
     }
@@ -81,6 +70,7 @@ class NepiAppControlsSandboxControls extends Component {
     this.getNamespace = this.getNamespace.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.statusListener = this.statusListener.bind(this)
+    this.getControlValue = this.getControlValue.bind(this)
     this.renderControl = this.renderControl.bind(this)
     this.controlCard = this.controlCard.bind(this)
     this.onInputChange = this.onInputChange.bind(this)
@@ -98,8 +88,66 @@ class NepiAppControlsSandboxControls extends Component {
     return namespace
   }
 
+  // Read the current value a control reports in a status message, by name and
+  // type. Returns null if the control isn't present or isn't an editable type.
+  getControlValue(message, name, type) {
+    if (message == null) { return null }
+    const names = message.controls_name_list || []
+    const i = names.indexOf(name)
+    if (i === -1) { return null }
+    const msgs = message.controls_msg_list || []
+    const m = msgs[i]
+    if (m == null) { return null }
+    if (type === "String") { return m.set_string }
+    if (type === "Int") { return m.set_int }
+    if (type === "Float") { return m.set_float }
+    return null
+  }
+
   statusListener(message) {
-    this.setState({ status_msg: message })
+    // Reconcile any in-progress edits against the freshly received status.
+    // While a value is being edited we keep showing the user's typed text (an
+    // optimistic override in editValues) until this status confirms the change.
+    // We drop the override when either the backend value has moved off what it
+    // held when we sent (covers the node clamping/rejecting to a *different*
+    // value, e.g. Int bounds [0,10]) or it now equals what the user typed.
+    // Dropping the override in the same message that carries the new value lets
+    // the input hand off from typed-text to backend-value with no stale frame.
+    const pendingKeys = Object.keys(this.state.pending)
+    if (pendingKeys.length === 0) {
+      this.setState({ status_msg: message })
+      return
+    }
+    const editValues = { ...this.state.editValues }
+    const pending = { ...this.state.pending }
+    let changed = false
+    pendingKeys.forEach((name) => {
+      const p = pending[name]
+      const cur = this.getControlValue(message, name, p.type)
+      if (cur == null) { return }
+      var moved = false
+      var matches = false
+      if (p.type === "Int") {
+        moved = cur !== p.baseline
+        matches = cur === parseInt(p.typed, 10)
+      } else if (p.type === "Float") {
+        moved = cur !== p.baseline
+        matches = cur === parseFloat(p.typed)
+      } else { // String
+        moved = String(cur) !== String(p.baseline)
+        matches = String(cur) === String(p.typed)
+      }
+      if (moved || matches) {
+        delete editValues[name]
+        delete pending[name]
+        changed = true
+      }
+    })
+    if (changed) {
+      this.setState({ status_msg: message, editValues: editValues, pending: pending })
+    } else {
+      this.setState({ status_msg: message })
+    }
   }
 
   updateStatusListener(namespace) {
@@ -116,7 +164,7 @@ class NepiAppControlsSandboxControls extends Component {
       )
       this.setState({ statusListener: statusListener })
     }
-    this.setState({ controlsNamespace: namespace, needs_update: false })
+    this.setState({ controlsNamespace: namespace, needs_update: false, editValues: {}, pending: {} })
   }
 
   componentDidUpdate(prevProps, prevState, snapshot) {
@@ -153,18 +201,33 @@ class NepiAppControlsSandboxControls extends Component {
     const el = document.getElementById('csbx_' + name)
     if (el) { clearElementStyleModified(el) }
     const raw = e.target.value
+    // Value the control reports right now; statusListener() uses this baseline
+    // to detect when the backend has acted on our change.
+    const baseline = this.getControlValue(this.state.status_msg, name, type)
+    var sent = false
     if (type === "String") {
       sendUpdateStringMsg(namespace + "/set_string_control_value", name, raw)
+      sent = true
     } else if (type === "Int") {
       const val = parseInt(raw, 10)
-      if (!Number.isNaN(val)) { sendUpdateIntMsg(namespace + "/set_int_control_value", name, val) }
+      if (!Number.isNaN(val)) { sendUpdateIntMsg(namespace + "/set_int_control_value", name, val); sent = true }
     } else if (type === "Float") {
       const val = parseFloat(raw)
-      if (!Number.isNaN(val)) { sendUpdateFloatMsg(namespace + "/set_float_control_value", name, val) }
+      if (!Number.isNaN(val)) { sendUpdateFloatMsg(namespace + "/set_float_control_value", name, val); sent = true }
     }
     const editValues = { ...this.state.editValues }
-    delete editValues[name]
-    this.setState({ editValues: editValues })
+    const pending = { ...this.state.pending }
+    if (sent) {
+      // Keep showing the typed text (optimistic) until a status message
+      // confirms the change; statusListener() clears these once reconciled.
+      editValues[name] = raw
+      pending[name] = { baseline: baseline, typed: raw, type: type }
+    } else {
+      // Invalid input: fall back to the last reported value (original behavior).
+      delete editValues[name]
+      delete pending[name]
+    }
+    this.setState({ editValues: editValues, pending: pending })
   }
 
   // -------------------------------------------------------------------------
@@ -174,7 +237,7 @@ class NepiAppControlsSandboxControls extends Component {
   // lives entirely in `children`; this method only handles layout.
   // -------------------------------------------------------------------------
   controlCard(name, type, display_name, description, children) {
-    const accent = TYPE_ACCENT[type] || Styles.vars.colors.grey1
+    const accent = Styles.vars.colors.grey1
     // Prefer the control's own description; fall back to the built-in help
     // line so learners always see what the control does.
     const help = (description && description !== '') ? description : (TYPE_HELP[type] || '')
