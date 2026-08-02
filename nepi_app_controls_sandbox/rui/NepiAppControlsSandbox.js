@@ -1,0 +1,144 @@
+/*
+ * Copyright (c) 2024 Numurus, LLC <https://www.numurus.com>.
+ *
+ * This file is part of nepi-engine
+ * (see https://github.com/nepi-engine).
+ *
+ * License: 3-clause BSD, see https://opensource.org/licenses/BSD-3-Clause
+ */
+import React, { Component } from "react"
+import { observer, inject } from "mobx-react"
+
+import Section from "./Section"
+import { Columns, Column } from "./Columns"
+
+import NepiAppControlsSandboxControls from "./NepiAppControlsSandbox-Controls"
+import NepiAppControlsSandboxSettings from "./NepiAppControlsSandbox-Settings"
+
+
+@inject("ros")
+@observer
+
+// Controls Sandbox main panel: a Controls box (one widget per control) and,
+// in develop run mode or when admin mode is set, a Controls Settings box below it.
+class NepiAppControlsSandbox extends Component {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      appName: 'app_controls_sandbox',
+      appNamespace: null,
+      controlsNamespace: null,
+      status_msg: null,
+
+      statusListener: null,
+      needs_update: false
+    }
+
+    this.getAppNamespace = this.getAppNamespace.bind(this)
+    this.getControlsNamespace = this.getControlsNamespace.bind(this)
+    this.updateStatusListener = this.updateStatusListener.bind(this)
+    this.statusListener = this.statusListener.bind(this)
+  }
+
+  getAppNamespace() {
+    const { namespacePrefix, deviceId } = this.props.ros
+    var namespace = null
+    if (namespacePrefix != null && deviceId != null) {
+      if (this.props.namespace !== undefined) {
+        namespace = this.props.namespace
+      } else {
+        namespace = "/" + namespacePrefix + "/" + deviceId + "/" + this.state.appName
+      }
+    }
+    return namespace
+  }
+
+  getControlsNamespace() {
+    // Prefer the namespace advertised by the app status; fall back to the
+    // conventional <app>/controls path.
+    if (this.state.status_msg != null && this.state.status_msg.controls_namespace) {
+      return this.state.status_msg.controls_namespace
+    }
+    const appNamespace = this.getAppNamespace()
+    return (appNamespace != null) ? appNamespace + "/controls" : null
+  }
+
+  statusListener(message) {
+    this.setState({
+      status_msg: message,
+      controlsNamespace: message.controls_namespace
+    })
+  }
+
+  updateStatusListener(namespace) {
+    if (this.state.statusListener != null) {
+      this.state.statusListener.unsubscribe()
+      this.setState({ statusListener: null, status_msg: null })
+    }
+    if (namespace != null && namespace !== 'None' && namespace.indexOf('null') === -1) {
+      const statusNamespace = namespace + '/status'
+      var statusListener = this.props.ros.setupStatusListener(
+        statusNamespace,
+        "nepi_app_controls_sandbox/ControlsSandboxStatus",
+        this.statusListener
+      )
+      this.setState({ statusListener: statusListener })
+    }
+    this.setState({ appNamespace: namespace, needs_update: false })
+  }
+
+  componentDidUpdate(prevProps, prevState, snapshot) {
+    const namespace = this.getAppNamespace()
+    if ((namespace != null && namespace !== this.state.appNamespace) || this.state.needs_update === true) {
+      this.updateStatusListener(namespace)
+    }
+  }
+
+  componentDidMount() {
+    this.setState({ needs_update: true })
+  }
+
+  componentWillUnmount() {
+    if (this.state.statusListener) {
+      this.state.statusListener.unsubscribe()
+      this.setState({ statusListener: null })
+    }
+  }
+
+  render() {
+    const controlsNamespace = this.getControlsNamespace()
+
+    // Settings box is shown only in develop run mode or when admin mode is set.
+    const { systemRunMode, systemAdminModeSet } = this.props.ros
+    const show_settings = (systemRunMode === "develop" || systemAdminModeSet === true)
+
+    return (
+      <React.Fragment>
+        <Columns>
+          <Column>
+
+            <Section title={"CONTROLS SANDBOX"}>
+
+              <NepiAppControlsSandboxControls
+                namespace={controlsNamespace}
+                make_section={false}
+              />
+
+            </Section>
+
+            { (show_settings === true) ?
+              <NepiAppControlsSandboxSettings
+                namespace={controlsNamespace}
+                make_section={true}
+              />
+              : null }
+
+          </Column>
+        </Columns>
+      </React.Fragment>
+    )
+  }
+}
+
+export default NepiAppControlsSandbox
