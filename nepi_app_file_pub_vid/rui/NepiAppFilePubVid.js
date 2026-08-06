@@ -25,7 +25,7 @@ import Select, { Option } from "./Select"
 import Button, { ButtonMenu } from "./Button"
 import Label from "./Label"
 import Input from "./Input"
-import Toggle from "react-toggle"
+import AsyncToggle from "./AsyncToggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
@@ -235,10 +235,10 @@ class FilePubVidApp extends Component {
 
 
                       <Label title="Pause">
-                            <Toggle
+                            <AsyncToggle
                             checked={this.state.paused===true}
                             onClick={() => sendBoolMsg(appNamespace + "/pause_pub",!this.state.paused)}>
-                            </Toggle>
+                            </AsyncToggle>
                       </Label>
 
                 </Column>

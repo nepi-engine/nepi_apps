@@ -26,7 +26,7 @@ import { Columns, Column } from "./Columns"
 import Label from "./Label"
 import Input from "./Input"
 import Button from "./Button"
-import Toggle from "react-toggle"
+import AsyncToggle from "./AsyncToggle"
 import Select, { Option } from "./Select"
 import Styles from "./Styles"
 
@@ -261,7 +261,7 @@ class NepiAppFakeGps extends Component {
             <Label title={"Enabled"} />
           </Column>
           <Column>
-            <Toggle
+            <AsyncToggle
               checked={enabled}
               onClick={this.onToggleEnabled}
               disabled={!connected}

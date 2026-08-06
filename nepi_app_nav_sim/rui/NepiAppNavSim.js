@@ -27,6 +27,7 @@ import Label from "./Label"
 import Input from "./Input"
 import Button from "./Button"
 import Toggle from "react-toggle"
+import AsyncToggle from "./AsyncToggle"
 import Styles from "./Styles"
 
 import NepiIFConfig from "./Nepi_IF_Config"
@@ -452,6 +453,7 @@ class NepiAppNavSim extends Component {
           style={{ width: 100 }}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* react-toggle (not AsyncToggle): checked is local view state, already immediate -- no backend round trip to confirm. */}
           <Toggle
             checked={enableMove}
             onChange={() => {
@@ -476,6 +478,7 @@ class NepiAppNavSim extends Component {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {hasSin && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {/* react-toggle (not AsyncToggle): checked is local view state, already immediate -- no backend round trip to confirm. */}
                 <Toggle
                   checked={enableStep}
                   onChange={() => {
@@ -546,6 +549,7 @@ class NepiAppNavSim extends Component {
         {enableMove && hasSin && !enableStep && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {/* react-toggle (not AsyncToggle): checked is local view state, already immediate -- no backend round trip to confirm. */}
               <Toggle
                 checked={enableSin}
                 onChange={() => {
@@ -569,6 +573,7 @@ class NepiAppNavSim extends Component {
             {hasWave && (
               <React.Fragment>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {/* react-toggle (not AsyncToggle): checked is local view state, already immediate -- no backend round trip to confirm. */}
                   <Toggle
                     checked={!enableWave}
                     onChange={() => {
@@ -582,6 +587,7 @@ class NepiAppNavSim extends Component {
                   <span style={{ fontSize: 11, color: '#aaa' }}>Sine</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {/* react-toggle (not AsyncToggle): checked is local view state, already immediate -- no backend round trip to confirm. */}
                   <Toggle
                     checked={enableWave}
                     onChange={() => {
@@ -771,7 +777,7 @@ class NepiAppNavSim extends Component {
             <span style={dotStyle} title={dotTitle} />
           </Column>
           <Column>
-            <Toggle
+            <AsyncToggle
               checked={nmea_sim_enabled}
               onClick={() => sendBoolMsg(ns + '/set_nmea_enabled', !nmea_sim_enabled)}
               disabled={dis}
@@ -896,7 +902,7 @@ class NepiAppNavSim extends Component {
             <span style={dotStyle} title={dotTitle} />
           </Column>
           <Column>
-            <Toggle
+            <AsyncToggle
               checked={hnav_sim_enabled}
               onClick={() => sendBoolMsg(ns + '/set_hnav_enabled', !hnav_sim_enabled)}
               disabled={dis}

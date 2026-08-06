@@ -25,7 +25,7 @@ import Select, { Option } from "./Select"
 import Button, { ButtonMenu } from "./Button"
 import Label from "./Label"
 import Input from "./Input"
-import Toggle from "react-toggle"
+import AsyncToggle from "./AsyncToggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
@@ -229,10 +229,10 @@ class FilePubDepthmapApp extends Component {
 
 
                       <Label title="Pause">
-                            <Toggle
+                            <AsyncToggle
                             checked={this.state.paused===true}
                             onClick={() => sendBoolMsg(appNamespace + "/pause_pub",!this.state.paused)}>
-                            </Toggle>
+                            </AsyncToggle>
                       </Label>
 
                 </Column>
@@ -250,10 +250,10 @@ class FilePubDepthmapApp extends Component {
 
 
                             <Label title="Set Random Order">
-                                  <Toggle
+                                  <AsyncToggle
                                   checked={this.state.set_random===true}
                                   onClick={() => sendBoolMsg(appNamespace + "/set_random",!this.state.set_random)}>
-                                  </Toggle>
+                                  </AsyncToggle>
                             </Label>
 
                       </div>
@@ -291,10 +291,10 @@ class FilePubDepthmapApp extends Component {
 
 
         <Label title="Overlay Filename">
-              <Toggle
+              <AsyncToggle
               checked={this.state.set_overlay===true}
               onClick={() => sendBoolMsg(appNamespace + "/set_overlay",!this.state.set_overlay)}>
-              </Toggle>
+              </AsyncToggle>
         </Label>
 
 
