@@ -176,6 +176,118 @@ class ConnectAppFilePubDepthmapIF:
                 'qsize': None,
                 'latch': False
             },
+            'set_navpose_source_mode': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_source_mode',
+                'msg': String,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_system_timeout': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_system_timeout',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_latitude': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_latitude',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_longitude': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_longitude',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_heading': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_heading',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_roll': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_roll',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_pitch': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_pitch',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_yaw': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_yaw',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_x': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_x',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_y': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_y',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_z': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_z',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_altitude': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_altitude',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_depth': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_depth',
+                'msg': Float32,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_frame_nav': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_frame_nav',
+                'msg': String,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_frame_altitude': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_frame_altitude',
+                'msg': String,
+                'qsize': None,
+                'latch': False
+            },
+            'set_navpose_static_frame_depth': {
+                'namespace': self.node_namespace,
+                'topic': 'set_navpose_static_frame_depth',
+                'msg': String,
+                'qsize': None,
+                'latch': False
+            },
             'save_config': {
                 'namespace': self.node_namespace,
                 'topic': 'save_config',
@@ -361,6 +473,271 @@ class ConnectAppFilePubDepthmapIF:
         pub_name = 'set_overlay'
         msg = set_overlay
         self.con_node_if.publish_pub(pub_name,msg)
+
+    #################
+    ## NavPose Source
+    #
+    # The app publishes <node>/navpose from one of two sources. In 'system' mode
+    # navpose_mgr's pose is forwarded unchanged and the static values and frames
+    # below are ignored; in 'static' mode the app authors the pose from them.
+    # get_navpose_active_mode() reports which is actually publishing.
+
+    def get_navpose_source_mode(self):
+        """Return the operator's nav pose source mode setting.
+
+        Returns:
+            str: 'auto', 'system' or 'static', or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return self.status_msg.navpose_source_mode
+
+    def get_navpose_source_mode_options(self):
+        """Return the nav pose source modes the app accepts.
+
+        Returns:
+            list: Mode strings, or an empty list if no status has arrived.
+        """
+        if self.status_msg is None:
+            return []
+        return list(self.status_msg.navpose_source_mode_options)
+
+    def get_navpose_active_mode(self):
+        """Return the nav pose source that is actually publishing.
+
+        Returns:
+            str: 'system' or 'static', or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return self.status_msg.navpose_active_mode
+
+    def get_navpose_system_available(self):
+        """Return whether a fresh system nav pose is available to forward.
+
+        Returns:
+            bool: True if a system nav pose arrived within the staleness window.
+        """
+        if self.status_msg is None:
+            return False
+        return self.status_msg.navpose_system_available
+
+    def get_navpose_system_timeout(self):
+        """Return the system nav pose staleness window.
+
+        Returns:
+            float: Window in seconds, or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return self.status_msg.navpose_system_timeout_sec
+
+    def get_navpose_pub_rate(self):
+        """Return the steady rate the app republishes its nav pose at.
+
+        Returns:
+            float: Publish rate in Hz, or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return self.status_msg.navpose_pub_rate
+
+    def get_navpose_static_pose(self):
+        """Return the operator-authored static pose values.
+
+        Keys are the NEPI navpose dict key names, so the result can be merged
+        straight into a navpose dict.
+
+        Returns:
+            dict: Static pose values, or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return {
+            'latitude': self.status_msg.navpose_static_latitude,
+            'longitude': self.status_msg.navpose_static_longitude,
+            'heading_deg': self.status_msg.navpose_static_heading_deg,
+            'roll_deg': self.status_msg.navpose_static_roll_deg,
+            'pitch_deg': self.status_msg.navpose_static_pitch_deg,
+            'yaw_deg': self.status_msg.navpose_static_yaw_deg,
+            'x_m': self.status_msg.navpose_static_x_m,
+            'y_m': self.status_msg.navpose_static_y_m,
+            'z_m': self.status_msg.navpose_static_z_m,
+            'altitude_m': self.status_msg.navpose_static_altitude_m,
+            'depth_m': self.status_msg.navpose_static_depth_m
+        }
+
+    def get_navpose_static_frames(self):
+        """Return the frames the static pose is declared in.
+
+        These apply only while the active mode is 'static'; a forwarded system
+        pose keeps the frames its author set.
+
+        Returns:
+            dict: Keys 'frame_nav', 'frame_altitude' and 'frame_depth', or None
+                if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return {
+            'frame_nav': self.status_msg.navpose_static_frame_nav,
+            'frame_altitude': self.status_msg.navpose_static_frame_altitude,
+            'frame_depth': self.status_msg.navpose_static_frame_depth
+        }
+
+    def get_navpose_frame_options(self):
+        """Return the frame options the app will accept for the static pose.
+
+        Returns:
+            dict: Keys 'frame_nav', 'frame_altitude' and 'frame_depth', each a
+                list of option strings, or None if no status has arrived.
+        """
+        if self.status_msg is None:
+            return None
+        return {
+            'frame_nav': list(self.status_msg.navpose_frame_nav_options),
+            'frame_altitude': list(self.status_msg.navpose_frame_altitude_options),
+            'frame_depth': list(self.status_msg.navpose_frame_depth_options)
+        }
+
+    def set_navpose_source_mode(self,source_mode):
+        """Set the nav pose source mode.
+
+        Args:
+            source_mode (str): 'auto', 'system' or 'static'. A value the node
+                does not recognize is rejected and the previous mode kept.
+        """
+        self.con_node_if.publish_pub('set_navpose_source_mode',source_mode)
+
+    def set_navpose_system_timeout(self,timeout_sec):
+        """Set the system nav pose staleness window.
+
+        Args:
+            timeout_sec (float): Window in seconds. Clamped by the node.
+        """
+        self.con_node_if.publish_pub('set_navpose_system_timeout',timeout_sec)
+
+    def set_navpose_static_latitude(self,latitude):
+        """Set the static pose latitude.
+
+        Args:
+            latitude (float): Latitude in degrees.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_latitude',latitude)
+
+    def set_navpose_static_longitude(self,longitude):
+        """Set the static pose longitude.
+
+        Args:
+            longitude (float): Longitude in degrees.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_longitude',longitude)
+
+    def set_navpose_static_heading(self,heading_deg):
+        """Set the static pose heading.
+
+        Args:
+            heading_deg (float): Heading in degrees true north.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_heading',heading_deg)
+
+    def set_navpose_static_roll(self,roll_deg):
+        """Set the static pose roll.
+
+        Args:
+            roll_deg (float): Roll in degrees in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_roll',roll_deg)
+
+    def set_navpose_static_pitch(self,pitch_deg):
+        """Set the static pose pitch.
+
+        Args:
+            pitch_deg (float): Pitch in degrees in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_pitch',pitch_deg)
+
+    def set_navpose_static_yaw(self,yaw_deg):
+        """Set the static pose yaw.
+
+        Args:
+            yaw_deg (float): Yaw in degrees in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_yaw',yaw_deg)
+
+    def set_navpose_static_x(self,x_m):
+        """Set the static pose X position.
+
+        Args:
+            x_m (float): X position in meters in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_x',x_m)
+
+    def set_navpose_static_y(self,y_m):
+        """Set the static pose Y position.
+
+        Args:
+            y_m (float): Y position in meters in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_y',y_m)
+
+    def set_navpose_static_z(self,z_m):
+        """Set the static pose Z position.
+
+        Args:
+            z_m (float): Z position in meters in the selected nav frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_z',z_m)
+
+    def set_navpose_static_altitude(self,altitude_m):
+        """Set the static pose altitude.
+
+        Args:
+            altitude_m (float): Altitude in meters in the selected altitude frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_altitude',altitude_m)
+
+    def set_navpose_static_depth(self,depth_m):
+        """Set the static pose depth.
+
+        Args:
+            depth_m (float): Depth in positive meters in the selected depth frame.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_depth',depth_m)
+
+    def set_navpose_static_frame_nav(self,frame_nav):
+        """Set the nav frame the static pose is declared in.
+
+        Applies only in static mode. A value not in get_navpose_frame_options()
+        is rejected by the node and the previous frame kept.
+
+        Args:
+            frame_nav (str): Nav frame identifier, e.g. 'ENU'.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_frame_nav',frame_nav)
+
+    def set_navpose_static_frame_altitude(self,frame_altitude):
+        """Set the altitude frame the static pose is declared in.
+
+        Applies only in static mode. A value not in get_navpose_frame_options()
+        is rejected by the node and the previous frame kept.
+
+        Args:
+            frame_altitude (str): Altitude frame identifier, e.g. 'WGS84'.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_frame_altitude',frame_altitude)
+
+    def set_navpose_static_frame_depth(self,frame_depth):
+        """Set the depth frame the static pose is declared in.
+
+        Applies only in static mode. A value not in get_navpose_frame_options()
+        is rejected by the node and the previous frame kept.
+
+        Args:
+            frame_depth (str): Depth frame identifier, e.g. 'DEPTH'.
+        """
+        self.con_node_if.publish_pub('set_navpose_static_frame_depth',frame_depth)
+
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config',Empty())
