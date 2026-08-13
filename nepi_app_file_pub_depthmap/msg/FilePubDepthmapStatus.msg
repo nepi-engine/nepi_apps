@@ -15,6 +15,29 @@ float32 set_rate
 bool running
 
 #################
+# Field of View
+#################
+# The angular width and height the three published products declare. Consumers
+# that reason about direction rather than distance derive their per-pixel
+# bearings from these, so they must match the sensor the data came from
+float32[] min_max_fov_deg
+float32 set_width_deg
+float32 set_height_deg
+
+#################
+# Folder Settings
+#################
+# Operator setting. When true, the current folder's nepi_collection_settings.yaml
+# is read and applied on every folder selection and the moment the toggle is
+# switched on. When false the file is never read
+bool apply_folder_settings
+# Read-only. True when a usable settings file was found in the current folder.
+# False while apply_folder_settings is off, because nothing was looked for
+bool folder_settings_found
+# Read-only. What the last apply attempt did, or why it did nothing
+string folder_settings_status
+
+#################
 # NavPose Source
 #################
 # This app publishes a navpose on <node>/navpose from one of two SOURCES, and the

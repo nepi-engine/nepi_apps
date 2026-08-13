@@ -78,6 +78,48 @@ class NepiFilePubDepthmapApp(object):
   UPDATER_DELAY_SEC = 1.0
 
   #############################
+  ## Field of view
+  #
+  # The angular width and height the three published products declare.  Every
+  # consumer that reasons about direction rather than distance -- nepi_app_obstacles
+  # is the current one -- derives its per-pixel bearings from these two numbers, so
+  # a value that does not match the camera that produced the data skews that
+  # reasoning even when the depth values themselves are correct.
+  #
+  # The factory pair is the app's historical hardcoded pair, kept so behavior does
+  # not move until an operator asks for it.  A collection folder can carry the
+  # values its own sensor needs in a settings sidecar -- see FOLDER_SETTINGS_FILE.
+  FACTORY_WIDTH_DEG = 100.0
+  FACTORY_HEIGHT_DEG = 70.0
+  MIN_FOV_DEG = 1.0
+  MAX_FOV_DEG = 180.0
+
+  #############################
+  ## Collection folder settings sidecar
+  #
+  # A collection folder may carry one of these next to its data files.  It is how
+  # a converted or captured set declares the settings it needs, so the operator
+  # does not have to know them and this app does not have to know the set:
+  #
+  #     width_deg: 63.1
+  #     height_deg: 49.5
+  #     description: TUM RGB-D rgbd_dataset_freiburg2_pioneer_360
+  #
+  # Every key is optional.  A missing or unreadable file, or a key that is not a
+  # usable number, leaves the current setting where it is and produces a warning.
+  # Nothing here is ever written back to the folder.
+  #
+  # The name deliberately ends in neither -color_image.png, -depth_map.npy nor
+  # -depth_map_image.png, which is the only reason it is safe to leave sitting in
+  # a collection folder -- buildCollections() groups by walking the sorted file
+  # list, so a stray file matching one of those three suffixes would resync the
+  # grouping and corrupt every collection after it.  listFolderFiles() filters on
+  # getFileType(), so this file is never even offered to the grouper.
+  FOLDER_SETTINGS_FILE = 'nepi_collection_settings.yaml'
+  FOLDER_SETTINGS_FOV_KEYS = ['width_deg','height_deg']
+  FOLDER_SETTINGS_DESCRIPTION_KEY = 'description'
+
+  #############################
   ## NavPose source
   #
   # This app publishes a navpose on <node>/navpose from one of two SOURCES.
@@ -144,8 +186,15 @@ class NepiFilePubDepthmapApp(object):
   paused = False
   oneshot_offset = 1
 
-  width_deg = 100
-  height_deg = 70
+  width_deg = FACTORY_WIDTH_DEG
+  height_deg = FACTORY_HEIGHT_DEG
+
+  # Folder settings state.  folder_settings_found and folder_settings_status are
+  # report-only: they say what the last apply attempt did, so an operator can see
+  # whether the toggle changed anything.
+  apply_folder_settings = False
+  folder_settings_found = False
+  folder_settings_status = 'No folder settings applied'
 
   random = False
   overlay = False
@@ -229,6 +278,22 @@ class NepiFilePubDepthmapApp(object):
             'factory_val': self.FACTORY_PUB_RATE
         },
         'running': {
+            'namespace': self.node_namespace,
+            'factory_val': False
+        },
+
+        # Field of view of the published products.  Operator settings like any
+        # other, and the two values a collection folder's settings sidecar sets
+        # when apply_folder_settings is on.
+        'width_deg': {
+            'namespace': self.node_namespace,
+            'factory_val': self.FACTORY_WIDTH_DEG
+        },
+        'height_deg': {
+            'namespace': self.node_namespace,
+            'factory_val': self.FACTORY_HEIGHT_DEG
+        },
+        'apply_folder_settings': {
             'namespace': self.node_namespace,
             'factory_val': False
         },
@@ -410,6 +475,30 @@ class NepiFilePubDepthmapApp(object):
             'msg': Bool,
             'qsize': None,
             'callback': self.setOverlayCb,
+            'callback_args': ()
+        },
+        'set_width_deg': {
+            'namespace': self.node_namespace,
+            'topic': 'set_width_deg',
+            'msg': Float32,
+            'qsize': None,
+            'callback': self.setWidthDegCb,
+            'callback_args': ()
+        },
+        'set_height_deg': {
+            'namespace': self.node_namespace,
+            'topic': 'set_height_deg',
+            'msg': Float32,
+            'qsize': None,
+            'callback': self.setHeightDegCb,
+            'callback_args': ()
+        },
+        'set_apply_folder_settings': {
+            'namespace': self.node_namespace,
+            'topic': 'set_apply_folder_settings',
+            'msg': Bool,
+            'qsize': None,
+            'callback': self.setApplyFolderSettingsCb,
             'callback_args': ()
         },
 
@@ -730,6 +819,14 @@ class NepiFilePubDepthmapApp(object):
       self.rate = self.node_if.get_param('rate')
       self.restart = self.node_if.get_param('running')
 
+      # Clamped on the way back in as well as on the way in, so a param file
+      # hand-edited to something unusable cannot reach a published product.
+      self.width_deg = self.clampFovDeg(self.node_if.get_param('width_deg'),
+                                        self.FACTORY_WIDTH_DEG)
+      self.height_deg = self.clampFovDeg(self.node_if.get_param('height_deg'),
+                                         self.FACTORY_HEIGHT_DEG)
+      self.apply_folder_settings = self.node_if.get_param('apply_folder_settings')
+
       self.navpose_source_mode = self.node_if.get_param('navpose_source_mode')
       self.navpose_system_timeout_sec = self.node_if.get_param('navpose_system_timeout_sec')
       # The static pose is only loaded once it has been seeded.  NodeClassIF can
@@ -852,6 +949,129 @@ class NepiFilePubDepthmapApp(object):
     self.publish_status()
     if self.node_if is not None:
       self.node_if.set_param('rate',rate)
+
+
+  #############################
+  ## Field of view
+
+  def clampFovDeg(self, value, fallback):
+    # Same clamp form setRateCb uses, with one addition: a value that is not a
+    # usable number at all falls back rather than clamping, because that is what
+    # a malformed sidecar or a hand-edited param file produces and there is no
+    # sensible edge of the range to pin it to.
+    try:
+      fov_deg = float(value)
+    except Exception:
+      self.msg_if.pub_warn("Rejected field of view value: " + str(value) +
+                           " ; not a number, keeping " + str(fallback))
+      return fallback
+    if fov_deg != fov_deg or fov_deg in [float('inf'), float('-inf')]:
+      self.msg_if.pub_warn("Rejected field of view value: " + str(value) +
+                           " ; not finite, keeping " + str(fallback))
+      return fallback
+    if fov_deg < self.MIN_FOV_DEG:
+      self.msg_if.pub_warn("Clamped field of view " + str(fov_deg) +
+                           " up to " + str(self.MIN_FOV_DEG))
+      fov_deg = self.MIN_FOV_DEG
+    if fov_deg > self.MAX_FOV_DEG:
+      self.msg_if.pub_warn("Clamped field of view " + str(fov_deg) +
+                           " down to " + str(self.MAX_FOV_DEG))
+      fov_deg = self.MAX_FOV_DEG
+    return fov_deg
+
+  def setWidthDeg(self, width_deg):
+    self.width_deg = self.clampFovDeg(width_deg, self.width_deg)
+    if self.node_if is not None:
+      self.node_if.set_param('width_deg',self.width_deg)
+
+  def setHeightDeg(self, height_deg):
+    self.height_deg = self.clampFovDeg(height_deg, self.height_deg)
+    if self.node_if is not None:
+      self.node_if.set_param('height_deg',self.height_deg)
+
+  def setWidthDegCb(self,msg):
+    self.setWidthDeg(msg.data)
+    self.publish_status()
+
+  def setHeightDegCb(self,msg):
+    self.setHeightDeg(msg.data)
+    self.publish_status()
+
+
+  #############################
+  ## Collection folder settings
+
+  def readFolderSettings(self, folder):
+    # Returns the sidecar dict for a folder, or None when there is no usable one.
+    # nepi_utils.read_yaml_2_dict() logs and returns an empty dict for both a
+    # missing and an unreadable file, so neither case can raise from here; an
+    # empty YAML document loads as None, which is why that is checked too.
+    settings_file = os.path.join(folder, self.FOLDER_SETTINGS_FILE)
+    if os.path.exists(settings_file) == False:
+      return None
+    settings_dict = nepi_utils.read_yaml_2_dict(settings_file)
+    if isinstance(settings_dict, dict) == False or len(settings_dict) == 0:
+      self.msg_if.pub_warn("Unusable folder settings file " + str(settings_file) +
+                           " ; keeping current settings")
+      return None
+    return settings_dict
+
+  def applyFolderSettings(self, folder):
+    # Reads the current folder's sidecar and applies what it carries.  Called on
+    # every folder change and when the toggle is switched on.  Only ever called
+    # with apply_folder_settings True -- the check lives in the callers so that a
+    # disabled toggle never touches the filesystem at all.
+    settings_dict = self.readFolderSettings(folder)
+    if settings_dict is None:
+      self.folder_settings_found = False
+      self.folder_settings_status = ('No ' + self.FOLDER_SETTINGS_FILE +
+                                     ' in this folder; settings unchanged')
+      self.msg_if.pub_info(self.folder_settings_status)
+      return
+
+    self.folder_settings_found = True
+    applied = []
+    for key in self.FOLDER_SETTINGS_FOV_KEYS:
+      if key not in settings_dict:
+        continue
+      # Each value goes through the same clamp the set topics use, so a sidecar
+      # cannot put a value on the wire that an operator could not.
+      if key == 'width_deg':
+        self.setWidthDeg(settings_dict[key])
+        applied.append('width_deg ' + str(self.width_deg))
+      else:
+        self.setHeightDeg(settings_dict[key])
+        applied.append('height_deg ' + str(self.height_deg))
+
+    description = settings_dict.get(self.FOLDER_SETTINGS_DESCRIPTION_KEY, '')
+    if len(applied) == 0:
+      self.folder_settings_status = ('Found ' + self.FOLDER_SETTINGS_FILE +
+                                     ' but it set no known settings')
+    else:
+      self.folder_settings_status = 'Applied ' + ', '.join(applied)
+      if description != '':
+        self.folder_settings_status += ' from ' + str(description)
+    self.msg_if.pub_info(self.folder_settings_status)
+
+  def clearFolderSettingsStatus(self):
+    # What the report fields say while the toggle is off.  found is False because
+    # nothing was looked for, not because nothing is there.
+    self.folder_settings_found = False
+    self.folder_settings_status = ('Folder settings off; ' +
+                                   self.FOLDER_SETTINGS_FILE + ' not read')
+
+  def setApplyFolderSettingsCb(self,msg):
+    apply_settings = msg.data
+    self.apply_folder_settings = apply_settings
+    if apply_settings == True:
+      # Applied immediately on the current folder, not deferred to the next
+      # folder change, so switching the toggle on has a visible effect.
+      self.applyFolderSettings(self.current_folder)
+    else:
+      self.clearFolderSettingsStatus()
+    self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('apply_folder_settings',apply_settings)
 
 
   #############################
@@ -1079,6 +1299,12 @@ class NepiFilePubDepthmapApp(object):
 
       if os.path.exists(folder):
         self.current_folder = folder
+        # Applied before startPub() below, so the first collection of a new
+        # folder already goes out with that folder's field of view.
+        if self.apply_folder_settings == True:
+          self.applyFolderSettings(folder)
+        else:
+          self.clearFolderSettingsStatus()
         current_paths = nepi_utils.get_folder_list(folder)
         current_folders = []
         for path in current_paths:
@@ -1342,6 +1568,14 @@ class NepiFilePubDepthmapApp(object):
     status_msg.min_max_rate = [self.MIN_RATE, self.MAX_RATE]
     status_msg.set_rate = self.rate
     status_msg.running = self.running
+
+    status_msg.min_max_fov_deg = [self.MIN_FOV_DEG, self.MAX_FOV_DEG]
+    status_msg.set_width_deg = self.width_deg
+    status_msg.set_height_deg = self.height_deg
+
+    status_msg.apply_folder_settings = self.apply_folder_settings
+    status_msg.folder_settings_found = self.folder_settings_found
+    status_msg.folder_settings_status = self.folder_settings_status
 
     # NavPose source. navpose_active_mode is the RESOLVED source, which is what
     # the RUI gates its static pose fields and frame dropdowns on -- an 'auto'

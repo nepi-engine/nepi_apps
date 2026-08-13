@@ -53,6 +53,15 @@ const NAVPOSE_STATIC_VALUE_FIELDS = [
   ['navpose_static_z_m', 'Position Z (m)', 'set_navpose_static_z']
 ]
 
+// Field of view fields, same [status field / state key, label, set topic] form.
+// These move node-side as well as operator-side -- the folder settings toggle
+// rewrites them on a folder change -- so they need the same refresh-on-change
+// guard the static pose fields use.
+const FOV_VALUE_FIELDS = [
+  ['set_width_deg', 'Width (deg)', 'set_width_deg'],
+  ['set_height_deg', 'Height (deg)', 'set_height_deg']
+]
+
 
 @inject("ros")
 @observer
@@ -87,6 +96,19 @@ class FilePubDepthmapApp extends Component {
       min_max_rate: [0.1,20],
       set_rate: 1,
       pub_running: false,
+
+      // Field of view of the published products. Held in local state and
+      // refreshed only on a node-side change, the same guard set_rate uses, so a
+      // status tick cannot overwrite a half-typed value.
+      min_max_fov_deg: [1,180],
+      set_width_deg: 100,
+      set_height_deg: 70,
+
+      // Folder settings. The two report fields are read-only; they say whether
+      // the toggle found anything in the current folder and what it did.
+      apply_folder_settings: false,
+      folder_settings_found: false,
+      folder_settings_status: '',
 
       // NavPose source. navpose_active_mode is the RESOLVED source, and it is
       // what the static fields below are gated on -- a navpose_source_mode of
@@ -127,6 +149,7 @@ class FilePubDepthmapApp extends Component {
     this.onChangeFolderSelection = this.onChangeFolderSelection.bind(this)
     this.toggleViewableFolders = this.toggleViewableFolders.bind(this)
     this.createOptions = this.createOptions.bind(this)
+    this.renderFolderSettingsControls = this.renderFolderSettingsControls.bind(this)
     this.renderNavPoseStaticValue = this.renderNavPoseStaticValue.bind(this)
     this.renderNavPoseControls = this.renderNavPoseControls.bind(this)
 
@@ -163,6 +186,11 @@ class FilePubDepthmapApp extends Component {
       set_overlay: message.set_overlay ,
       min_max_rate: message.min_max_rate ,
 
+      min_max_fov_deg: message.min_max_fov_deg ,
+      apply_folder_settings: message.apply_folder_settings ,
+      folder_settings_found: message.folder_settings_found ,
+      folder_settings_status: message.folder_settings_status ,
+
       pub_running: message.running,
 
       navpose_source_mode: message.navpose_source_mode ,
@@ -182,7 +210,7 @@ class FilePubDepthmapApp extends Component {
   // from the status message only when the NODE's value changed, so a status tick
   // cannot overwrite what the operator is part-way through typing.
   const prev_msg = this.state.status_msg
-  const value_fields = NAVPOSE_STATIC_VALUE_FIELDS
+  const value_fields = NAVPOSE_STATIC_VALUE_FIELDS.concat(FOV_VALUE_FIELDS)
   for (var vi = 0; vi < value_fields.length; vi++) {
     const field = value_fields[vi][0]
     const value_changed = (prev_msg != null) ? (prev_msg[field] !== message[field]) : true
@@ -403,6 +431,59 @@ class FilePubDepthmapApp extends Component {
     }
     return items
   }
+
+  // Field of view and folder settings controls.
+  //
+  // Rendered OUTSIDE the collection_count gate that wraps renderPubControls(),
+  // for the same reason renderNavPoseControls() is: the folder settings toggle
+  // decides what happens on the NEXT folder selection, so it has to be reachable
+  // before a folder with collections has been picked.
+  //
+  // The two FOV fields stay editable while the toggle is on. The toggle rewrites
+  // them on a folder change; it does not own them afterwards, so an operator can
+  // still correct a value a sidecar got wrong.
+  renderFolderSettingsControls() {
+    const {sendBoolMsg} = this.props.ros
+    const appNamespace = this.state.appNamespace
+    const applySettings = (this.state.apply_folder_settings === true)
+
+    return (
+
+      <div hidden={!this.state.connected}>
+
+        <Label title={"Field of View"} />
+
+        {FOV_VALUE_FIELDS.map((value_field) =>
+          <Label key={value_field[0]} title={value_field[1]}>
+            <Input id={value_field[0]}
+              value={this.state[value_field[0]]}
+              onChange={(event) => onUpdateSetStateValue.bind(this)(event,value_field[0])}
+              onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/" + value_field[2])} />
+          </Label>
+        )}
+
+        <Label title="Apply Folder Settings">
+          <AsyncToggle
+          checked={applySettings}
+          onClick={() => sendBoolMsg(appNamespace + "/set_apply_folder_settings",!applySettings)}>
+          </AsyncToggle>
+        </Label>
+
+        <Label title={"Settings File Found"}>
+          <BooleanIndicator value={this.state.folder_settings_found===true} />
+        </Label>
+
+        <Label title={"Folder Settings"} >
+        </Label>
+        <pre style={{ height: "50px", overflowY: "auto" }}>
+          {this.state.folder_settings_status}
+        </pre>
+
+      </div>
+
+    )
+  }
+
 
   // One static pose value row. Disabled while a system pose is being forwarded,
   // because the value would not reach the wire.
@@ -631,6 +712,10 @@ class FilePubDepthmapApp extends Component {
                                   { (collection_count > 0) ?
                                     this.renderPubControls()
                                   : null }
+
+                                  <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+
+                                  {this.renderFolderSettingsControls()}
 
                                   <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
 

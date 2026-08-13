@@ -220,6 +220,15 @@ install(DIRECTORY etc/
   USE_SOURCE_PERMISSIONS
 )
 
+# Offline helper scripts that are not ROS nodes (dataset converters and the
+# like). Same install form nepi_env uses for its utilities folder, scoped to this
+# package's share folder rather than the global one so the basenames of two apps'
+# utilities cannot collide.
+install(DIRECTORY utilities/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/utilities
+  USE_SOURCE_PERMISSIONS
+)
+
 if(NOT NEPI_BASE)
   set( NEPI_BASE 
     /opt/nepi
