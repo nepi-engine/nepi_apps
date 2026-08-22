@@ -6,8 +6,8 @@ APP_DICT:
   config_file: app_fake_gps.yaml
   app_file: fake_gps_app_node.py
   node_name: app_fake_gps
-  license_type: 3-clause BSD
-  license_link: https://opensource.org/licenses/BSD-3-Clause
+  license_type: Numurus Software License
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
 RUI_DICT:
   rui_files:
   - NepiAppFakeGps.js
