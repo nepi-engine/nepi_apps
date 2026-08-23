@@ -6,8 +6,8 @@ APP_DICT:
   config_file: app_file_pub_depthmap.yaml
   app_file: file_pub_depthmap_app_node.py
   node_name: app_file_pub_depthmap
-  license_type: 3-clause BSD
-  license_link: https://opensource.org/licenses/BSD-3-Clause
+  license_type: Numurus Software License
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
 RUI_DICT:
   rui_files:
   - NepiAppFilePubDepthmap.js

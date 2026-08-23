@@ -6,8 +6,8 @@ APP_DICT:
   config_file: app_image_viewer.yaml
   app_file: image_viewer_app_node.py
   node_name: app_image_viewer
-  license_type: 3-clause BSD
-  license_link: https://opensource.org/licenses/BSD-3-Clause
+  license_type: Numurus Software License
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
 RUI_DICT:
   rui_files:
   - NepiAppImageViewer.js
