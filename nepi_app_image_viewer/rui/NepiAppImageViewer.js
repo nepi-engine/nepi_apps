@@ -172,12 +172,12 @@ class ImageViewerApp extends Component {
         appNamespace + '/set_topic_4'
     ]
 
-    const mouse_event_topics = [
-        appNamespace + '/set_click_pixel',
-        appNamespace + '/set_click_pixel',
-        appNamespace + '/set_click_pixel',
-        appNamespace + '/set_click_pixel'
-    ]
+    // const mouse_event_topics = [
+        // appNamespace + '/set_click_pixel',
+        // appNamespace + '/set_click_pixel',
+        // appNamespace + '/set_click_pixel',
+        // appNamespace + '/set_click_pixel'
+    // ]
 
       return (
      
