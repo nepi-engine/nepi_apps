@@ -1430,7 +1430,7 @@ class NepiFilePubDepthmapApp(object):
     if self.overlay == True and color_img is not None:
       height, width = color_img.shape[0:2]
       font = cv2.FONT_HERSHEY_DUPLEX
-      fontScale, thickness = nepi_img.optimal_font_dims(color_img, font_scale = 1.5e-3, thickness_scale = 1.5e-3)
+      fontScale, thickness = nepi_img.get_optimal_font_dims(color_img, font_scale = 1.5e-3, thickness_scale = 1.5e-3)
       fontColor = (0, 255, 0)
       lineType = 1
       text2overlay = os.path.basename(color_file)
