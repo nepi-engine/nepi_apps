@@ -661,7 +661,7 @@ class NepiFilePubImgApp(object):
           if overlay == True:
             # Overlay text data on OpenCV image
             font                   = cv2.FONT_HERSHEY_DUPLEX
-            fontScale, thickness  = nepi_img.optimal_font_dims(cv2_img,font_scale = 1.5e-3, thickness_scale = 1.5e-3)
+            fontScale, thickness  = nepi_img.get_optimal_font_dims(cv2_img,font_scale = 1.5e-3, thickness_scale = 1.5e-3)
             fontColor = (0, 255, 0)
             lineType = 1
             text2overlay=self.current_file
