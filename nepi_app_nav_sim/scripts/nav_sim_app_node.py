@@ -37,9 +37,11 @@ from nepi_app_nav_sim.msg import (
 
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_nav
+from nepi_sdk import nepi_controls
 
 from nepi_api.messages_if import MsgIF
 from nepi_api.data_if import NavPoseIF
+from nepi_api.system_if import ControlsIF
 
 
 #########################################
@@ -71,6 +73,274 @@ _HNAV_MOVE_FIELDS = (
 )
 
 _SIN_FIELDS = ('hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg')
+
+
+#########################################
+# Control sets
+#
+# Each simulated field renders as ONE row -- the value box, an Auto toggle, and
+# (only while Auto is on) Step and Rate Hz boxes. Control.display_group is what
+# puts them on one line: every control of a row carries the field name as its
+# group, and Nepi_IF_Controls lays a group out horizontally in declaration
+# order. The FIRST control of a group supplies the row label on the left, which
+# is why the value control carries the full label and the rest carry the short
+# inline captions.
+#
+# Control names ARE the instance attribute names. _controlsUpdatedCb setattrs
+# straight back onto the instance, so there is no separate name table to drift
+# out of sync with the status message.
+
+_ROW_VALUE_WIDTH = 100
+_ROW_SMALL_WIDTH = 70
+
+# Controls names of the three per-instance control sets: the
+# <instance_ns>/<name> namespaces the RUI's Nepi_IF_Controls bind to. Named
+# here rather than derived from the section title so the ROS namespace is
+# greppable from both sides, the way stereo_cam names its process sets.
+#
+# One ControlsIF per SECTION rather than one per instance, because a control
+# set renders as a single flat list and the page groups its rows under
+# Position / Orientation / Dead-Reckoning headings.
+CONTROLS_NAME_POSITION       = 'controls_position'
+CONTROLS_NAME_ORIENTATION    = 'controls_orientation'
+CONTROLS_NAME_DEADRECKONING  = 'controls_dead_reckoning'
+
+# (section title, controls name, ((field, label, factory value), ...))
+_NMEA_SECTIONS = (
+    ('Position', CONTROLS_NAME_POSITION, (
+        ('nmea_latitude',    'Latitude (°)',  FACTORY_LATITUDE),
+        ('nmea_longitude',   'Longitude (°)', FACTORY_LONGITUDE),
+        ('nmea_altitude_m',  'Altitude (m)',  FACTORY_ALTITUDE_M),
+    )),
+    ('Orientation', CONTROLS_NAME_ORIENTATION, (
+        ('nmea_heading_deg', 'Heading (°)',   FACTORY_HEADING_DEG),
+    )),
+    ('Dead-Reckoning', CONTROLS_NAME_DEADRECKONING, (
+        ('nmea_speed_ms',    'Speed (m/s)',   FACTORY_SPEED_MS),
+    )),
+)
+
+_HNAV_SECTIONS = (
+    ('Position', CONTROLS_NAME_POSITION, (
+        ('hnav_latitude',    'Latitude (°)',  FACTORY_LATITUDE),
+        ('hnav_longitude',   'Longitude (°)', FACTORY_LONGITUDE),
+        ('hnav_altitude_m',  'Altitude (m)',  FACTORY_ALTITUDE_M),
+        ('hnav_depth_m',     'Depth (m)',     FACTORY_DEPTH_M),
+    )),
+    ('Orientation', CONTROLS_NAME_ORIENTATION, (
+        ('hnav_heading_deg', 'Heading (°)',   FACTORY_HEADING_DEG),
+        ('hnav_roll_deg',    'Roll (°)',      FACTORY_ROLL_DEG),
+        ('hnav_pitch_deg',   'Pitch (°)',     FACTORY_PITCH_DEG),
+    )),
+    ('Dead-Reckoning', CONTROLS_NAME_DEADRECKONING, (
+        ('hnav_speed_ms',    'Speed (m/s)',   FACTORY_SPEED_MS),
+    )),
+)
+
+
+def build_row_controls(field, label, value_default, with_sin = False):
+    """Build the control entries for one simulated field's row.
+
+    Args:
+        field: instance attribute name, also the control name and the row's
+            display_group.
+        label: row label shown at the left of the line.
+        value_default: factory value for the value control.
+        with_sin: True for the three HNav orientation fields that also carry
+            sinusoidal and wave motion.
+
+    Returns:
+        dict: control-name -> init dict, in row order.
+    """
+    controls = {}
+    controls[field] = {
+        'type': 'Float', 'default': value_default, 'description': label,
+        'display_name': label, 'display_group': field,
+        'display_width': _ROW_VALUE_WIDTH,
+    }
+    controls['enable_move_' + field] = {
+        'type': 'Toggle', 'default': False,
+        'description': 'Step ' + label + ' automatically',
+        'display_name': 'Auto', 'display_group': field,
+    }
+    # Step and Rate stay hidden until Auto is on. syncRowVisibility below is
+    # what flips them, and it runs on every controls update and after every
+    # config restore so the row can never be left showing a stale shape.
+    controls['move_step_' + field] = {
+        'type': 'Float', 'default': 0.0,
+        'description': label + ' change per step',
+        'display_name': 'Step', 'display_group': field,
+        'display_width': _ROW_SMALL_WIDTH, 'display_hidden': True,
+    }
+    controls['move_rate_hz_' + field] = {
+        'type': 'Float', 'default': 1.0,
+        'description': label + ' steps per second',
+        'display_name': 'Rate Hz', 'display_group': field,
+        'display_width': _ROW_SMALL_WIDTH, 'display_hidden': True,
+    }
+    if with_sin == True:
+        controls['enable_sin_' + field] = {
+            'type': 'Toggle', 'default': False,
+            'description': 'Oscillate ' + label + ' sinusoidally',
+            'display_name': 'Sin', 'display_group': field,
+            'display_hidden': True,
+        }
+        controls['sin_amplitude_' + field] = {
+            'type': 'Float', 'default': 0.0,
+            'description': label + ' oscillation amplitude',
+            'display_name': 'Amp', 'display_group': field,
+            'display_width': _ROW_SMALL_WIDTH, 'display_hidden': True,
+        }
+        controls['sin_period_s_' + field] = {
+            'type': 'Float', 'default': 1.0,
+            'description': label + ' oscillation period in seconds',
+            'display_name': 'Period', 'display_group': field,
+            'display_width': _ROW_SMALL_WIDTH, 'display_hidden': True,
+        }
+        controls['enable_wave_' + field] = {
+            'type': 'Toggle', 'default': False,
+            'description': 'Sum several sine components for ' + label,
+            'display_name': 'Wave', 'display_group': field,
+            'display_hidden': True,
+        }
+        controls['sin_spread_' + field] = {
+            'type': 'Float', 'default': 0.0,
+            'description': label + ' wave component spread',
+            'display_name': 'Spread', 'display_group': field,
+            'display_width': _ROW_SMALL_WIDTH, 'display_hidden': True,
+        }
+    return controls
+
+
+def build_section_controls(section_fields, sin_fields = ()):
+    """Build one section's init dict from its field specs, in row order."""
+    controls = {}
+    for field, label, value_default in section_fields:
+        controls.update(build_row_controls(field, label, value_default,
+                                           with_sin = (field in sin_fields)))
+    return controls
+
+
+class ControlValue:
+    """Stand-in for the std_msgs value the instance setter callbacks expect.
+
+    The setters kept their original signatures through this migration, so the
+    control routes hand them an object with a .data attribute exactly as the
+    ROS subscribers did. Nothing about their per-field clamping moved.
+    """
+
+    def __init__(self, data):
+        self.data = data
+
+
+def setupInstanceControlSection(inst, title, controls_name, fields, sin_fields = ()):
+    # node_if is left None so each IF builds and owns its own NodeClassIF, the
+    # same choice NavPoseIF already makes in this node -- sharing one would
+    # merge registries and a generic key would orphan a sibling's publisher.
+    # pub_status and save_params are passed explicitly to match how fake_gps
+    # mounts its set, even though both already default True.
+    init_dict = build_section_controls(fields, sin_fields = sin_fields)
+    try:
+        controls_if = ControlsIF(
+            controls_name = controls_name,
+            controls_display_name = title,
+            controls_description = title + ' controls for ' + inst.name,
+            controls_init_dict = init_dict,
+            controls_updated_callback = inst.controlsUpdatedCb,
+            pub_status = True,
+            save_params = True,
+            msg_if = inst._msg_if,
+        )
+        controls_if.wait_for_controls_ready(timeout = 10)
+        inst._controls_ifs[controls_name] = controls_if
+    except Exception as e:
+        # Same degrade-to-None contract NavPoseIF already has in this node: the
+        # sim still runs and still publishes, it just loses that panel.
+        if inst._msg_if is not None:
+            inst._msg_if.pub_warn('Nav Sim: controls unavailable for ' +
+                                  inst.name + ' ' + title + ': ' + str(e))
+        inst._controls_ifs[controls_name] = None
+
+
+def findControlsIf(inst, control_name):
+    # Which of the instance's section IFs owns this control. Looked up rather
+    # than captured in the callback because ControlsIF takes its updated
+    # callback at construction, before the IF it would have to close over
+    # exists.
+    for controls_if in inst._controls_ifs.values():
+        if controls_if is None:
+            continue
+        try:
+            if control_name in controls_if.get_controls_dict():
+                return controls_if
+        except Exception:
+            continue
+    return None
+
+
+def setControlHidden(inst, control_name, hidden):
+    controls_if = findControlsIf(inst, control_name)
+    if controls_if is None:
+        return
+    try:
+        controls_if.set_control_hidden(control_name, hidden)
+    except Exception:
+        pass
+
+
+def applyControlUpdate(inst, control_name):
+    # Route a changed control back through the instance's original setter, so
+    # the sin/wave side effects (start time, base value, regenerated wave
+    # components) happen exactly where they always did.
+    route = inst._routes.get(control_name, None)
+    if route is None:
+        return
+    controls_if = findControlsIf(inst, control_name)
+    if controls_if is None:
+        return
+    try:
+        value = controls_if.get_control_value(control_name)
+    except Exception:
+        return
+    if value is None:
+        return
+    route(ControlValue(value))
+
+
+def pushInstanceControlValues(inst, sections):
+    # Push live instance state INTO the control sets. Needed after a config
+    # restore, where apply_dict writes the attributes directly and the RUI
+    # would otherwise keep showing the values the controls were built with.
+    for title, controls_name, fields in sections:
+        for field, label, value_default in fields:
+            names = [field, 'enable_move_' + field,
+                     'move_step_' + field, 'move_rate_hz_' + field]
+            if field in _SIN_FIELDS:
+                names += ['enable_sin_' + field, 'sin_amplitude_' + field,
+                          'sin_period_s_' + field, 'enable_wave_' + field,
+                          'sin_spread_' + field]
+            for name in names:
+                if hasattr(inst, name) == False:
+                    continue
+                controls_if = findControlsIf(inst, name)
+                if controls_if is None:
+                    continue
+                try:
+                    controls_if.set_control_value(name, getattr(inst, name))
+                except Exception:
+                    continue
+
+
+def cleanupInstanceControls(inst):
+    for title in list(inst._controls_ifs.keys()):
+        controls_if = inst._controls_ifs.get(title, None)
+        if controls_if is None:
+            continue
+        try:
+            controls_if.unregister()
+        except Exception:
+            pass
+        inst._controls_ifs[title] = None
 
 
 #########################################
@@ -244,24 +514,59 @@ class NmeaSimInstance:
             self._ns + '/status', NepiAppNmeaSimStatus, queue_size=1, latch=True
         )
         self._subs = []
+        self._controls_ifs = {}
+        self._routes = {}
         self._registerSubs(self._ns)
+        self._setupControls()
         threading.Thread(target=self._moveThreadLoop, daemon=True).start()
 
     def _registerSubs(self, ns):
+        # Only the master enable stays a topic. It is not a row control -- the
+        # RUI draws it as the toggle in the instance header, beside the port
+        # readout. Every per-field setter below moved to the control sets built
+        # in _setupControls; the setter METHODS are unchanged and the control
+        # routes call exactly the same ones the subscribers used to.
         S = self._subs.append
         S(nepi_sdk.create_subscriber(ns + '/set_nmea_enabled',   Bool,    self._setNmeaEnabledCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_nmea_latitude',  Float32, self._setLatitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_nmea_longitude', Float32, self._setLongitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_nmea_altitude',  Float32, self._setAltitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_nmea_heading',   Float32, self._setHeadingCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_nmea_speed',     Float32, self._setSpeedCb))
+
+    def _controlRoutes(self):
+        # control name -> callable taking the stand-in value message. Built in
+        # the same shape the old _registerSubs used, so the per-field behavior
+        # (heading wrapped to 360, speed floored at 0) is the setter's, not a
+        # reimplementation here.
+        routes = {
+            'nmea_latitude':    self._setLatitudeCb,
+            'nmea_longitude':   self._setLongitudeCb,
+            'nmea_altitude_m':  self._setAltitudeCb,
+            'nmea_heading_deg': self._setHeadingCb,
+            'nmea_speed_ms':    self._setSpeedCb,
+        }
         for field in _NMEA_MOVE_FIELDS:
-            S(nepi_sdk.create_subscriber(ns + '/set_enable_move_' + field,
-                               Bool,    lambda msg, f=field: self._setEnableMoveCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_move_step_' + field,
-                               Float32, lambda msg, f=field: self._setMoveStepCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_move_rate_hz_' + field,
-                               Float32, lambda msg, f=field: self._setMoveRateHzCb(msg, f)))
+            routes['enable_move_'  + field] = lambda m, f=field: self._setEnableMoveCb(m, f)
+            routes['move_step_'    + field] = lambda m, f=field: self._setMoveStepCb(m, f)
+            routes['move_rate_hz_' + field] = lambda m, f=field: self._setMoveRateHzCb(m, f)
+        return routes
+
+    def _setupControls(self):
+        self._controls_ifs = {}
+        self._routes = self._controlRoutes()
+        for title, controls_name, fields in _NMEA_SECTIONS:
+            setupInstanceControlSection(self, title, controls_name, fields,
+                                        sin_fields = ())
+        self.syncRowVisibility()
+
+    def syncRowVisibility(self):
+        for title, controls_name, fields in _NMEA_SECTIONS:
+            for field, label, value_default in fields:
+                auto = bool(getattr(self, 'enable_move_' + field))
+                setControlHidden(self, 'move_step_' + field,    auto == False)
+                setControlHidden(self, 'move_rate_hz_' + field, auto == False)
+
+    def controlsUpdatedCb(self, control_name):
+        applyControlUpdate(self, control_name)
+        # An Auto toggle changes which boxes the row shows, so re-derive
+        # visibility after every update rather than special-casing the name.
+        self.syncRowVisibility()
 
     def _setNmeaEnabledCb(self, msg):
         with self._lock: self.nmea_sim_enabled = msg.data
@@ -471,6 +776,12 @@ class NmeaSimInstance:
                 if new_enabled != self.nmea_sim_enabled:
                     self.nmea_sim_enabled = new_enabled
                     need_apply = True
+        # The attributes above were written directly, so the control sets still
+        # hold whatever they were built with. Push the restored state into them
+        # and re-derive row visibility, or the RUI shows factory values next to
+        # a sim that is already running on restored ones.
+        pushInstanceControlValues(self, _NMEA_SECTIONS)
+        self.syncRowVisibility()
         if need_apply:
             self._applyState()
         else:
@@ -483,6 +794,7 @@ class NmeaSimInstance:
             self._stop_evt = None
         for sub in self._subs:
             sub.unregister()
+        cleanupInstanceControls(self)
         if self._navpose_if is not None:
             self._navpose_if.unregister_pubs()
             self._navpose_if = None
@@ -536,38 +848,76 @@ class HNavSimInstance:
             self._ns + '/status', NepiAppHNavSimStatus, queue_size=1, latch=True
         )
         self._subs = []
+        self._controls_ifs = {}
+        self._routes = {}
         self._registerSubs(self._ns)
+        self._setupControls()
         threading.Thread(target=self._moveThreadLoop, daemon=True).start()
 
     def _registerSubs(self, ns):
+        # As in NmeaSimInstance: only the master enable stays a topic, because
+        # the RUI draws it in the instance header rather than as a row. Every
+        # per-field setter moved to the control sets and the setter methods
+        # themselves are untouched.
         S = self._subs.append
         S(nepi_sdk.create_subscriber(ns + '/set_hnav_enabled',   Bool,    self._setHnavEnabledCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_latitude',  Float32, self._setLatitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_longitude', Float32, self._setLongitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_altitude',  Float32, self._setAltitudeCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_depth',     Float32, self._setDepthCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_heading',   Float32, self._setHeadingCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_roll',      Float32, self._setRollCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_pitch',     Float32, self._setPitchCb))
-        S(nepi_sdk.create_subscriber(ns + '/set_hnav_speed',     Float32, self._setSpeedCb))
+
+    def _controlRoutes(self):
+        routes = {
+            'hnav_latitude':    self._setLatitudeCb,
+            'hnav_longitude':   self._setLongitudeCb,
+            'hnav_altitude_m':  self._setAltitudeCb,
+            'hnav_depth_m':     self._setDepthCb,
+            'hnav_heading_deg': self._setHeadingCb,
+            'hnav_roll_deg':    self._setRollCb,
+            'hnav_pitch_deg':   self._setPitchCb,
+            'hnav_speed_ms':    self._setSpeedCb,
+        }
         for field in _HNAV_MOVE_FIELDS:
-            S(nepi_sdk.create_subscriber(ns + '/set_enable_move_' + field,
-                               Bool,    lambda msg, f=field: self._setEnableMoveCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_move_step_' + field,
-                               Float32, lambda msg, f=field: self._setMoveStepCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_move_rate_hz_' + field,
-                               Float32, lambda msg, f=field: self._setMoveRateHzCb(msg, f)))
+            routes['enable_move_'  + field] = lambda m, f=field: self._setEnableMoveCb(m, f)
+            routes['move_step_'    + field] = lambda m, f=field: self._setMoveStepCb(m, f)
+            routes['move_rate_hz_' + field] = lambda m, f=field: self._setMoveRateHzCb(m, f)
         for field in _SIN_FIELDS:
-            S(nepi_sdk.create_subscriber(ns + '/set_enable_sin_' + field,
-                               Bool,    lambda msg, f=field: self._setEnableSinCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_sin_amplitude_' + field,
-                               Float32, lambda msg, f=field: self._setSinAmplitudeCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_sin_period_s_' + field,
-                               Float32, lambda msg, f=field: self._setSinPeriodCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_enable_wave_' + field,
-                               Bool,    lambda msg, f=field: self._setEnableWaveCb(msg, f)))
-            S(nepi_sdk.create_subscriber(ns + '/set_sin_spread_' + field,
-                               Float32, lambda msg, f=field: self._setSinSpreadCb(msg, f)))
+            routes['enable_sin_'    + field] = lambda m, f=field: self._setEnableSinCb(m, f)
+            routes['sin_amplitude_' + field] = lambda m, f=field: self._setSinAmplitudeCb(m, f)
+            routes['sin_period_s_'  + field] = lambda m, f=field: self._setSinPeriodCb(m, f)
+            routes['enable_wave_'   + field] = lambda m, f=field: self._setEnableWaveCb(m, f)
+            routes['sin_spread_'    + field] = lambda m, f=field: self._setSinSpreadCb(m, f)
+        return routes
+
+    def _setupControls(self):
+        self._controls_ifs = {}
+        self._routes = self._controlRoutes()
+        for title, controls_name, fields in _HNAV_SECTIONS:
+            setupInstanceControlSection(self, title, controls_name, fields,
+                                        sin_fields = _SIN_FIELDS)
+        self.syncRowVisibility()
+
+    def syncRowVisibility(self):
+        # The reveal chain, mirroring what the hand-written rows did: Auto
+        # reveals Step/Rate and the Sin toggle; Sin reveals Amp/Period and the
+        # Wave toggle; Wave reveals Spread. Step and Rate hide again while Sin
+        # owns the field, because the two motion modes are exclusive.
+        for title, controls_name, fields in _HNAV_SECTIONS:
+            for field, label, value_default in fields:
+                auto = bool(getattr(self, 'enable_move_' + field))
+                has_sin = field in _SIN_FIELDS
+                sin = has_sin and bool(getattr(self, 'enable_sin_' + field))
+                wave = has_sin and bool(getattr(self, 'enable_wave_' + field))
+                show_step = auto and (sin == False)
+                setControlHidden(self, 'move_step_' + field,    show_step == False)
+                setControlHidden(self, 'move_rate_hz_' + field, show_step == False)
+                if has_sin == False:
+                    continue
+                setControlHidden(self, 'enable_sin_' + field,    auto == False)
+                setControlHidden(self, 'sin_amplitude_' + field, sin == False)
+                setControlHidden(self, 'sin_period_s_' + field,  sin == False)
+                setControlHidden(self, 'enable_wave_' + field,   sin == False)
+                setControlHidden(self, 'sin_spread_' + field,    wave == False)
+
+    def controlsUpdatedCb(self, control_name):
+        applyControlUpdate(self, control_name)
+        self.syncRowVisibility()
 
     def _setHnavEnabledCb(self, msg):
         with self._lock: self.hnav_sim_enabled = msg.data
@@ -903,6 +1253,11 @@ class HNavSimInstance:
                 if new_enabled != self.hnav_sim_enabled:
                     self.hnav_sim_enabled = new_enabled
                     need_apply = True
+        # As in NmeaSimInstance.apply_dict: the attributes above were written
+        # directly, so push the restored state into the control sets and
+        # re-derive row visibility before anything publishes.
+        pushInstanceControlValues(self, _HNAV_SECTIONS)
+        self.syncRowVisibility()
         if need_apply:
             self._applyState()
         else:
@@ -915,6 +1270,7 @@ class HNavSimInstance:
             self._stop_evt = None
         for sub in self._subs:
             sub.unregister()
+        cleanupInstanceControls(self)
         if self._navpose_if is not None:
             self._navpose_if.unregister_pubs()
             self._navpose_if = None
