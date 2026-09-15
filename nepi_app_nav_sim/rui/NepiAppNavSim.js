@@ -33,14 +33,19 @@ import NepiIFConfig from "./Nepi_IF_Config"
 import NepiIFControls from "./Nepi_IF_Controls"
 import { setElementStyleModified, clearElementStyleModified } from "./Utilities"
 
-// Controls names of the three per-instance control sets, matching the
-// CONTROLS_NAME_* constants in nav_sim_app_node.py. ControlsIF roots each set
-// at create_namespace(instance_namespace, controls_name), so a set lives one
-// level BELOW the instance namespace and Nepi_IF_Controls subscribes to
-// <instance_ns>/<name>/status.
-const CONTROLS_NAME_POSITION      = "controls_position"
-const CONTROLS_NAME_ORIENTATION   = "controls_orientation"
-const CONTROLS_NAME_DEADRECKONING = "controls_dead_reckoning"
+// Section suffixes of the per-instance control sets, matching the
+// CONTROLS_SUFFIX_* constants in nav_sim_app_node.py.
+//
+// A ControlsIF is always a direct child of the NODE namespace -- it builds
+// create_namespace(node_namespace, controls_name) with no namespace argument,
+// and get_clean_name() rewrites '/' to '_', so a set cannot live under the
+// instance namespace. The instance identity therefore has to be carried in the
+// NAME, and both sides derive the same string from the instance's ROS path:
+//     <app_ns>/<kind>_instances_<instance name>_<suffix>
+// e.g. <app_ns>/nmea_instances_nmea_0_position
+const CONTROLS_SUFFIX_POSITION      = "position"
+const CONTROLS_SUFFIX_ORIENTATION   = "orientation"
+const CONTROLS_SUFFIX_DEADRECKONING = "dead_reckoning"
 
 @inject("ros")
 @observer
@@ -106,6 +111,7 @@ class NepiAppNavSim extends Component {
     this.updateMasterStatusListener = this.updateMasterStatusListener.bind(this)
     this.updateNmeaStatusListener = this.updateNmeaStatusListener.bind(this)
     this.updateHnavStatusListener = this.updateHnavStatusListener.bind(this)
+    this.getControlsNamespace     = this.getControlsNamespace.bind(this)
     this.renderNmeaSide           = this.renderNmeaSide.bind(this)
     this.renderHnavSide           = this.renderHnavSide.bind(this)
     this.renderConfig             = this.renderConfig.bind(this)
@@ -238,11 +244,25 @@ class NepiAppNavSim extends Component {
   // namespace, and without a key React reuses the mounted component, which
   // keeps its old status subscription and leaves the previous instance's values
   // on screen. stereo_cam keys its per-process set for the same reason.
-  renderControlSection(instanceNamespace, controlsName, disabled) {
-    if (instanceNamespace == null || instanceNamespace === '') {
+  // Mirror of instanceControlsName() in the node: the instance's path below the
+  // app namespace, flattened, plus the section suffix. The set hangs off the
+  // APP namespace, not the instance namespace, because ControlsIF can only root
+  // itself at the node. Both the panel mount and the Stop button go through
+  // this, so the two can never drift onto different namespaces.
+  getControlsNamespace(instanceNamespace, suffix) {
+    const appNs = this.getAppNamespace()
+    if (appNs == null || instanceNamespace == null || instanceNamespace === '') {
       return null
     }
-    const namespace = instanceNamespace + '/' + controlsName
+    const tail = instanceNamespace.replace(appNs, '').replace(/^\/+|\/+$/g, '').replace(/\//g, '_')
+    return appNs + '/' + tail + '_' + suffix
+  }
+
+  renderControlSection(instanceNamespace, suffix, disabled) {
+    const namespace = this.getControlsNamespace(instanceNamespace, suffix)
+    if (namespace == null) {
+      return null
+    }
     return (
       <NepiIFControls
         key={namespace}
@@ -358,15 +378,15 @@ class NepiAppNavSim extends Component {
 
         {divider}
         <Label title={"Position"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_POSITION, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_POSITION, dis)}
 
         {divider}
         <Label title={"Orientation"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_ORIENTATION, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_ORIENTATION, dis)}
 
         {divider}
         <Label title={"Dead-Reckoning"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_DEADRECKONING, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_DEADRECKONING, dis)}
         <Columns>
           <Column>
             {/* Stop zeroes the speed control rather than its own topic: the
@@ -374,7 +394,7 @@ class NepiAppNavSim extends Component {
                 publishes the same UpdateControl the speed box does. */}
             <Button
               onClick={() => sendUpdateControlValue(
-                ns + '/' + CONTROLS_NAME_DEADRECKONING + '/update_control',
+                this.getControlsNamespace(ns, CONTROLS_SUFFIX_DEADRECKONING) + '/update_control',
                 'nmea_speed_ms', 0.0)}
               disabled={dis}
             >Stop</Button>
@@ -487,22 +507,22 @@ class NepiAppNavSim extends Component {
 
         {divider}
         <Label title={"Position"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_POSITION, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_POSITION, dis)}
 
         {divider}
         <Label title={"Orientation"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_ORIENTATION, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_ORIENTATION, dis)}
 
         {divider}
         <Label title={"Dead-Reckoning"} />
-        {this.renderControlSection(ns, CONTROLS_NAME_DEADRECKONING, dis)}
+        {this.renderControlSection(ns, CONTROLS_SUFFIX_DEADRECKONING, dis)}
         <Columns>
           <Column>
             {/* Same as the NMEA side: Stop zeroes the speed control, not a
                 topic of its own. */}
             <Button
               onClick={() => sendUpdateControlValue(
-                ns + '/' + CONTROLS_NAME_DEADRECKONING + '/update_control',
+                this.getControlsNamespace(ns, CONTROLS_SUFFIX_DEADRECKONING) + '/update_control',
                 'hnav_speed_ms', 0.0)}
               disabled={dis}
             >Stop</Button>

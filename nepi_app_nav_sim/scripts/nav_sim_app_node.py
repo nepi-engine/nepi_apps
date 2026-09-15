@@ -93,46 +93,66 @@ _SIN_FIELDS = ('hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg')
 _ROW_VALUE_WIDTH = 100
 _ROW_SMALL_WIDTH = 70
 
-# Controls names of the three per-instance control sets: the
-# <instance_ns>/<name> namespaces the RUI's Nepi_IF_Controls bind to. Named
-# here rather than derived from the section title so the ROS namespace is
-# greppable from both sides, the way stereo_cam names its process sets.
+# Section suffixes of the per-instance control sets.
+#
+# A ControlsIF is ALWAYS a direct child of the NODE namespace: its __init__
+# builds create_namespace(node_namespace, controls_name) and there is no
+# namespace argument, while get_clean_name() rewrites '/' to '_' so the name
+# cannot carry a path. A set therefore CANNOT be mounted under an instance
+# namespace, and the name is the only thing that can distinguish one set from
+# another.
+#
+# So the full controls name is built per instance as
+#     <instance kind>_instances_<instance name>_<section suffix>
+# e.g. nmea_instances_nmea_0_position -- mirroring the instance's own ROS path
+# so it stays unique across both instance kinds and every instance of each, and
+# so the RUI can derive exactly the same string from the names it already shows.
+# Getting this wrong is silent: six sets collapse onto three namespaces, the
+# last one constructed wins, and the page renders its headings with nothing
+# underneath.
 #
 # One ControlsIF per SECTION rather than one per instance, because a control
 # set renders as a single flat list and the page groups its rows under
 # Position / Orientation / Dead-Reckoning headings.
-CONTROLS_NAME_POSITION       = 'controls_position'
-CONTROLS_NAME_ORIENTATION    = 'controls_orientation'
-CONTROLS_NAME_DEADRECKONING  = 'controls_dead_reckoning'
+CONTROLS_SUFFIX_POSITION      = 'position'
+CONTROLS_SUFFIX_ORIENTATION   = 'orientation'
+CONTROLS_SUFFIX_DEADRECKONING = 'dead_reckoning'
 
-# (section title, controls name, ((field, label, factory value), ...))
+
+def instanceControlsName(instance_ns, base_ns, suffix):
+    """Build the flat controls name for one instance's section control set."""
+    tail = instance_ns.replace(base_ns, '')
+    tail = tail.strip('/').replace('/', '_')
+    return tail + '_' + suffix
+
+# (section title, controls-name suffix, ((field, label, factory value), ...))
 _NMEA_SECTIONS = (
-    ('Position', CONTROLS_NAME_POSITION, (
+    ('Position', CONTROLS_SUFFIX_POSITION, (
         ('nmea_latitude',    'Latitude (°)',  FACTORY_LATITUDE),
         ('nmea_longitude',   'Longitude (°)', FACTORY_LONGITUDE),
         ('nmea_altitude_m',  'Altitude (m)',  FACTORY_ALTITUDE_M),
     )),
-    ('Orientation', CONTROLS_NAME_ORIENTATION, (
+    ('Orientation', CONTROLS_SUFFIX_ORIENTATION, (
         ('nmea_heading_deg', 'Heading (°)',   FACTORY_HEADING_DEG),
     )),
-    ('Dead-Reckoning', CONTROLS_NAME_DEADRECKONING, (
+    ('Dead-Reckoning', CONTROLS_SUFFIX_DEADRECKONING, (
         ('nmea_speed_ms',    'Speed (m/s)',   FACTORY_SPEED_MS),
     )),
 )
 
 _HNAV_SECTIONS = (
-    ('Position', CONTROLS_NAME_POSITION, (
+    ('Position', CONTROLS_SUFFIX_POSITION, (
         ('hnav_latitude',    'Latitude (°)',  FACTORY_LATITUDE),
         ('hnav_longitude',   'Longitude (°)', FACTORY_LONGITUDE),
         ('hnav_altitude_m',  'Altitude (m)',  FACTORY_ALTITUDE_M),
         ('hnav_depth_m',     'Depth (m)',     FACTORY_DEPTH_M),
     )),
-    ('Orientation', CONTROLS_NAME_ORIENTATION, (
+    ('Orientation', CONTROLS_SUFFIX_ORIENTATION, (
         ('hnav_heading_deg', 'Heading (°)',   FACTORY_HEADING_DEG),
         ('hnav_roll_deg',    'Roll (°)',      FACTORY_ROLL_DEG),
         ('hnav_pitch_deg',   'Pitch (°)',     FACTORY_PITCH_DEG),
     )),
-    ('Dead-Reckoning', CONTROLS_NAME_DEADRECKONING, (
+    ('Dead-Reckoning', CONTROLS_SUFFIX_DEADRECKONING, (
         ('hnav_speed_ms',    'Speed (m/s)',   FACTORY_SPEED_MS),
     )),
 )
@@ -233,12 +253,17 @@ class ControlValue:
         self.data = data
 
 
-def setupInstanceControlSection(inst, title, controls_name, fields, sin_fields = ()):
+def setupInstanceControlSection(inst, title, suffix, fields, sin_fields = ()):
+    # The set name carries the instance identity because the namespace cannot --
+    # see the CONTROLS_SUFFIX_* comment above. Keyed in _controls_ifs by the
+    # SUFFIX, which is stable, rather than by the full name.
+    #
     # node_if is left None so each IF builds and owns its own NodeClassIF, the
     # same choice NavPoseIF already makes in this node -- sharing one would
     # merge registries and a generic key would orphan a sibling's publisher.
     # pub_status and save_params are passed explicitly to match how fake_gps
     # mounts its set, even though both already default True.
+    controls_name = instanceControlsName(inst._ns, inst._base_ns, suffix)
     init_dict = build_section_controls(fields, sin_fields = sin_fields)
     try:
         controls_if = ControlsIF(
@@ -252,14 +277,14 @@ def setupInstanceControlSection(inst, title, controls_name, fields, sin_fields =
             msg_if = inst._msg_if,
         )
         controls_if.wait_for_controls_ready(timeout = 10)
-        inst._controls_ifs[controls_name] = controls_if
+        inst._controls_ifs[suffix] = controls_if
     except Exception as e:
         # Same degrade-to-None contract NavPoseIF already has in this node: the
         # sim still runs and still publishes, it just loses that panel.
         if inst._msg_if is not None:
             inst._msg_if.pub_warn('Nav Sim: controls unavailable for ' +
                                   inst.name + ' ' + title + ': ' + str(e))
-        inst._controls_ifs[controls_name] = None
+        inst._controls_ifs[suffix] = None
 
 
 def findControlsIf(inst, control_name):
@@ -311,7 +336,7 @@ def pushInstanceControlValues(inst, sections):
     # Push live instance state INTO the control sets. Needed after a config
     # restore, where apply_dict writes the attributes directly and the RUI
     # would otherwise keep showing the values the controls were built with.
-    for title, controls_name, fields in sections:
+    for title, suffix, fields in sections:
         for field, label, value_default in fields:
             names = [field, 'enable_move_' + field,
                      'move_step_' + field, 'move_rate_hz_' + field]
@@ -488,6 +513,7 @@ class NmeaSimInstance:
     def __init__(self, name, base_ns, msg_if):
         self.name    = name
         self._ns     = base_ns + '/nmea_instances/' + name
+        self._base_ns = base_ns
         self._msg_if = msg_if
         self._lock   = threading.Lock()
 
@@ -550,13 +576,13 @@ class NmeaSimInstance:
     def _setupControls(self):
         self._controls_ifs = {}
         self._routes = self._controlRoutes()
-        for title, controls_name, fields in _NMEA_SECTIONS:
-            setupInstanceControlSection(self, title, controls_name, fields,
+        for title, suffix, fields in _NMEA_SECTIONS:
+            setupInstanceControlSection(self, title, suffix, fields,
                                         sin_fields = ())
         self.syncRowVisibility()
 
     def syncRowVisibility(self):
-        for title, controls_name, fields in _NMEA_SECTIONS:
+        for title, suffix, fields in _NMEA_SECTIONS:
             for field, label, value_default in fields:
                 auto = bool(getattr(self, 'enable_move_' + field))
                 setControlHidden(self, 'move_step_' + field,    auto == False)
@@ -810,6 +836,7 @@ class HNavSimInstance:
     def __init__(self, name, base_ns, msg_if):
         self.name    = name
         self._ns     = base_ns + '/hnav_instances/' + name
+        self._base_ns = base_ns
         self._msg_if = msg_if
         self._lock   = threading.Lock()
 
@@ -888,8 +915,8 @@ class HNavSimInstance:
     def _setupControls(self):
         self._controls_ifs = {}
         self._routes = self._controlRoutes()
-        for title, controls_name, fields in _HNAV_SECTIONS:
-            setupInstanceControlSection(self, title, controls_name, fields,
+        for title, suffix, fields in _HNAV_SECTIONS:
+            setupInstanceControlSection(self, title, suffix, fields,
                                         sin_fields = _SIN_FIELDS)
         self.syncRowVisibility()
 
@@ -898,7 +925,7 @@ class HNavSimInstance:
         # reveals Step/Rate and the Sin toggle; Sin reveals Amp/Period and the
         # Wave toggle; Wave reveals Spread. Step and Rate hide again while Sin
         # owns the field, because the two motion modes are exclusive.
-        for title, controls_name, fields in _HNAV_SECTIONS:
+        for title, suffix, fields in _HNAV_SECTIONS:
             for field, label, value_default in fields:
                 auto = bool(getattr(self, 'enable_move_' + field))
                 has_sin = field in _SIN_FIELDS
