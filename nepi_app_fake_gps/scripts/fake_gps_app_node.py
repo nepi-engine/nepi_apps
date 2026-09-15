@@ -38,7 +38,7 @@ import time
 
 import numpy as np
 
-from std_msgs.msg import Bool, Empty, Float32, String, Header
+from std_msgs.msg import Empty, Header
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
 from sensor_msgs.msg import NavSatFix
@@ -50,10 +50,12 @@ from nepi_app_fake_gps.msg import NepiAppFakeGpsStatus
 
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_nav
+from nepi_sdk import nepi_controls
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.data_if import NavPoseIF
+from nepi_api.system_if import ControlsIF
 
 
 #########################################
@@ -80,6 +82,29 @@ HOLD_SENTINEL = -999.0
 
 STATUS_PUBLISH_RATE_HZ = 1.0
 DISCOVER_RATE_HZ       = 1.0
+
+# Control bounds. The rate bounds are the ones the node already declares above.
+# The rest are not declared anywhere in this node, so they are set to the widest
+# range that is still meaningful for a simulated vehicle: lat/lon are the WGS84
+# domain, the altitude range spans subsea to high-altitude fixed-wing, the
+# satellite count feeds a uint8 GPS_INPUT field and 30 is above any real
+# constellation, and the ENU offset is an operator sanity range (the node bounds
+# move DURATION with MAX_MOVE_TIME_S, never move distance).
+MIN_LATITUDE_DEG   = -90.0
+MAX_LATITUDE_DEG   = 90.0
+MIN_LONGITUDE_DEG  = -180.0
+MAX_LONGITUDE_DEG  = 180.0
+MIN_ALTITUDE_M     = -500.0
+MAX_ALTITUDE_M     = 20000.0
+MIN_SAT_COUNT      = 0
+MAX_SAT_COUNT      = 30
+MAX_ENU_OFFSET_M   = 10000.0
+
+# nepi_controls clamps 'round' to 6 decimal places, so a latitude control holds
+# about 0.11 m of resolution. That is well inside the fidelity of the rest of
+# this simulation, but it is why the factory latitude's seventh decimal does not
+# survive a round trip through the controls dict.
+GEO_ROUND_PLACES = 6
 
 # mavros liveness topic used for target-node discovery
 MAVROS_STATE_MSG   = 'State'
@@ -111,12 +136,141 @@ SECONDS_PER_WEEK = 604800
 
 
 #########################################
+# Controls
+#########################################
+
+CONTROLS_NAME         = 'controls'
+CONTROLS_DISPLAY_NAME = 'Fake GPS Controls'
+CONTROLS_DESCRIPTION  = 'Simulated GPS position, publish settings, and move commands'
+
+# Button controls, keyed here so the updated callback can tell a command press
+# from a value edit without restating the names inline.
+BUTTON_CONTROLS = ['use_current_location', 'set_location',
+                   'goto_location', 'goto_position', 'stop']
+
+# The control set this app exposes. Key order is display order: nepi_controls
+# builds the controls dict by iterating this dict, and the RUI renders
+# controls_msg_list in that order.
+CONTROLS_INIT_DICT = {
+
+    'enabled': {
+        'type': 'Toggle', 'default': FACTORY_ENABLED,
+        'display_name': 'Enabled',
+        'description': 'Publish the simulated GPS fix and inject it into the selected mavros node'},
+
+    # Selection, not Menu: a Menu value is the INDEX into its option list, and
+    # this option list is rebuilt every discovery cycle, so an index would point
+    # at a different mavros node as soon as one appeared or went away.
+    'mavros_node': {
+        'type': 'Selection', 'default': FACTORY_SELECTED_MAVROS,
+        'options': [FACTORY_SELECTED_MAVROS],
+        'display_name': 'Target Mavros Node',
+        'description': 'Mavros node namespace to inject GPS_INPUT into'},
+
+    'gps_pub_rate_hz': {
+        'type': 'FloatSlider', 'default': float(GPS_PUB_RATE_HZ),
+        'bounds': [MIN_GPS_PUB_RATE_HZ, MAX_GPS_PUB_RATE_HZ],
+        'round': 2, 'display_round': 1,
+        'display_name': 'GPS Publish Rate (Hz)',
+        'description': 'Rate the simulated fix is published and injected at'},
+
+    'satellites_visible': {
+        'type': 'Int', 'default': FACTORY_SAT_COUNT,
+        'bounds': [MIN_SAT_COUNT, MAX_SAT_COUNT],
+        'display_name': 'Satellites Visible',
+        'description': 'Satellite count reported in the injected GPS_INPUT message'},
+
+    # The start location and the teleport target are the same thing, so they are
+    # one set of controls. The node seeds the simulated position from these on
+    # config init and reset; 'set_location' teleports there on demand.
+    'start_latitude': {
+        'type': 'Float', 'default': FACTORY_START_LATITUDE,
+        'bounds': [MIN_LATITUDE_DEG, MAX_LATITUDE_DEG],
+        'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
+        'display_name': 'Start Latitude',
+        'description': 'WGS84 latitude the simulated position starts and resets at'},
+
+    'start_longitude': {
+        'type': 'Float', 'default': FACTORY_START_LONGITUDE,
+        'bounds': [MIN_LONGITUDE_DEG, MAX_LONGITUDE_DEG],
+        'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
+        'display_name': 'Start Longitude',
+        'description': 'WGS84 longitude the simulated position starts and resets at'},
+
+    'start_altitude_m': {
+        'type': 'Float', 'default': FACTORY_START_ALTITUDE_M,
+        'bounds': [MIN_ALTITUDE_M, MAX_ALTITUDE_M],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Start Altitude (m)',
+        'description': 'WGS84 altitude the simulated position starts and resets at'},
+
+    'use_current_location': {
+        'type': 'Button',
+        'display_name': 'Use Current Location',
+        'description': 'Copy the live simulated position into the start and goto controls'},
+
+    'set_location': {
+        'type': 'Button',
+        'display_name': 'Set Location (teleport)',
+        'description': 'Jump the simulated position to the start location with no interpolated move'},
+
+    'goto_latitude': {
+        'type': 'Float', 'default': FACTORY_START_LATITUDE,
+        'bounds': [MIN_LATITUDE_DEG, MAX_LATITUDE_DEG],
+        'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
+        'display_name': 'Goto Latitude',
+        'description': 'WGS84 latitude to simulate a move to'},
+
+    'goto_longitude': {
+        'type': 'Float', 'default': FACTORY_START_LONGITUDE,
+        'bounds': [MIN_LONGITUDE_DEG, MAX_LONGITUDE_DEG],
+        'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
+        'display_name': 'Goto Longitude',
+        'description': 'WGS84 longitude to simulate a move to'},
+
+    'goto_altitude_m': {
+        'type': 'Float', 'default': FACTORY_START_ALTITUDE_M,
+        'bounds': [MIN_ALTITUDE_M, MAX_ALTITUDE_M],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Goto Altitude (m)',
+        'description': 'WGS84 altitude to simulate a move to'},
+
+    'goto_location': {
+        'type': 'Button',
+        'display_name': 'Goto Location',
+        'description': 'Simulate a move to the goto location'},
+
+    # One Floats control rather than three Floats: a control carries a single
+    # bound pair, and all three ENU axes share the same metre bound. The three
+    # geopoint axes above do not, which is why those stay separate controls.
+    'goto_position_m': {
+        'type': 'Floats', 'default': [0.0, 0.0, 0.0],
+        'bounds': [-MAX_ENU_OFFSET_M, MAX_ENU_OFFSET_M],
+        'round': 2, 'display_round': 2, 'display_row': True,
+        'display_labels': ['East (m)', 'North (m)', 'Up (m)'],
+        'display_name': 'Goto Position (ENU meters)',
+        'description': 'Relative move offset from the current simulated position'},
+
+    'goto_position': {
+        'type': 'Button',
+        'display_name': 'Goto Position',
+        'description': 'Simulate a move by the goto position offset'},
+
+    'stop': {
+        'type': 'Button',
+        'display_name': 'Stop',
+        'description': 'Stop the active simulated move and hold the current position'},
+}
+
+
+#########################################
 # Node Class
 #########################################
 
 class NepiFakeGpsApp(object):
 
     node_if = None
+    controls_if = None
 
     DEFAULT_NODE_NAME = "app_fake_gps"
 
@@ -166,6 +320,7 @@ class NepiFakeGpsApp(object):
         self.mavlink_pub = None
         self.bound_mavros_node = None
         self._navpose_if = None
+        self.controls_if = None
 
         ##############################
         ### Setup Node
@@ -180,36 +335,15 @@ class NepiFakeGpsApp(object):
         }
 
         # Params Config Dict ####################
-        self.PARAMS_DICT = {
-            'enabled': {
-                'namespace': self.node_namespace,
-                'factory_val': self.enabled
-            },
-            'selected_mavros_node': {
-                'namespace': self.node_namespace,
-                'factory_val': self.selected_mavros_node
-            },
-            'start_latitude': {
-                'namespace': self.node_namespace,
-                'factory_val': self.start_latitude
-            },
-            'start_longitude': {
-                'namespace': self.node_namespace,
-                'factory_val': self.start_longitude
-            },
-            'start_altitude_m': {
-                'namespace': self.node_namespace,
-                'factory_val': self.start_altitude_m
-            },
-            'satellites_visible': {
-                'namespace': self.node_namespace,
-                'factory_val': self.satellites_visible
-            },
-            'gps_pub_rate_hz': {
-                'namespace': self.node_namespace,
-                'factory_val': self.gps_pub_rate_hz
-            }
-        }
+        # Every operator-adjustable value this app has moved to ControlsIF,
+        # which registers and persists its own param under the controls
+        # namespace. The node keeps no params of its own, but it keeps its
+        # CFGS_DICT: NodeClassIF builds the config IF from configs_dict alone,
+        # so <node namespace>/save_config, /reset_config and
+        # /factory_reset_config stay advertised. A save on that namespace dumps
+        # the whole node subtree, which includes <node namespace>/controls, so
+        # the app page's existing config box still persists the control values.
+        self.PARAMS_DICT = None
 
         # Publishers Config Dict ####################
         self.PUBS_DICT = {
@@ -237,23 +371,13 @@ class NepiFakeGpsApp(object):
         }
 
         # Subscribers Config Dict ####################
+        # The three state setters this dict used to carry -- select_mavros_node,
+        # enable and set_gps_pub_rate -- are controls now, driven over
+        # <node namespace>/controls/update_control. What stays here are the
+        # COMMANDS: they carry a whole geopoint or offset in one message, which
+        # is the shape a scripted caller needs and which a control set, where
+        # each value is written independently, cannot give atomically.
         self.SUBS_DICT = {
-            'select_mavros_node': {
-                'namespace': self.node_namespace,
-                'topic': 'select_mavros_node',
-                'msg': String,
-                'qsize': 10,
-                'callback': self.selectMavrosNodeCb,
-                'callback_args': ()
-            },
-            'enable': {
-                'namespace': self.node_namespace,
-                'topic': 'enable',
-                'msg': Bool,
-                'qsize': 10,
-                'callback': self.fakeGpsEnableCb,
-                'callback_args': ()
-            },
             'reset': {
                 'namespace': self.node_namespace,
                 'topic': 'reset',
@@ -285,14 +409,6 @@ class NepiFakeGpsApp(object):
                 'qsize': 10,
                 'callback': self.fakeGpsGoLocCb,
                 'callback_args': ()
-            },
-            'set_gps_pub_rate': {
-                'namespace': self.node_namespace,
-                'topic': 'set_gps_pub_rate',
-                'msg': Float32,
-                'qsize': 10,
-                'callback': self.setGpsPubRateCb,
-                'callback_args': ()
             }
         }
 
@@ -305,6 +421,16 @@ class NepiFakeGpsApp(object):
         )
 
         self.node_if.wait_for_ready()
+
+        ##############################
+        # Controls. Mounted after the node's own NodeClassIF is ready and before
+        # anything reads app state, because initCb below sources every value
+        # from it. Like NavPoseIF, it is given no node_if and builds its own:
+        # sharing the node's node_if would merge both registries, and generic
+        # keys ('status_pub', 'reset', 'enable') would overwrite each other
+        # silently -- orphaning a publisher that stays advertised and never
+        # publishes again.
+        self._setupControls()
 
         ##############################
         self.initCb(do_updates=True)
@@ -350,14 +476,11 @@ class NepiFakeGpsApp(object):
     ### App Config Functions
 
     def initCb(self, do_updates=False):
-        if self.node_if is not None:
-            self.enabled = self.node_if.get_param('enabled')
-            self.selected_mavros_node = self.node_if.get_param('selected_mavros_node')
-            self.satellites_visible = self.node_if.get_param('satellites_visible')
-            self.gps_pub_rate_hz = self.node_if.get_param('gps_pub_rate_hz')
-            self.start_latitude = self.node_if.get_param('start_latitude')
-            self.start_longitude = self.node_if.get_param('start_longitude')
-            self.start_altitude_m = self.node_if.get_param('start_altitude_m')
+        # Runs twice at startup: once from NodeClassIF's init_configs, before
+        # ControlsIF exists, and once explicitly after _setupControls. The first
+        # pass falls back to the factory values, the second picks up whatever
+        # the config manager restored.
+        self.applyControls()
         if do_updates:
             # Reset the simulated position to the configured start location
             with self._lock:
@@ -372,15 +495,144 @@ class NepiFakeGpsApp(object):
 
     def resetCb(self, do_updates=True):
         self.msg_if.pub_warn("Resetting")
-        if self.node_if is not None:
-            pass
+        # ControlsIF owns its own config tier under its own namespace, so the
+        # app level reset has to hand the reset down to it or the controls keep
+        # their current values while the rest of the app resets.
+        if self.controls_if is not None:
+            try:
+                self.controls_if.reset()
+            except Exception as e:
+                self.msg_if.pub_warn("Fake GPS: controls reset failed: " + str(e))
         self.initCb(do_updates=do_updates)
 
     def factoryResetCb(self, do_updates=True):
         self.msg_if.pub_warn("Factory Resetting")
-        if self.node_if is not None:
-            pass
+        if self.controls_if is not None:
+            try:
+                self.controls_if.factory_reset()
+            except Exception as e:
+                self.msg_if.pub_warn("Fake GPS: controls factory reset failed: " + str(e))
         self.initCb(do_updates=do_updates)
+
+
+    #######################
+    ### Controls
+
+    def _setupControls(self):
+        self.checkControlsInitDict()
+        try:
+            self.controls_if = ControlsIF(
+                controls_name=CONTROLS_NAME,
+                controls_display_name=CONTROLS_DISPLAY_NAME,
+                controls_description=CONTROLS_DESCRIPTION,
+                controls_init_dict=CONTROLS_INIT_DICT,
+                controls_updated_callback=self.controlsUpdatedCb,
+                pub_status=True,
+                save_params=True,
+                msg_if=self.msg_if,
+            )
+            self.controls_if.wait_for_controls_ready(timeout=10)
+        except Exception as e:
+            # Same degrade-to-None contract NavPoseIF already has in this node.
+            # Every read goes through getControlValue, which falls back to the
+            # factory value, so the app still publishes a fix at factory
+            # settings rather than failing to start.
+            self.msg_if.pub_warn("Fake GPS: controls unavailable: " + str(e))
+            self.controls_if = None
+
+    def checkControlsInitDict(self):
+        # create_controls_dict drops a malformed control and logs a warning
+        # rather than raising, so a typo in the init dict above costs one widget
+        # and nothing else says so. Run it here first and name what went missing.
+        try:
+            controls_dict = nepi_controls.create_controls_dict(CONTROLS_INIT_DICT)
+        except Exception as e:
+            self.msg_if.pub_warn("Fake GPS: could not validate controls init dict: " + str(e))
+            return
+        missing = [name for name in CONTROLS_INIT_DICT.keys() if name not in controls_dict.keys()]
+        if len(missing) > 0:
+            self.msg_if.pub_warn("Fake GPS: controls dropped at registration: " + str(missing))
+
+    def getControlValue(self, control_name, fallback=None):
+        if self.controls_if is None:
+            return fallback
+        value = None
+        try:
+            value = self.controls_if.get_control_value(control_name)
+        except Exception as e:
+            self.msg_if.pub_warn("Fake GPS: failed to read control " +
+                                 str(control_name) + ": " + str(e))
+        if value is None:
+            return fallback
+        return value
+
+    def setControlValue(self, control_name, value):
+        if self.controls_if is None:
+            return
+        try:
+            self.controls_if.set_control_value(control_name, value)
+        except Exception as e:
+            self.msg_if.pub_warn("Fake GPS: failed to write control " +
+                                 str(control_name) + ": " + str(e))
+
+    def applyControls(self):
+        # The single point where a control value becomes running app state.
+        # Cheap enough to re-run on every update, which keeps the updated
+        # callback from having to know which controls feed which attribute.
+        self.enabled = bool(self.getControlValue('enabled', FACTORY_ENABLED))
+        self.selected_mavros_node = str(self.getControlValue('mavros_node', FACTORY_SELECTED_MAVROS))
+        self.satellites_visible = int(self.getControlValue('satellites_visible', FACTORY_SAT_COUNT))
+        self.gps_pub_rate_hz = float(self.getControlValue('gps_pub_rate_hz', GPS_PUB_RATE_HZ))
+        self.start_latitude = float(self.getControlValue('start_latitude', FACTORY_START_LATITUDE))
+        self.start_longitude = float(self.getControlValue('start_longitude', FACTORY_START_LONGITUDE))
+        self.start_altitude_m = float(self.getControlValue('start_altitude_m', FACTORY_START_ALTITUDE_M))
+
+    def controlsUpdatedCb(self, control_name):
+        # Called by ControlsIF with the control name AFTER its dict is updated
+        # and its status published.
+        self.applyControls()
+
+        if control_name == 'mavros_node':
+            self.bindSelectedMavros()
+        elif control_name == 'use_current_location':
+            self.useCurrentLocation()
+        elif control_name == 'set_location':
+            self.setLocation()
+        elif control_name == 'goto_location':
+            self.gotoGeoLocation(
+                self.getControlValue('goto_latitude', FACTORY_START_LATITUDE),
+                self.getControlValue('goto_longitude', FACTORY_START_LONGITUDE),
+                self.getControlValue('goto_altitude_m', FACTORY_START_ALTITUDE_M))
+        elif control_name == 'goto_position':
+            offset = self.getControlValue('goto_position_m', [0.0, 0.0, 0.0])
+            if isinstance(offset, (list, tuple)) and len(offset) == 3:
+                self.gotoEnuPosition(offset[0], offset[1], offset[2])
+        elif control_name == 'stop':
+            self.stopMove()
+
+        # Matches what the removed set_* callbacks did: persist on change. The
+        # config IF debounces this onto its own timer, so a slider drag does not
+        # write a file per frame.
+        if control_name not in BUTTON_CONTROLS and self.node_if is not None:
+            self.node_if.save_config()
+
+        self.publish_status()
+
+    def useCurrentLocation(self):
+        with self._lock:
+            geo = copy.deepcopy(self.current_location_wgs84_geo)
+        self.setControlValue('start_latitude', geo.latitude)
+        self.setControlValue('start_longitude', geo.longitude)
+        self.setControlValue('start_altitude_m', geo.altitude)
+        self.setControlValue('goto_latitude', geo.latitude)
+        self.setControlValue('goto_longitude', geo.longitude)
+        self.setControlValue('goto_altitude_m', geo.altitude)
+
+    def setLocation(self):
+        geo = self._makeGeoPoint(self.start_latitude, self.start_longitude, self.start_altitude_m)
+        self.msg_if.pub_info("Fake GPS: setting location to start location: " +
+                             str([geo.latitude, geo.longitude, geo.altitude]))
+        self.resetGpsLoc(geo)
 
 
     #######################
@@ -400,26 +652,55 @@ class NepiFakeGpsApp(object):
             self.available_mavros_nodes = available
             needs_publish = True
 
+            # The Selection control's option list is discovered state, so the
+            # node owns it: ControlsIF only carries whatever list it is given.
+            # 'None' stays first so a selection that is no longer on the wire
+            # falls back to it rather than to some other vehicle's mavros node.
+            self.setControlOptions('mavros_node', [FACTORY_SELECTED_MAVROS] + available)
+
         selected = self.selected_mavros_node
-        if selected == 'None' and len(available) > 0:
+        if selected == FACTORY_SELECTED_MAVROS and len(available) > 0:
             selected = available[0]
-            self.selected_mavros_node = selected
-            if self.node_if is not None:
-                self.node_if.set_param('selected_mavros_node', selected)
+            # Writes through the control, which publishes controls status, calls
+            # controlsUpdatedCb and persists -- so self.selected_mavros_node is
+            # refreshed by applyControls, not assigned here.
+            self.setControlValue('mavros_node', selected)
+            needs_publish = True
+        elif selected not in available and selected != FACTORY_SELECTED_MAVROS:
+            self.setControlValue('mavros_node', FACTORY_SELECTED_MAVROS)
             needs_publish = True
 
-        if selected in available:
-            if self.bound_mavros_node != selected:
-                self.bindMavros(selected)
-                needs_publish = True
-        else:
-            if self.bound_mavros_node is not None:
-                self.unbindMavros()
-                needs_publish = True
+        if self.bindSelectedMavros():
+            needs_publish = True
 
         if needs_publish:
             self.publish_status()
         nepi_sdk.start_timer_process(float(1) / DISCOVER_RATE_HZ, self.discoverMavrosCb, oneshot=True)
+
+    def setControlOptions(self, control_name, options):
+        if self.controls_if is None:
+            return
+        try:
+            if self.controls_if.get_control_options(control_name) != options:
+                self.controls_if.set_control_options(control_name, options)
+        except Exception as e:
+            self.msg_if.pub_warn("Fake GPS: failed to set options for control " +
+                                 str(control_name) + ": " + str(e))
+
+    def bindSelectedMavros(self):
+        # Returns True when the binding changed, so the discovery pass and the
+        # control update both get one place to decide whether to republish.
+        changed = False
+        selected = self.selected_mavros_node
+        if selected in self.available_mavros_nodes:
+            if self.bound_mavros_node != selected:
+                self.bindMavros(selected)
+                changed = True
+        else:
+            if self.bound_mavros_node is not None:
+                self.unbindMavros()
+                changed = True
+        return changed
 
     def bindMavros(self, mavros_ns):
         self.unbindMavros()
@@ -487,39 +768,8 @@ class NepiFakeGpsApp(object):
     #######################
     # Node Control Callbacks
 
-    def selectMavrosNodeCb(self, msg):
-        selected = msg.data
-        if selected in self.available_mavros_nodes or selected == 'None':
-            self.selected_mavros_node = selected
-            if self.node_if is not None:
-                self.node_if.set_param('selected_mavros_node', selected)
-                self.node_if.save_config()
-            if selected in self.available_mavros_nodes:
-                self.bindMavros(selected)
-            else:
-                self.unbindMavros()
-            self.publish_status()
-
-    def fakeGpsEnableCb(self, msg):
-        self.msg_if.pub_info("Received set fake gps enable message: " + str(msg.data))
-        self.enabled = msg.data
-        if self.node_if is not None:
-            self.node_if.set_param('enabled', self.enabled)
-            self.node_if.save_config()
-        self.publish_status()
-
-    def setGpsPubRateCb(self, msg):
-        rate = float(msg.data)
-        if rate < MIN_GPS_PUB_RATE_HZ:
-            rate = MIN_GPS_PUB_RATE_HZ
-        elif rate > MAX_GPS_PUB_RATE_HZ:
-            rate = MAX_GPS_PUB_RATE_HZ
-        self.msg_if.pub_info("Setting GPS publish rate to: " + "%.2f" % rate + " Hz")
-        self.gps_pub_rate_hz = rate
-        if self.node_if is not None:
-            self.node_if.set_param('gps_pub_rate_hz', self.gps_pub_rate_hz)
-            self.node_if.save_config()
-        self.publish_status()
+    # enable, select_mavros_node and set_gps_pub_rate used to be handled here.
+    # They are controls now; controlsUpdatedCb applies them.
 
     def fakeGpsResetLocCb(self, geo_msg):
         geo_str = str([geo_msg.latitude, geo_msg.longitude, geo_msg.altitude])
@@ -537,24 +787,50 @@ class NepiFakeGpsApp(object):
         self.publish_status()
 
     def fakeGpsGoStopCb(self, empty_msg):
-        if self.enabled:
-            self.msg_if.pub_info("Received go stop message")
-            with self._lock:
-                self._move_plan = None
+        self.msg_if.pub_info("Received go stop message")
+        self.stopMove()
 
     def fakeGpsGoPosCb(self, enu_point_msg):
-        if self.enabled:
-            self.msg_if.pub_info("Received GoTo Position Message: " + str(enu_point_msg))
-            with self._lock:
-                cur_geo = copy.deepcopy(self.current_location_wgs84_geo)
-            new_enu_position = [enu_point_msg.x, enu_point_msg.y, enu_point_msg.z]
-            new_geopoint_wgs84 = nepi_nav.get_geopoint_at_enu_point(cur_geo, new_enu_position)
-            self.startMove(new_geopoint_wgs84, enu_point_msg)
+        self.msg_if.pub_info("Received GoTo Position Message: " + str(enu_point_msg))
+        self.gotoEnuPosition(enu_point_msg.x, enu_point_msg.y, enu_point_msg.z)
 
     def fakeGpsGoLocCb(self, geo_msg):
-        if self.enabled:
-            self.msg_if.pub_info("Received GoTo Location Message: " + str(geo_msg))
-            self.startMove(geo_msg, self._zeroPoint())
+        self.msg_if.pub_info("Received GoTo Location Message: " + str(geo_msg))
+        self.gotoGeoLocation(geo_msg.latitude, geo_msg.longitude, geo_msg.altitude)
+
+
+    #######################
+    # Move Commands
+    #
+    # One implementation per command, reached from two directions: the command
+    # topics above, which carry a whole geopoint or offset in one message, and
+    # the Button controls, which read the operator's buffered values out of the
+    # control set. Neither path duplicates the other's logic.
+
+    def stopMove(self):
+        if self.enabled == False:
+            return
+        with self._lock:
+            self._move_plan = None
+
+    def gotoEnuPosition(self, east_m, north_m, up_m):
+        if self.enabled == False:
+            return
+        with self._lock:
+            cur_geo = copy.deepcopy(self.current_location_wgs84_geo)
+        enu_point_msg = self._zeroPoint()
+        enu_point_msg.x = float(east_m)
+        enu_point_msg.y = float(north_m)
+        enu_point_msg.z = float(up_m)
+        new_enu_position = [enu_point_msg.x, enu_point_msg.y, enu_point_msg.z]
+        new_geopoint_wgs84 = nepi_nav.get_geopoint_at_enu_point(cur_geo, new_enu_position)
+        self.startMove(new_geopoint_wgs84, enu_point_msg)
+
+    def gotoGeoLocation(self, latitude, longitude, altitude):
+        if self.enabled == False:
+            return
+        geo_msg = self._makeGeoPoint(latitude, longitude, altitude)
+        self.startMove(geo_msg, self._zeroPoint())
 
 
     #######################
@@ -834,6 +1110,12 @@ class NepiFakeGpsApp(object):
         self.msg_if.pub_info("FAKE_GPS_APP: Shutting down: Executing script cleanup actions")
         self._alive = False
         self.unbindMavros()
+        if self.controls_if is not None:
+            try:
+                self.controls_if.unregister()
+            except Exception:
+                pass
+            self.controls_if = None
         if self._navpose_if is not None:
             try:
                 self._navpose_if.unregister_pubs()

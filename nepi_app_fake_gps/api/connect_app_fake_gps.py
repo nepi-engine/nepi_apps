@@ -17,9 +17,11 @@
 
 import time
 
-from std_msgs.msg import Bool, Empty, Float32, String
+from std_msgs.msg import Empty
 from geometry_msgs.msg import Point
 from geographic_msgs.msg import GeoPoint
+
+from nepi_interfaces.msg import ControlsStatus, UpdateControl
 
 from nepi_app_fake_gps.msg import NepiAppFakeGpsStatus
 
@@ -29,6 +31,11 @@ from nepi_api.messages_if import MsgIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
 
 APP_NODE_NAME = 'app_fake_gps'
+
+# Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+# create_namespace(node_namespace, controls_name), so the controls topics sit
+# one level below the app node namespace, not on it.
+CONTROLS_NAME = 'controls'
 
 
 class ConnectAppFakeGps:
@@ -41,6 +48,9 @@ class ConnectAppFakeGps:
     connected = False
     status_msg = None
     status_connected = False
+
+    controls_namespace = ''
+    controls_status_msg = None
 
     #######################
     ### IF Initialization
@@ -62,14 +72,19 @@ class ConnectAppFakeGps:
         self.SRVS_DICT = None
 
         ns = self.namespace
+        self.controls_namespace = nepi_sdk.create_namespace(ns, CONTROLS_NAME)
+        controls_ns = self.controls_namespace
+
+        # The app's adjustable state moved to ControlsIF, so every setter below
+        # publishes one UpdateControl instead of its own typed topic. What is
+        # still on the app namespace are the COMMANDS, which carry a whole
+        # geopoint or offset in a single message.
         self.PUBS_DICT = {
-            'select_mavros_node': {'namespace': ns, 'topic': 'select_mavros_node', 'msg': String,   'qsize': 1},
-            'enable':            {'namespace': ns, 'topic': 'enable',            'msg': Bool,     'qsize': 1},
+            'update_control':    {'namespace': controls_ns, 'topic': 'update_control', 'msg': UpdateControl, 'qsize': 1},
             'reset':             {'namespace': ns, 'topic': 'reset',             'msg': GeoPoint, 'qsize': 1},
             'go_stop':           {'namespace': ns, 'topic': 'go_stop',           'msg': Empty,    'qsize': 1},
             'goto_position':     {'namespace': ns, 'topic': 'goto_position',     'msg': Point,    'qsize': 1},
             'goto_location':     {'namespace': ns, 'topic': 'goto_location',     'msg': GeoPoint, 'qsize': 1},
-            'set_gps_pub_rate':  {'namespace': ns, 'topic': 'set_gps_pub_rate',  'msg': Float32,  'qsize': 1},
             'save_config':          {'namespace': ns, 'topic': 'save_config',          'msg': Empty, 'qsize': None, 'latch': False},
             'reset_config':         {'namespace': ns, 'topic': 'reset_config',         'msg': Empty, 'qsize': None, 'latch': False},
             'factory_reset_config': {'namespace': ns, 'topic': 'factory_reset_config', 'msg': Empty, 'qsize': None, 'latch': False},
@@ -82,6 +97,13 @@ class ConnectAppFakeGps:
                 'msg':       NepiAppFakeGpsStatus,
                 'qsize':     1,
                 'callback':  self._statusCb,
+            },
+            'controls_status_sub': {
+                'namespace': controls_ns,
+                'topic':     'status',
+                'msg':       ControlsStatus,
+                'qsize':     1,
+                'callback':  self._controlsStatusCb,
             }
         }
 
@@ -121,17 +143,59 @@ class ConnectAppFakeGps:
             return nepi_sdk.convert_msg2dict(self.status_msg)
         return None
 
+    def get_controls_namespace(self):
+        """Return the app's ControlsIF namespace.
+
+        Returns:
+            str: The namespace the app's controls status and update_control topics sit on.
+        """
+        return self.controls_namespace
+
+    def get_controls_status_dict(self):
+        """Return the app's last received ControlsStatus message as a dict.
+
+        Returns:
+            dict: The controls status as a dict, or None if no status has arrived yet.
+        """
+        if self.controls_status_msg is not None:
+            return nepi_sdk.convert_msg2dict(self.controls_status_msg)
+        return None
+
+    def set_control_value(self, control_name, value, index = None):
+        """Update one of the app's controls.
+
+        Args:
+            control_name (str): Name of the control, as it appears in the app's ControlsStatus.
+            value: New value. Lists are sent entry by entry; anything else is sent as one value.
+            index (int, optional): Component index for a multi-value control. Defaults to None,
+                which replaces the whole value.
+        """
+        msg = UpdateControl()
+        msg.name = str(control_name)
+        if isinstance(value, (list, tuple)):
+            msg.value = [str(item) for item in value]
+        else:
+            msg.value = [str(value)]
+        msg.index = '' if index is None else str(index)
+        self.con_node_if.publish_pub('update_control', msg)
+
     def select_mavros_node(self, node_namespace):
-        """Select the target mavros (mavlink) node namespace to inject HilGPS into."""
-        msg = String()
-        msg.data = str(node_namespace)
-        self.con_node_if.publish_pub('select_mavros_node', msg)
+        """Select the target mavros (mavlink) node namespace to inject GPS_INPUT into."""
+        self.set_control_value('mavros_node', node_namespace)
 
     def set_enabled(self, enabled):
-        """Enable or disable the fake GPS HilGPS injection."""
-        msg = Bool()
-        msg.data = enabled
-        self.con_node_if.publish_pub('enable', msg)
+        """Enable or disable the fake GPS GPS_INPUT injection."""
+        self.set_control_value('enabled', bool(enabled))
+
+    def set_satellites_visible(self, sat_count):
+        """Set the satellite count reported in the injected GPS_INPUT message."""
+        self.set_control_value('satellites_visible', int(sat_count))
+
+    def set_start_location(self, latitude, longitude, altitude):
+        """Set the start location the simulated position seeds and resets to."""
+        self.set_control_value('start_latitude', float(latitude))
+        self.set_control_value('start_longitude', float(longitude))
+        self.set_control_value('start_altitude_m', float(altitude))
 
     def reset_location(self, latitude, longitude, altitude):
         """Reset the simulated GPS home position to a new WGS84 geopoint."""
@@ -162,10 +226,8 @@ class ConnectAppFakeGps:
         self.con_node_if.publish_pub('goto_location', msg)
 
     def set_gps_pub_rate(self, rate_hz):
-        """Set the fake GPS publish rate in Hz (clamped to 1-100 by the node)."""
-        msg = Float32()
-        msg.data = float(rate_hz)
-        self.con_node_if.publish_pub('set_gps_pub_rate', msg)
+        """Set the fake GPS publish rate in Hz (clamped to 1-100 by the control bounds)."""
+        self.set_control_value('gps_pub_rate_hz', float(rate_hz))
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config', Empty())
@@ -201,3 +263,6 @@ class ConnectAppFakeGps:
         self.status_connected = True
         self.connected = True
         self.status_msg = status_msg
+
+    def _controlsStatusCb(self, status_msg):
+        self.controls_status_msg = status_msg
