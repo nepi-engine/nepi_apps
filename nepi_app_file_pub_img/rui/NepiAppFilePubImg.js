@@ -22,18 +22,22 @@ import { observer, inject } from "mobx-react"
 
 import { Columns, Column } from "./Columns"
 import Select, { Option } from "./Select"
-import Button, { ButtonMenu } from "./Button"
 import Label from "./Label"
 import Input from "./Input"
-import AsyncToggle from "./AsyncToggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
 
 import NepiIFImageViewer from "./Nepi_IF_ImageViewer"
+import NepiIFControls from "./Nepi_IF_Controls"
 import NepiIFConfig from "./Nepi_IF_Config"
 
-import { onDropdownSelectedSendStr, createMenuListFromStrList,  onUpdateSetStateValue, onEnterSendFloatValue} from "./Utilities"
+// Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+// create_namespace(node_namespace, controls_name), so the control set sits one
+// level BELOW the app node namespace. Appending '/controls' here is what makes
+// Nepi_IF_Controls subscribe to .../app_file_pub_img/controls/status and publish
+// its updates to .../app_file_pub_img/controls/update_control.
+const CONTROLS_NAME = "controls"
 
 
 @inject("ros")
@@ -90,6 +94,8 @@ class FilePubImgApp extends Component {
     this.statusListener = this.statusListener.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
+    this.getControlsNamespace = this.getControlsNamespace.bind(this)
+    this.renderPubControls = this.renderPubControls.bind(this)
 
 
   }
@@ -102,6 +108,14 @@ class FilePubImgApp extends Component {
       appNamespace = "/" + namespacePrefix + "/" + deviceId + "/" + this.state.appName
     }
     return appNamespace
+  }
+
+  getControlsNamespace(){
+    const appNamespace = this.getAppNamespace()
+    if (appNamespace !== null){
+      return appNamespace + "/" + CONTROLS_NAME
+    }
+    return null
   }
 
   // Callback for handling ROS Status messages
@@ -197,11 +211,21 @@ class FilePubImgApp extends Component {
 
 
 
+  // Read-only publishing state plus the app's control set.
+  //
+  // Everything the operator ADJUSTS -- start/stop, pause, rate, random, step,
+  // size, encoding and overlay -- is rendered by the shared control renderer
+  // from the node's ControlsStatus. What is left here is what the node REPORTS.
+  //
+  // title is passed as null (the Nepi_IF_Process treatment) because the Label
+  // above is already this block's heading, and the component's own default
+  // title would print a second one under it. allways_show_controls keeps the
+  // set open: these controls ARE the panel, so there is nothing left to see if
+  // they are collapsed behind a toggle.
   renderPubControls() {
-    const {sendBoolMsg} = this.props.ros
     const appNamespace = this.state.appNamespace
+    const controlsNamespace = this.getControlsNamespace()
     const pubRunning = this.state.pub_running
-    const NoneOption = <Option>None</Option>
 
     return (
 
@@ -222,80 +246,6 @@ class FilePubImgApp extends Component {
               <BooleanIndicator value={pubRunning} />
             </Label>
 
-              <div hidden={pubRunning}>
-            <ButtonMenu>
-              <Button 
-                disabled={pubRunning}
-                onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/start_pub")}>{"Start Publishing"}</Button>
-            </ButtonMenu>
-            </div>
-
-            <div hidden={!pubRunning}>
-            <ButtonMenu>
-              <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/stop_pub")}>{"Stop Publishing"}</Button>
-            </ButtonMenu>
-            </div>
-
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-            <Columns>
-                  <Column>
-
-
-                      <Label title="Pause">
-                            <AsyncToggle
-                            checked={this.state.paused===true}
-                            onClick={() => sendBoolMsg(appNamespace + "/pause_pub",!this.state.paused)}>
-                            </AsyncToggle>
-                      </Label>
-
-                </Column>
-                  <Column>
-
-
-                      <div hidden={this.state.paused === true}>
-
-                            <Label title={"Set Rate (Hz)"}>
-                              <Input id="set_rate" 
-                                value={this.state.set_rate} 
-                                onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_rate")} 
-                                onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_rate")} />
-                            </Label>
-
-
-                            <Label title="Set Random Order">
-                                  <AsyncToggle
-                                  checked={this.state.set_random===true}
-                                  onClick={() => sendBoolMsg(appNamespace + "/set_random",!this.state.set_random)}>
-                                  </AsyncToggle>
-                            </Label>
-
-                      </div>
-
-
-                      <div hidden={this.state.paused === false}>
-
-                                  <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_forward")}>{"Forward"}</Button>
-                                </ButtonMenu>
-
-                                <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_backward")}>{"Back"}</Button>
-                                </ButtonMenu>
-
-
-
-                        </div>
-
-                
-            </Column>
-            </Columns>
-
-
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-
-
 
           <Label title={"Current File"} >
           </Label>
@@ -303,39 +253,22 @@ class FilePubImgApp extends Component {
             {this.state.current_file}
           </pre>
 
-            <Label title={"Set Image Size"}>
-            <Select
-              id="select_targset_sizeet"
-              onChange={(event) => onDropdownSelectedSendStr.bind(this)(event, appNamespace + "/set_size")}
-              value={this.state.set_size}
-            >
-              {this.state.size_options_list
-                ? createMenuListFromStrList(this.state.size_options_list, false, [],[],[])
-                : NoneOption}
-            </Select>
-            </Label>
 
+            { (controlsNamespace !== null && controlsNamespace.indexOf('null') === -1) ?
 
-            <Label title={"Set Image Encoding"}>
-            <Select
-              id="set_encoding"
-              onChange={(event) => onDropdownSelectedSendStr.bind(this)(event, appNamespace + "/set_encoding")}
-              value={this.state.set_encoding}
-            >
-              {this.state.encoding_options_list
-                ? createMenuListFromStrList(this.state.encoding_options_list, false, [],[],[])
-                : NoneOption}
-            </Select>
-            </Label>
+              <React.Fragment>
+                <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+                <Label title={"Publish Controls"} />
+                <NepiIFControls
+                  key={controlsNamespace}
+                  namespace={controlsNamespace}
+                  title={null}
+                  make_section={false}
+                  allways_show_controls={true}
+                />
+              </React.Fragment>
 
-
-
-        <Label title="Overlay Filename">
-              <AsyncToggle
-              checked={this.state.set_overlay===true}
-              onClick={() => sendBoolMsg(appNamespace + "/set_overlay",!this.state.set_overlay)}>
-              </AsyncToggle>
-        </Label>
+            : null }
 
 
             </div>

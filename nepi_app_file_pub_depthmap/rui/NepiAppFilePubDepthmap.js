@@ -22,45 +22,36 @@ import { observer, inject } from "mobx-react"
 
 import { Columns, Column } from "./Columns"
 import Select, { Option } from "./Select"
-import Button, { ButtonMenu } from "./Button"
 import Label from "./Label"
 import Input from "./Input"
-import AsyncToggle from "./AsyncToggle"
 import Styles from "./Styles"
 import BooleanIndicator from "./BooleanIndicator"
 
 
 import NepiIFImageViewer from "./Nepi_IF_ImageViewer"
+import NepiIFControls from "./Nepi_IF_Controls"
 import NepiIFConfig from "./Nepi_IF_Config"
 
-import { onUpdateSetStateValue, onEnterSendFloatValue} from "./Utilities"
+// The app's THREE ControlsIF set names, matching the CONTROLS_NAME_* constants
+// in file_pub_depthmap_app_node.py.
+//
+// A ControlsIF is always a direct child of the NODE namespace -- it builds
+// create_namespace(node_namespace, controls_name) with no namespace argument,
+// and get_clean_name() rewrites '/' to '_', so a set cannot live under a
+// sub-namespace. The set NAME is the only thing that distinguishes them, and
+// both sides derive the same three strings.
+//
+// The third is navpose_SOURCE, not navpose, and that is load bearing: the node
+// mounts a NavPoseIF that roots itself at <app_ns>/navpose, so a control set
+// named 'navpose' would collide with it and advertise a second
+// <app_ns>/navpose/status of a different message type.
+const CONTROLS_NAME_PLAYBACK        = "controls"
+const CONTROLS_NAME_FOLDER_SETTINGS = "folder_settings"
+const CONTROLS_NAME_NAVPOSE         = "navpose_source"
 
-// Static pose fields, in RUI display order: [status field / state key, label,
-// set topic]. The status field name and the state key are the same string, so
-// one table drives both the refresh in statusListener() and the input rows in
-// renderNavPoseControls().
-const NAVPOSE_STATIC_VALUE_FIELDS = [
-  ['navpose_static_latitude', 'Latitude (deg)', 'set_navpose_static_latitude'],
-  ['navpose_static_longitude', 'Longitude (deg)', 'set_navpose_static_longitude'],
-  ['navpose_static_altitude_m', 'Altitude (m)', 'set_navpose_static_altitude'],
-  ['navpose_static_depth_m', 'Depth (m)', 'set_navpose_static_depth'],
-  ['navpose_static_heading_deg', 'Heading (deg)', 'set_navpose_static_heading'],
-  ['navpose_static_roll_deg', 'Roll (deg)', 'set_navpose_static_roll'],
-  ['navpose_static_pitch_deg', 'Pitch (deg)', 'set_navpose_static_pitch'],
-  ['navpose_static_yaw_deg', 'Yaw (deg)', 'set_navpose_static_yaw'],
-  ['navpose_static_x_m', 'Position X (m)', 'set_navpose_static_x'],
-  ['navpose_static_y_m', 'Position Y (m)', 'set_navpose_static_y'],
-  ['navpose_static_z_m', 'Position Z (m)', 'set_navpose_static_z']
-]
-
-// Field of view fields, same [status field / state key, label, set topic] form.
-// These move node-side as well as operator-side -- the folder settings toggle
-// rewrites them on a folder change -- so they need the same refresh-on-change
-// guard the static pose fields use.
-const FOV_VALUE_FIELDS = [
-  ['set_width_deg', 'Width (deg)', 'set_width_deg'],
-  ['set_height_deg', 'Height (deg)', 'set_height_deg']
-]
+// The static pose fields, the field of view fields and their local edit buffers
+// all moved into the control sets. Nepi_IF_Controls owns that state now, read
+// from each set's ControlsStatus, so none of it is mirrored here any more.
 
 
 @inject("ros")
@@ -97,47 +88,18 @@ class FilePubDepthmapApp extends Component {
       set_rate: 1,
       pub_running: false,
 
-      // Field of view of the published products. Held in local state and
-      // refreshed only on a node-side change, the same guard set_rate uses, so a
-      // status tick cannot overwrite a half-typed value.
-      min_max_fov_deg: [1,180],
-      set_width_deg: 100,
-      set_height_deg: 70,
-
       // Folder settings. The two report fields are read-only; they say whether
-      // the toggle found anything in the current folder and what it did.
-      apply_folder_settings: false,
+      // the toggle found anything in the current folder and what it did. The
+      // toggle itself and the two field of view values are controls now.
       folder_settings_found: false,
       folder_settings_status: '',
 
-      // NavPose source. navpose_active_mode is the RESOLVED source, and it is
-      // what the static fields below are gated on -- a navpose_source_mode of
-      // 'auto' says nothing on its own about which source is publishing.
-      navpose_source_mode: 'auto',
-      navpose_source_mode_options: [],
+      // NavPose source. navpose_active_mode is the RESOLVED source: it is what
+      // the explanatory line below reads, and what the node gates the static
+      // pose controls' visibility on -- a navpose_source_mode of 'auto' says
+      // nothing on its own about which source is publishing.
       navpose_active_mode: 'static',
       navpose_system_available: false,
-      navpose_static_frame_nav: '',
-      navpose_static_frame_altitude: '',
-      navpose_static_frame_depth: '',
-      navpose_frame_nav_options: [],
-      navpose_frame_altitude_options: [],
-      navpose_frame_depth_options: [],
-
-      // Static pose values. Held in local state so an operator can type into a
-      // field without the next status message overwriting it mid-edit; the
-      // status listener only refreshes them when the node reports a change.
-      navpose_static_latitude: 0,
-      navpose_static_longitude: 0,
-      navpose_static_heading_deg: 0,
-      navpose_static_roll_deg: 0,
-      navpose_static_pitch_deg: 0,
-      navpose_static_yaw_deg: 0,
-      navpose_static_x_m: 0,
-      navpose_static_y_m: 0,
-      navpose_static_z_m: 0,
-      navpose_static_altitude_m: 0,
-      navpose_static_depth_m: 0,
 
       statusListener: null,
       connected: false,
@@ -148,14 +110,15 @@ class FilePubDepthmapApp extends Component {
     this.createFolderOptions = this.createFolderOptions.bind(this)
     this.onChangeFolderSelection = this.onChangeFolderSelection.bind(this)
     this.toggleViewableFolders = this.toggleViewableFolders.bind(this)
-    this.createOptions = this.createOptions.bind(this)
+    this.renderPubControls = this.renderPubControls.bind(this)
+    this.renderControlSet = this.renderControlSet.bind(this)
     this.renderFolderSettingsControls = this.renderFolderSettingsControls.bind(this)
-    this.renderNavPoseStaticValue = this.renderNavPoseStaticValue.bind(this)
     this.renderNavPoseControls = this.renderNavPoseControls.bind(this)
 
     this.statusListener = this.statusListener.bind(this)
     this.updateStatusListener = this.updateStatusListener.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
+    this.getControlsNamespace = this.getControlsNamespace.bind(this)
 
 
   }
@@ -168,6 +131,16 @@ class FilePubDepthmapApp extends Component {
       appNamespace = "/" + namespacePrefix + "/" + deviceId + "/" + this.state.appName
     }
     return appNamespace
+  }
+
+  // Mirror of the CONTROLS_NAME_* constants in the node: each set is a direct
+  // child of the app node namespace, never of a sub-namespace.
+  getControlsNamespace(controls_name){
+    const appNamespace = this.getAppNamespace()
+    if (appNamespace === null || appNamespace.indexOf('null') !== -1){
+      return null
+    }
+    return appNamespace + "/" + controls_name
   }
 
   // Callback for handling ROS Status messages
@@ -186,38 +159,15 @@ class FilePubDepthmapApp extends Component {
       set_overlay: message.set_overlay ,
       min_max_rate: message.min_max_rate ,
 
-      min_max_fov_deg: message.min_max_fov_deg ,
-      apply_folder_settings: message.apply_folder_settings ,
       folder_settings_found: message.folder_settings_found ,
       folder_settings_status: message.folder_settings_status ,
 
       pub_running: message.running,
 
-      navpose_source_mode: message.navpose_source_mode ,
-      navpose_source_mode_options: message.navpose_source_mode_options ,
       navpose_active_mode: message.navpose_active_mode ,
-      navpose_system_available: message.navpose_system_available ,
-      navpose_static_frame_nav: message.navpose_static_frame_nav ,
-      navpose_static_frame_altitude: message.navpose_static_frame_altitude ,
-      navpose_static_frame_depth: message.navpose_static_frame_depth ,
-      navpose_frame_nav_options: message.navpose_frame_nav_options ,
-      navpose_frame_altitude_options: message.navpose_frame_altitude_options ,
-      navpose_frame_depth_options: message.navpose_frame_depth_options
+      navpose_system_available: message.navpose_system_available
 
   })
-
-  // Same guard the set_rate field below uses: a static pose input is refreshed
-  // from the status message only when the NODE's value changed, so a status tick
-  // cannot overwrite what the operator is part-way through typing.
-  const prev_msg = this.state.status_msg
-  const value_fields = NAVPOSE_STATIC_VALUE_FIELDS.concat(FOV_VALUE_FIELDS)
-  for (var vi = 0; vi < value_fields.length; vi++) {
-    const field = value_fields[vi][0]
-    const value_changed = (prev_msg != null) ? (prev_msg[field] !== message[field]) : true
-    if (value_changed === true) {
-      this.setState({[field]: message[field]})
-    }
-  }
 
   var current_folder = 'None'
   if (message.current_folder === message.home_folder ){
@@ -231,15 +181,6 @@ class FilePubDepthmapApp extends Component {
       current_folder: current_folder,
       connected: true
     })
-
-  const needs_update = (this.state.status_msg != null) ? (this.state.status_msg.set_rate !== message.set_rate) : false
-
-  if (needs_update === true){
-  this.setState({
-      set_rate: message.set_rate
-    })
-
-  }
 
   }
 
@@ -284,8 +225,37 @@ class FilePubDepthmapApp extends Component {
 
 
 
+  // One control set, mounted the way the in-workspace examples mount it: the
+  // PAGE draws the heading (a divider plus a Label, as it always did) and this
+  // passes title={null}, so the component's own default "CONTROLS" heading does
+  // not print a second one under it. allways_show_controls keeps the set open --
+  // these controls ARE the panel.
+  //
+  // key={namespace} is the habit the other migrated pages keep: without a key,
+  // a namespace change would leave React reusing the mounted component with its
+  // old status subscription.
+  renderControlSet(controls_name) {
+    const namespace = this.getControlsNamespace(controls_name)
+    if (namespace === null) {
+      return null
+    }
+    return (
+      <NepiIFControls
+        key={namespace}
+        namespace={namespace}
+        title={null}
+        make_section={false}
+        allways_show_controls={true}
+      />
+    )
+  }
+
+  // Read-only publishing state plus the playback control set.
+  //
+  // Everything the operator ADJUSTS -- start/stop, pause, rate, random, step and
+  // overlay -- is rendered by the shared control renderer from the node's
+  // ControlsStatus. What is left here is what the node REPORTS.
   renderPubControls() {
-    const {sendBoolMsg} = this.props.ros
     const appNamespace = this.state.appNamespace
     const pubRunning = this.state.pub_running
 
@@ -308,80 +278,6 @@ class FilePubDepthmapApp extends Component {
               <BooleanIndicator value={pubRunning} />
             </Label>
 
-              <div hidden={pubRunning}>
-            <ButtonMenu>
-              <Button
-                disabled={pubRunning}
-                onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/start_pub")}>{"Start Publishing"}</Button>
-            </ButtonMenu>
-            </div>
-
-            <div hidden={!pubRunning}>
-            <ButtonMenu>
-              <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/stop_pub")}>{"Stop Publishing"}</Button>
-            </ButtonMenu>
-            </div>
-
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-            <Columns>
-                  <Column>
-
-
-                      <Label title="Pause">
-                            <AsyncToggle
-                            checked={this.state.paused===true}
-                            onClick={() => sendBoolMsg(appNamespace + "/pause_pub",!this.state.paused)}>
-                            </AsyncToggle>
-                      </Label>
-
-                </Column>
-                  <Column>
-
-
-                      <div hidden={this.state.paused === true}>
-
-                            <Label title={"Set Rate (Hz)"}>
-                              <Input id="set_rate"
-                                value={this.state.set_rate}
-                                onChange={(event) => onUpdateSetStateValue.bind(this)(event,"set_rate")}
-                                onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/set_rate")} />
-                            </Label>
-
-
-                            <Label title="Set Random Order">
-                                  <AsyncToggle
-                                  checked={this.state.set_random===true}
-                                  onClick={() => sendBoolMsg(appNamespace + "/set_random",!this.state.set_random)}>
-                                  </AsyncToggle>
-                            </Label>
-
-                      </div>
-
-
-                      <div hidden={this.state.paused === false}>
-
-                                  <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_forward")}>{"Forward"}</Button>
-                                </ButtonMenu>
-
-                                <ButtonMenu>
-                                  <Button onClick={() => this.props.ros.sendTriggerMsg(appNamespace + "/step_backward")}>{"Back"}</Button>
-                                </ButtonMenu>
-
-
-
-                        </div>
-
-
-            </Column>
-            </Columns>
-
-
-            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-
-
 
           <Label title={"Current Collection"} >
           </Label>
@@ -390,15 +286,13 @@ class FilePubDepthmapApp extends Component {
           </pre>
 
 
-        <Label title="Overlay Filename">
-              <AsyncToggle
-              checked={this.state.set_overlay===true}
-              onClick={() => sendBoolMsg(appNamespace + "/set_overlay",!this.state.set_overlay)}>
-              </AsyncToggle>
-        </Label>
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+            <Label title={"Playback Controls"} />
+
+            {this.renderControlSet(CONTROLS_NAME_PLAYBACK)}
 
 
-            </div>
+        </div>
 
 
             <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
@@ -421,31 +315,21 @@ class FilePubDepthmapApp extends Component {
 
 
 
-  // Option list from a status message string array.
-  createOptions(options) {
-    var items = []
-    if (options) {
-      for (var i = 0; i < options.length; i++) {
-        items.push(<Option key={options[i]} value={options[i]}>{options[i]}</Option>)
-      }
-    }
-    return items
-  }
-
-  // Field of view and folder settings controls.
+  // Field of view and folder settings.
   //
   // Rendered OUTSIDE the collection_count gate that wraps renderPubControls(),
   // for the same reason renderNavPoseControls() is: the folder settings toggle
   // decides what happens on the NEXT folder selection, so it has to be reachable
   // before a folder with collections has been picked.
   //
-  // The two FOV fields stay editable while the toggle is on. The toggle rewrites
-  // them on a folder change; it does not own them afterwards, so an operator can
-  // still correct a value a sidecar got wrong.
+  // The two FOV controls stay editable while the toggle is on. The toggle
+  // rewrites them on a folder change -- applyFolderSettings pushes the sidecar
+  // values back into the controls -- but it does not own them afterwards, so an
+  // operator can still correct a value a sidecar got wrong.
+  //
+  // The two report lines below are read-only status the node publishes; they say
+  // whether the last apply found anything and what it did.
   renderFolderSettingsControls() {
-    const {sendBoolMsg} = this.props.ros
-    const appNamespace = this.state.appNamespace
-    const applySettings = (this.state.apply_folder_settings === true)
 
     return (
 
@@ -453,21 +337,7 @@ class FilePubDepthmapApp extends Component {
 
         <Label title={"Field of View"} />
 
-        {FOV_VALUE_FIELDS.map((value_field) =>
-          <Label key={value_field[0]} title={value_field[1]}>
-            <Input id={value_field[0]}
-              value={this.state[value_field[0]]}
-              onChange={(event) => onUpdateSetStateValue.bind(this)(event,value_field[0])}
-              onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/" + value_field[2])} />
-          </Label>
-        )}
-
-        <Label title="Apply Folder Settings">
-          <AsyncToggle
-          checked={applySettings}
-          onClick={() => sendBoolMsg(appNamespace + "/set_apply_folder_settings",!applySettings)}>
-          </AsyncToggle>
-        </Label>
+        {this.renderControlSet(CONTROLS_NAME_FOLDER_SETTINGS)}
 
         <Label title={"Settings File Found"}>
           <BooleanIndicator value={this.state.folder_settings_found===true} />
@@ -485,21 +355,6 @@ class FilePubDepthmapApp extends Component {
   }
 
 
-  // One static pose value row. Disabled while a system pose is being forwarded,
-  // because the value would not reach the wire.
-  renderNavPoseStaticValue(field, title, topic, disabled) {
-    const appNamespace = this.state.appNamespace
-    return (
-      <Label key={field} title={title}>
-        <Input id={field}
-          disabled={disabled}
-          value={this.state[field]}
-          onChange={(event) => onUpdateSetStateValue.bind(this)(event,field)}
-          onKeyDown= {(event) => onEnterSendFloatValue.bind(this)(event,appNamespace + "/" + topic)} />
-      </Label>
-    )
-  }
-
   // NavPose source controls.
   //
   // Rendered OUTSIDE the collection_count gate that wraps renderPubControls():
@@ -507,19 +362,17 @@ class FilePubDepthmapApp extends Component {
   // collection is being published, so the controls for it must be reachable
   // whether or not a folder with collections is selected.
   //
-  // The static pose fields and the three frame dropdowns are disabled whenever
-  // navpose_active_mode is 'system'. That is not cosmetic -- in system mode the
-  // node forwards navpose_mgr's pose with the frames its AUTHOR set, and never
-  // reads these values. Gating on navpose_active_mode rather than
-  // navpose_source_mode is what makes 'auto' render correctly: 'auto' resolves to
-  // one source or the other, and it is the resolved one that decides whether
-  // these fields do anything.
+  // The static pose controls and the three frame selections are HIDDEN by the
+  // node whenever navpose_active_mode is 'system'. That is not cosmetic -- in
+  // system mode the node forwards navpose_mgr's pose with the frames its AUTHOR
+  // set, and never reads these values. The node gates on navpose_active_mode
+  // rather than navpose_source_mode, which is what makes 'auto' behave: 'auto'
+  // resolves to one source or the other, and it is the resolved one that decides
+  // whether these values do anything. This page only reports which it resolved
+  // to; syncControlVisibility() in the node does the hiding.
   renderNavPoseControls() {
-    const {sendStringMsg} = this.props.ros
-    const appNamespace = this.state.appNamespace
     const active_mode = this.state.navpose_active_mode
     const forwarding = (active_mode === 'system')
-    const value_fields = NAVPOSE_STATIC_VALUE_FIELDS
 
     return (
 
@@ -527,14 +380,7 @@ class FilePubDepthmapApp extends Component {
 
         <Label title={"NavPose Source"} />
 
-        <Label title={"Source Mode"}>
-          <Select
-            onChange={(event) => sendStringMsg(appNamespace + "/set_navpose_source_mode", event.target.value)}
-            value={this.state.navpose_source_mode}
-          >
-            {this.createOptions(this.state.navpose_source_mode_options)}
-          </Select>
-        </Label>
+        {this.renderControlSet(CONTROLS_NAME_NAVPOSE)}
 
         <Label title={"Publishing Source"}>
           <Input disabled value={active_mode} />
@@ -546,47 +392,7 @@ class FilePubDepthmapApp extends Component {
 
         <Label title={forwarding
           ? "Forwarding the system NavPose. Its frames are set by its source and are not changed here."
-          : "Publishing a static NavPose authored below."} />
-
-        <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
-
-        <Label title={"Static Pose"} />
-
-        {value_fields.map((value_field) =>
-          this.renderNavPoseStaticValue(value_field[0], value_field[1], value_field[2], forwarding)
-        )}
-
-        <Label title={"Static Pose Frames"} />
-
-        <Label title={"Nav Frame"}>
-          <Select
-            disabled={forwarding}
-            onChange={(event) => sendStringMsg(appNamespace + "/set_navpose_static_frame_nav", event.target.value)}
-            value={this.state.navpose_static_frame_nav}
-          >
-            {this.createOptions(this.state.navpose_frame_nav_options)}
-          </Select>
-        </Label>
-
-        <Label title={"Altitude Frame"}>
-          <Select
-            disabled={forwarding}
-            onChange={(event) => sendStringMsg(appNamespace + "/set_navpose_static_frame_altitude", event.target.value)}
-            value={this.state.navpose_static_frame_altitude}
-          >
-            {this.createOptions(this.state.navpose_frame_altitude_options)}
-          </Select>
-        </Label>
-
-        <Label title={"Depth Frame"}>
-          <Select
-            disabled={forwarding}
-            onChange={(event) => sendStringMsg(appNamespace + "/set_navpose_static_frame_depth", event.target.value)}
-            value={this.state.navpose_static_frame_depth}
-          >
-            {this.createOptions(this.state.navpose_frame_depth_options)}
-          </Select>
-        </Label>
+          : "Publishing a static NavPose authored above."} />
 
       </div>
 

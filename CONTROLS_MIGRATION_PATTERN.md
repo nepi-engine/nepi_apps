@@ -1,10 +1,19 @@
 # Migrating a NEPI App to ControlsIF
 
-This document records how `nepi_app_fake_gps` was moved off its bespoke
-parameter-and-panel implementation and onto the `ControlsIF` control structure,
-on both the node side and the RUI side. It is written so the remaining apps can
-follow the same route. Everything below describes what was actually done, not
-what could be done.
+This document records how the apps in this repo were moved off their bespoke
+parameter-and-panel implementations and onto the `ControlsIF` control structure,
+on both the node side and the RUI side. Everything below describes what was
+actually done, not what could be done.
+
+`nepi_app_fake_gps` was the first and is still the simplest worked example, so
+it is what most of this document quotes -- as it stood at the time of its
+migration. That app has since been RETIRED into `nepi_app_nav_sim` as that app's
+GPS simulator kind and its package deleted, so the code quoted from it is
+historical; see the Migration status section. `nepi_app_nav_sim` is the worked
+example for the two things a single-set app never has to face: several control
+sets in one node, and rows built from `display_group`. Six apps are now
+migrated: `nav_sim`, `file_pub_img`, `file_pub_vid`, `file_pub_depthmap`,
+`onvif_mgr`, and `image_viewer` node-side only (see the last section).
 
 The pattern sources are `ControlsIF` in
 `nepi_engine/nepi_api/src/nepi_api/system_if.py`, the dict helpers in
@@ -37,6 +46,25 @@ command. The topic callback and the Button handler both delegate to a private
 method (`stopMove`, `gotoEnuPosition`, `gotoGeoLocation`); neither reimplements
 the other. What must never survive the migration is a control and a legacy
 parameter both writing the same piece of state.
+
+Two more categories turned out to sit on the command side of that line once
+more apps were migrated.
+
+**Folder and file navigation.** `select_folder` / `home_folder` / `back_folder`
+carry a relative name plus a traversal verb; a control set, where each value is
+written independently, cannot express that atomically. All three file publishers
+keep them as topics, and keep `current_folder` as a node param, because the node
+writes it rather than the operator typing it.
+
+**Node-written state that merely looks like a setting.** `running` in the file
+publishers is a side effect of start/stop that seeds the restart on the next
+launch. It stays a param. The test is not "does this value persist" but "does the
+operator type it".
+
+Which also means `PARAMS_DICT` does not have to reach `None`. It did in
+`fake_gps` because that app happened to have nothing left; the file publishers
+keep two params each and `onvif_mgr` keeps one, and that is correct rather than
+an incomplete migration.
 
 Status messages are left alone. `NepiAppFakeGpsStatus` still reports `enabled`,
 `selected_mavros_node`, `satellites_visible` and `gps_pub_rate_hz` as read-only
@@ -100,6 +128,92 @@ rather than raising, the fake GPS app validates its own dict before mounting:
 
 That costs one extra pass at startup and turns a silently missing widget into a
 named warning. Copy it.
+
+
+## The namespace rule, and deriving one set name on both sides
+
+A `ControlsIF` is **always a direct child of the NODE namespace**. Its `__init__`
+builds `create_namespace(node_namespace, controls_name)`, there is **no**
+`namespace` argument, and `nepi_utils.get_clean_name()` rewrites `/` to `_` so
+the name cannot carry a path.
+
+Three consequences, all of which have cost real debugging time.
+
+**A set cannot be mounted under a sub-namespace.** Where an app needs more than
+one set, the set NAME is the only thing that distinguishes them, and the node and
+the RUI must derive the same name independently. `nav_sim` needs one set per
+section per instance, so it builds the name from the instance's own ROS path:
+
+    def instanceControlsName(instance_ns, base_ns, suffix):
+        tail = instance_ns.replace(base_ns, '')
+        tail = tail.strip('/').replace('/', '_')
+        return tail + '_' + suffix
+
+and `getControlsNamespace(instanceNamespace, suffix)` in `NepiAppNavSim.js` is
+the same computation in JavaScript. Getting this wrong is silent: the sets
+collapse onto one namespace, the last one constructed wins, and the page renders
+its headings with nothing underneath.
+
+**A set name can collide with a sibling sub-interface**, not just with another
+set. `nepi_app_file_pub_depthmap` mounts `NavPoseIF(namespace = node_namespace)`,
+and `NavPoseIF` appends its own `data_product` when the basename is not already
+it, so that interface is rooted at `<node>/navpose`. A control set named
+`navpose` would land on exactly that namespace and advertise a second
+`<node>/navpose/status` carrying a different message type. The set is named
+`navpose_source` for that reason. Before naming a set, check the leaf namespace
+of every sub-interface the node mounts, not only the other sets.
+
+**The RUI must build the namespace from the node's RUNTIME name.** `apps_mgr`
+launches every app with the `node_name` from its `params/*.yaml`
+(`apps_mgr.py`: `app_node_name = app_dict['node_name']`, then `launch_node(...)`),
+so a `DEFAULT_NODE_NAME` in the script is only a fallback and can be stale.
+`nepi_app_onvif_mgr` is exactly that case: its script says `onvif_app`, its yaml
+says `app_onvif_mgr`, and the yaml wins. Take the name from the params yaml, and
+cross-check it against whatever the page's existing service or topic calls
+already use.
+
+
+## Row grouping: display_group and display_width
+
+`Control.msg` carries `display_group` and `display_width`. Controls sharing a
+**non-empty** `display_group` render on ONE horizontal line, in declaration
+order. The first control of a group supplies the row label in a fixed left
+gutter; every later control renders its `display_name` inline, after its own
+widget. An empty `display_group` -- the default, and what every control carried
+before the field existed -- renders stacked exactly as before.
+
+Grouping is over CONSECUTIVE runs. If the same group name reappears further down
+the list it opens a NEW row rather than pulling that control back up, so a
+control can never jump out of list order.
+
+Only these types can be grouped (`Nepi_IF_Control.GROUPABLE_TYPES`):
+
+    String, Toggle, Toggles, Int, Ints, Float, Floats, Button, Buttons
+
+Those are exactly the types the renderer draws as a bare widget, with no `Label`
+wrapper of their own. `Menu`, `Selection`, `Selections`, both sliders and
+`ColorRGB` come back from their own branches already wrapped in a
+`<Label title={display_name}>`, so grouping one of those degrades to a caption
+above its widget sitting inline in the row. It does not disappear, but it does
+not line up either -- leave those ungrouped.
+
+`display_width` is a pixel hint for the input widget; `0` (the default) lets the
+renderer size it. A row group needs fixed widths, because `"100%"` of a flex
+child collapses. Bounds are omitted inside a row -- `renderBounds` is a block
+and would break the line -- so a control that needs its min/max shown should be
+left ungrouped.
+
+Use grouping where a page currently draws a value and its enable toggle on one
+line. `nav_sim` builds a row per simulated field (value, `Auto`, `Step`,
+`Rate Hz`) with the field name as the group; the file publishers group the pause
+toggle with the rate box and the random toggle, and the two field of view axes
+with each other.
+
+Row grouping composes with `set_control_hidden`. `nav_sim`'s `syncRowVisibility`
+and the file publishers' `syncControlVisibility` re-derive which controls of a
+row are visible after every update, rather than special-casing the name of the
+control that changed -- which is what reproduces a hand-written panel's
+`hidden=` behaviour without the RUI needing to know anything about it.
 
 
 ## Where ControlsIF is instantiated
@@ -202,6 +316,56 @@ controls; the discovery pass auto-selects the first mavros node it finds.
 Recursion terminates at depth two because none of the value-control paths writes
 another control. Check that property when you add a Button that writes controls.
 
+### Routing a control to the callback that already owns the value
+
+The fake GPS app reads every control in one `applyControls()` because its values
+had no per-field logic. Most apps are not like that: their `set_*` callbacks
+clamp, parse, range-check or carry a side effect, and that logic must not be
+reimplemented in a control handler. `nav_sim` established the shape, and the
+file publishers, `onvif_mgr` and `file_pub_depthmap` all follow it.
+
+Keep the existing callbacks and hand them a stand-in for the message they expect:
+
+    class ControlValue:
+        def __init__(self, data):
+            self.data = data
+
+Build a `control name -> callable` table once, then dispatch:
+
+    route = self.controls_routes.get(control_name, None)
+    if route is not None:
+        value = self.getControlValue(control_name)
+        if value is not None:
+            route(ControlValue(value))
+    self.applyControls()
+
+`applyControls()` runs AFTER the route, so a clamp applied inside the callback is
+what lands in app state rather than the raw control value. Callbacks that took a
+`callback_args` second argument keep it -- bind it with a default argument:
+
+    routes[name] = (lambda m, n = name: self.setNavPoseStaticValueCb(m, n))
+
+Two adjustments the routed callbacks do need. Drop the `node_if.set_param` they
+used to do, because the control now persists the value and leaving both in place
+is the "two things writing one piece of state" failure this whole migration
+exists to remove. And where a callback did a parse the node needs at startup too
+-- `file_pub_vid`'s size string, for instance -- split that parse into its own
+private method so `initCb` can call it on a restored value without fabricating a
+message; the `Cb` method keeps its name and signature and just calls it.
+
+Where several sets share one updated callback, resolve the owning set by name
+rather than capturing it, because `ControlsIF` takes its callback at
+construction, before the IF exists:
+
+    def findControlsIf(self, control_name):
+        for controls_if in self.allControlsIfs():
+            if control_name in controls_if.get_controls_dict():
+                return controls_if
+        return None
+
+That works because a control name is unique across an app's sets. Keep it that
+way; two sets carrying the same control name would make the lookup order-dependent.
+
 Discovered option lists are the node's responsibility. `ControlsIF` carries
 whatever option list it is given; it does not discover anything. The fake GPS
 app calls `set_control_options('mavros_node', ['None'] + discovered)` whenever
@@ -219,11 +383,18 @@ shared `Nepi_IF_Controls`, following the two existing mount examples
     <div style={{ borderTop: "1px solid #ffffff", ... }} />
     <Label title={"Fake GPS Controls"} />
     <NepiIFControls
+      key={controlsNamespace}
       namespace={controlsNamespace}
       title={null}
       make_section={false}
       allways_show_controls={true}
     />
+
+`key={namespace}` is required wherever the namespace can change at runtime --
+`nav_sim`'s instance selector is the case that proved it. Without a key React
+reuses the mounted component, which keeps its old status subscription and leaves
+the previous selection's values on screen. It costs nothing where the namespace
+is fixed, so every migrated page passes it.
 
 The `namespace` prop is the **controls** namespace, not the app namespace. The
 component appends `/status` itself and the child widgets append
@@ -272,28 +443,62 @@ all kept their signatures and now publish `UpdateControl`. A generic
 Command publishers stay as they are.
 
 
-## Follow-on backlog
+## Migration status
 
-Six apps remain, in roughly increasing order of difficulty.
+All the apps in this repo are migrated. `nepi_app_fake_gps`, the first migration
+and the app most of this document quotes, was later RETIRED: its simulator and
+its MAVLink GPS_INPUT injection were folded into `nepi_app_nav_sim` as a third
+simulator kind and the package was deleted. Its code is quoted here as it stood
+at the time of its migration, because it is still the clearest single-set worked
+example; the running code is now `GpsSimInstance` in `nav_sim_app_node.py`.
 
-`nepi_app_nav_sim` and `nepi_app_file_pub_depthmap` also mount `NavPoseIF` and
-follow this pattern directly, including the startup ordering and the
-degrade-to-`None` contract described above.
+What each app ended up with:
 
-`nepi_app_file_pub_img`, `nepi_app_file_pub_vid` and `nepi_app_onvif_mgr` mount
-no sub-interface and are simpler: there is no second interface to order against,
-so `ControlsIF` slots in immediately after `NodeClassIF`. Note that
-`nepi_app_onvif_mgr` must keep using services rather than topic subscribers for
-its device control, for the WS-Discovery reason recorded in this repo's
-`CLAUDE.md`; that constraint is about its own control path, not about mounting a
-control set.
+| app | control sets | notes |
+|---|---|---|
+| `nepi_app_nav_sim` | `<kind>_instances_<name>_{position,orientation,dead_reckoning}` for the NMEA and HNav kinds, `gps_instances_<name>_{position,move,output}` for the GPS kind | multi-set and row-group worked example |
+| `nepi_app_file_pub_img` | `controls` | |
+| `nepi_app_file_pub_vid` | `controls` | no rate control; plays at native fps |
+| `nepi_app_onvif_mgr` | `controls` | see the WS-Discovery note below |
+| `nepi_app_file_pub_depthmap` | `controls`, `folder_settings`, `navpose_source` | three page headings, so three sets |
+| `nepi_app_image_viewer` | `controls` | **node side only** -- see below |
 
-`nepi_app_image_viewer` is the awkward case. It mounts no sub-interface, but its
-widgets live in the shared `NepiIFImageViewersSelector` component under
-`nepi_rui` rather than in the app. Migrating it requires a decision about that
-shared component first -- whether it gains a controls-driven mode, or whether
-the app stops using it -- and that decision is out of scope for an app-local
-migration pass.
+Two of these carry a caveat worth reading before touching them again.
+
+### nepi_app_image_viewer is migrated node-side only
+
+The node mounts its control set and the app page renders it, but the five
+`set_topic_1..4` / `set_num_windows` topics were **kept**. The image windows
+themselves are drawn by `NepiIFImageViewersSelector`, a shared component under
+`nepi_rui`, and that component's own control bar publishes exactly those topics.
+Removing them would break the viewer the app is built around, and changing the
+shared component is out of scope for an app-local migration pass -- it needs its
+own decision about whether it gains a controls-driven mode or the app stops
+using it.
+
+So this app has, deliberately, two ways to set the same five values until that
+pass happens. The duplication is safe rather than merely tolerated, and the
+reason is worth copying if another app ever lands in the same position: each
+`setImageTopicNCb` / `setNumWindowsCb` writes **through** `setControlValue`
+instead of assigning app state directly. The controls dict stays the single
+store, `applyControls` is the only thing that refreshes the attributes, and each
+input path shows the other's change on the next status tick. What must never
+happen is the other arrangement -- a control and a topic each writing their own
+copy of the state.
+
+### nepi_app_onvif_mgr and the WS-Discovery warning
+
+That node carries a `#### WARNING ####` saying that ANY topic subscriber
+callback breaks its WS-Discovery mechanism, and that it must use services only.
+A `ControlsIF` adds a subscriber (`update_control`) plus its own config topics.
+
+The warning was already being violated before this migration: the node had three
+`SUBS_DICT` entries with live callbacks, one of which (`allow_discovery_clearing`)
+was operator-facing and is what became a control. The constraint as written is
+about the per-device control path, which is still services-only and unchanged.
+This is nonetheless the one migration of the seven whose risk can only be settled
+on hardware -- confirm ONVIF devices are still discovered after the first
+`update_control` reaches the node.
 
 
 ## Upstream defects encountered
@@ -318,3 +523,18 @@ Recorded during the fake GPS migration and not fixed by it. All are outside
   which restores factory defaults.
 - `ControlsIF` holds no lock around `controls_dict`, which is now reachable from
   both a subscriber thread and a timer thread.
+
+Found during the five-app pass, also outside `nepi_apps` and also not fixed:
+
+- `nepi_api/data_if.py` (`NavPoseIF.__init__`, the namespace block) appends
+  `data_product` when the given namespace's basename is not already it. That is
+  reasonable on its own, but it means a `NavPoseIF` handed a NODE namespace
+  silently occupies `<node>/navpose` -- which is a name a control set could also
+  claim. Nothing warns about the overlap at either end. See the namespace rule
+  above.
+- `nepi_app_onvif_mgr`'s `DEFAULT_NODE_NAME` (`onvif_app`) disagrees with the
+  `node_name` in its params yaml (`app_onvif_mgr`), which is the one `apps_mgr`
+  actually launches under. The script constant is dead. This is inside
+  `nepi_apps` but inside a file this pass did not otherwise need to touch;
+  `src/nepi_apps/CLAUDE.md` repeats the stale `onvif_app` namespace in its ROS
+  Interface section.

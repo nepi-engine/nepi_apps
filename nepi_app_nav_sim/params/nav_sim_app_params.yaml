@@ -1,6 +1,6 @@
 APP_DICT:
   display_name: NavPose Sim
-  description: NMEA and HNav TCP navigation data simulator
+  description: NMEA, HNav and GPS navigation data simulator — TCP servers plus MAVLink GPS_INPUT injection
   pkg_name: nepi_app_nav_sim
   group_name: DATA
   config_file: app_nav_sim.yaml

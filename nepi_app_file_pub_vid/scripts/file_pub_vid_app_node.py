@@ -29,6 +29,7 @@ import threading
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_img
+from nepi_sdk import nepi_controls
 
 
 from nepi_app_file_pub_vid.msg import FilePubVidStatus
@@ -41,8 +42,104 @@ from sensor_msgs.msg import Image
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.data_if import ColorImageIF
+from nepi_api.system_if import ControlsIF
 
 
+#########################################
+# Controls
+#########################################
+
+CONTROLS_NAME         = 'controls'
+CONTROLS_DISPLAY_NAME = 'Video File Publisher Controls'
+CONTROLS_DESCRIPTION  = 'Playback, image format and overlay settings'
+
+# Button controls, keyed here so the updated callback can tell a command press
+# from a value edit without restating the names inline.
+BUTTON_CONTROLS = ['start_pub', 'stop_pub', 'step_forward']
+
+
+class ControlValue:
+  """Stand-in for the std_msgs value the app's setter callbacks expect.
+
+  The setters kept their original signatures through this migration, so the
+  control routes hand them an object with a .data attribute exactly as the ROS
+  subscribers did. Nothing about their per-field validation moved.
+  """
+
+  def __init__(self, data):
+    self.data = data
+
+
+def build_controls_init_dict(size_options, encoding_options,
+                             factory_size, factory_encoding):
+  """Build the app's control set.
+
+  Key order is display order: create_controls_dict iterates the init dict and
+  the RUI renders controls_msg_list in that order. Controls sharing a non-empty
+  display_group render on ONE horizontal line, in that same order.
+
+  There is no rate control here, unlike the image publisher: this app plays each
+  video at its own native fps, which it reads from the file and reports.
+
+  Args:
+      size_options: image size strings the node accepts.
+      encoding_options: image encodings the node accepts.
+      factory_size: factory image size.
+      factory_encoding: factory image encoding.
+
+  Returns:
+      dict: control-name -> init dict, in display order.
+  """
+  return {
+
+    'start_pub': {
+        'type': 'Button',
+        'display_name': 'Start Publishing', 'display_group': 'publish',
+        'description': 'Start publishing frames from the current folder'},
+
+    'stop_pub': {
+        'type': 'Button',
+        'display_name': 'Stop Publishing', 'display_group': 'publish',
+        'description': 'Stop publishing and release the image publishers'},
+
+    # One row: the pause toggle and the random toggle. The step Button appears
+    # only while paused -- see syncControlVisibility, which mirrors what the
+    # hand-written panel did.
+    'paused': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Paused', 'display_group': 'playback',
+        'description': 'Hold on the current frame instead of advancing'},
+
+    'random': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Random', 'display_group': 'playback',
+        'description': 'Pick the next video at random rather than in order'},
+
+    'step_forward': {
+        'type': 'Button',
+        'display_name': 'Forward',
+        'display_hidden': True,
+        'description': 'While paused, advance one frame'},
+
+    # Selection, not Menu: a Menu value is the INDEX into its option list, so a
+    # reordered list would silently re-point the stored size at a different one.
+    'size': {
+        'type': 'Selection', 'default': factory_size,
+        'options': list(size_options),
+        'display_name': 'Image Size',
+        'description': 'Size published frames are resized to'},
+
+    'encoding': {
+        'type': 'Selection', 'default': factory_encoding,
+        'options': list(encoding_options),
+        'display_name': 'Image Encoding',
+        'description': 'Encoding published frames are converted to'},
+
+    'overlay': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Overlay Filename',
+        'description': 'Draw the source filename on each published frame'},
+  }
 
 
 #########################################
@@ -66,6 +163,7 @@ class NepiFilePubVidApp(object):
   UPDATER_DELAY_SEC = 1.0
   
   node_if = None
+  controls_if = None
   
   if os.path.exists(HOME_FOLDER + '/sample_data'):
     current_folder = HOME_FOLDER + '/sample_data'
@@ -141,26 +239,15 @@ class NepiFilePubVidApp(object):
     }
 
     # Params Config Dict ####################
+    # overlay, size, encoding and random all moved to ControlsIF, which
+    # registers and persists its own param under the controls namespace. The two
+    # that stay are node-WRITTEN state rather than operator-typed values:
+    # current_folder is set by the folder navigation commands, and running is a
+    # side effect of start/stop that seeds the restart on the next launch.
     self.PARAMS_DICT = {
         'current_folder': {
             'namespace': self.node_namespace,
             'factory_val': self.HOME_FOLDER
-        },
-        'overlay': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-        'size': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_SIZE
-        },
-        'encoding': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_ENCODING_OPTION
-        },
-        'random': {
-            'namespace': self.node_namespace,
-            'factory_val': False
         },
         'running': {
             'namespace': self.node_namespace,
@@ -180,6 +267,15 @@ class NepiFilePubVidApp(object):
     }
 
     # Subscribers Config Dict ####################
+    # What stays here are the COMMANDS. Folder navigation carries a relative
+    # name plus a traversal verb, which a control set -- where each value is
+    # written independently -- cannot express atomically, and start/stop are the
+    # app's programmatic publishing API. The Button controls call the same
+    # private methods these callbacks do; neither path reimplements the other.
+    #
+    # Removed here and now driven over <node>/controls/update_control:
+    # set_size, set_encoding, set_random, set_overlay, pause_pub and
+    # step_forward.
     self.SUBS_DICT = {
         'select_folder': {
             'namespace': self.node_namespace,
@@ -205,38 +301,6 @@ class NepiFilePubVidApp(object):
             'callback': self.backFolderCb, 
             'callback_args': ()
         },
-        'set_size': {
-            'namespace': self.node_namespace,
-            'topic': 'set_size',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setSizeCb, 
-            'callback_args': ()
-        },
-        'set_encoding': {
-            'namespace': self.node_namespace,
-            'topic': 'set_encoding',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setEncodingCb, 
-            'callback_args': ()
-        },
-        'set_random': {
-            'namespace': self.node_namespace,
-            'topic': 'set_random',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setRandomCb, 
-            'callback_args': ()
-        },
-        'set_overlay': {
-            'namespace': self.node_namespace,
-            'topic': 'set_overlay',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setOverlayCb, 
-            'callback_args': ()
-        },
         'start_pub': {
             'namespace': self.node_namespace,
             'topic': 'start_pub',
@@ -252,22 +316,6 @@ class NepiFilePubVidApp(object):
             'qsize': None,
             'callback': self.stopPubCb, 
             'callback_args': ()
-        },
-        'pause_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'pause_pub',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.pausePubCb, 
-            'callback_args': ()
-        },
-        'step_forward': {
-            'namespace': self.node_namespace,
-            'topic': 'step_forward',
-            'msg': Empty,
-            'qsize': None,
-            'callback': self.stepForwardPubCb, 
-            'callback_args': ()
         }
     }
 
@@ -279,6 +327,16 @@ class NepiFilePubVidApp(object):
                     pubs_dict = self.PUBS_DICT,
                     subs_dict = self.SUBS_DICT
     )
+
+    self.node_if.wait_for_ready()
+
+    ##############################
+    # Controls. Mounted after the node's own NodeClassIF is ready and before
+    # anything reads app state, because initCb below sources every value from
+    # it. Like ColorImageIF it is given no node_if and builds its own: sharing
+    # the node's would merge both registries and a generic key would silently
+    # orphan a sibling's publisher (2026-07 DECISION LOG).
+    self.setupControls()
 
 
     image_ns = self.node_namespace
@@ -319,17 +377,22 @@ class NepiFilePubVidApp(object):
   ### App Config Functions
 
   def initCb(self,do_updates = False):
+    # Runs twice at startup: once from NodeClassIF's init_configs, before
+    # ControlsIF exists, and once explicitly after setupControls. The first pass
+    # falls back to the factory values, the second picks up whatever the config
+    # manager restored.
     if self.node_if is not None:
-
       current_folder = self.node_if.get_param('current_folder')
       if os.path.exists(current_folder) == False:
         current_folder = self.HOME_FOLDER
       self.current_folder = current_folder
-      self.size = self.node_if.get_param('size')
-      self.encoding = self.node_if.get_param('encoding')
-      self.random = self.node_if.get_param('random')
-      self.overlay = self.node_if.get_param('overlay')
       self.restart = self.node_if.get_param('running')
+
+    self.applyControls()
+    # The size control carries the string; this is what parses it into the
+    # width/height the resize path uses.
+    self.applySize(self.size)
+    self.syncControlVisibility()
 
     if do_updates == True:
       if self.node_if is not None and self.running == True:
@@ -338,20 +401,143 @@ class NepiFilePubVidApp(object):
 
   def resetCb(self,do_updates = True):
       self.msg_if.pub_warn("Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      # ControlsIF owns its own config tier under its own namespace, so the app
+      # level reset has to hand the reset down to it or the controls keep their
+      # current values while the rest of the app resets.
+      if self.controls_if is not None:
+        try:
+          self.controls_if.reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Vid: controls reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
 
 
   def factoryResetCb(self,do_updates = True):
       self.msg_if.pub_warn("Factory Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      if self.controls_if is not None:
+        try:
+          self.controls_if.factory_reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Vid: controls factory reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
+
+
+  #######################
+  ### Controls
+
+  def setupControls(self):
+    self.controls_init_dict = build_controls_init_dict(
+        self.STANDARD_IMAGE_SIZES, self.IMG_PUB_ENCODING_OPTIONS,
+        self.FACTORY_IMG_SIZE, self.FACTORY_IMG_ENCODING_OPTION)
+    self.controls_routes = self.controlRoutes()
+    self.checkControlsInitDict()
+    try:
+      self.controls_if = ControlsIF(
+          controls_name = CONTROLS_NAME,
+          controls_display_name = CONTROLS_DISPLAY_NAME,
+          controls_description = CONTROLS_DESCRIPTION,
+          controls_init_dict = self.controls_init_dict,
+          controls_updated_callback = self.controlsUpdatedCb,
+          pub_status = True,
+          save_params = True,
+          msg_if = self.msg_if,
+      )
+      self.controls_if.wait_for_controls_ready(timeout = 10)
+    except Exception as e:
+      # Degrade to None rather than failing to start: every read goes through
+      # getControlValue, which falls back to the factory value, so the app still
+      # publishes at factory settings.
+      self.msg_if.pub_warn("File Pub Vid: controls unavailable: " + str(e))
+      self.controls_if = None
+
+  def checkControlsInitDict(self):
+    # create_controls_dict drops a malformed control with a log warning rather
+    # than raising, so a typo in the init dict costs one widget and nothing else
+    # says so. Run it here first and name what went missing.
+    try:
+      controls_dict = nepi_controls.create_controls_dict(self.controls_init_dict)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Vid: could not validate controls init dict: " + str(e))
+      return
+    missing = [name for name in self.controls_init_dict.keys() if name not in controls_dict.keys()]
+    if len(missing) > 0:
+      self.msg_if.pub_warn("File Pub Vid: controls dropped at registration: " + str(missing))
+
+  def controlRoutes(self):
+    # control name -> the app callback that already owns that value. Routing
+    # rather than reimplementing is what keeps setSizeCb's parse-and-range-check
+    # and setEncodingCb's option check exactly where they were.
+    return {
+        'paused':   self.pausePubCb,
+        'random':   self.setRandomCb,
+        'size':     self.setSizeCb,
+        'encoding': self.setEncodingCb,
+        'overlay':  self.setOverlayCb,
+    }
+
+  def getControlValue(self, control_name, fallback = None):
+    if self.controls_if is None:
+      return fallback
+    value = None
+    try:
+      value = self.controls_if.get_control_value(control_name)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Vid: failed to read control " +
+                           str(control_name) + ": " + str(e))
+    if value is None:
+      return fallback
+    return value
+
+  def setControlHidden(self, control_name, hidden):
+    if self.controls_if is None:
+      return
+    try:
+      self.controls_if.set_control_hidden(control_name, hidden)
+    except Exception:
+      pass
+
+  def applyControls(self):
+    # The single point where a control value becomes running app state.
+    self.paused = bool(self.getControlValue('paused', False))
+    self.random = bool(self.getControlValue('random', False))
+    self.size = str(self.getControlValue('size', self.FACTORY_IMG_SIZE))
+    self.encoding = str(self.getControlValue('encoding', self.FACTORY_IMG_ENCODING_OPTION))
+    self.overlay = bool(self.getControlValue('overlay', False))
+
+  def syncControlVisibility(self):
+    # Mirrors what the hand-written panel did: the step Button appears only
+    # while paused. Re-derived after every update rather than special-casing the
+    # pause control's name.
+    paused = (self.paused == True)
+    self.setControlHidden('step_forward', paused == False)
+
+  def controlsUpdatedCb(self, control_name):
+    # Called by ControlsIF with the control name AFTER its dict is updated and
+    # its status published.
+    if control_name == 'start_pub':
+      self.startPub()
+    elif control_name == 'stop_pub':
+      self.stopPub()
+    elif control_name == 'step_forward':
+      self.stepForwardPubCb(None)
+    else:
+      route = self.controls_routes.get(control_name, None)
+      if route is not None:
+        value = self.getControlValue(control_name)
+        if value is not None:
+          route(ControlValue(value))
+
+    # applyControls runs after the route so an in-callback check (setSizeCb
+    # rejecting an out-of-range size) is what lands in app state.
+    self.applyControls()
+    self.syncControlVisibility()
+
+    # Matches what the removed set_param calls did: persist on change. The
+    # config IF debounces this onto its own timer.
+    if control_name not in BUTTON_CONTROLS and self.node_if is not None:
+      self.node_if.save_config()
+
+    self.publish_status()
 
 
   #############################
@@ -446,7 +632,15 @@ class NepiFilePubVidApp(object):
   ## Image callbacks
 
   def setSizeCb(self,msg):
-    new_size = msg.data
+    self.applySize(msg.data)
+    self.publish_status()
+
+  def applySize(self,size_str):
+    # The control persists the size string; this only parses it into the
+    # width/height the resize path uses, and range-checks it as it always did.
+    # Split out of setSizeCb so initCb can re-run the parse on a restored value
+    # without going through a fake message.
+    new_size = size_str
     success = False
     try:
       size_list = new_size.split("x")
@@ -454,43 +648,32 @@ class NepiFilePubVidApp(object):
       w = int(size_list[1])
       success = True
     except Exception as e:
-      self.msg_if.pub_warn( "Unable to parse size message: " + new_size + " " + str(e) )
+      self.msg_if.pub_warn( "Unable to parse size message: " + str(new_size) + " " + str(e) )
 
     if success:
       if h >= self.MIN_SIZE and h <= self.MAX_SIZE and w >= self.MIN_SIZE and w <= self.MAX_SIZE:
         self.size = new_size
-        self.publish_status()
-        if self.node_if is not None:
-          self.node_if.set_param('size',new_size)
         self.width = w
         self.height = h
       else:
-        self.msg_if.pub_warn( "Received size out of range: " + new_size )
-    self.publish_status()
+        self.msg_if.pub_warn( "Received size out of range: " + str(new_size) )
 
   def setEncodingCb(self,msg):
     new_encoding = msg.data
     if new_encoding in self.IMG_PUB_ENCODING_OPTIONS:
       self.encoding = new_encoding
-      self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('encoding',new_encoding)
     self.publish_status()
 
   def setRandomCb(self,msg):
     ##self.msg_if.pub_info(msg)
     self.random = msg.data
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('random',msg.data)
 
   def setOverlayCb(self,msg):
       ##self.msg_if.pub_info(msg)
       overlay = msg.data
       self.overlay = overlay
       self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('overlay',overlay)
 
 
   def img_needs_update(self):
@@ -717,6 +900,12 @@ class NepiFilePubVidApp(object):
   
   def cleanup_actions(self):
     self.msg_if.pub_info(" Shutting down: Executing script cleanup actions")
+    if self.controls_if is not None:
+      try:
+        self.controls_if.unregister()
+      except Exception:
+        pass
+      self.controls_if = None
 
 
 #########################################

@@ -29,6 +29,7 @@ from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_img 
 
 from nepi_interfaces.msg import SaveDataRate, SaveDataStatus
+from nepi_interfaces.msg import ControlsStatus, UpdateControl
 
 from nepi_app_file_pub_img.msg import FilePubImgStatus
 
@@ -46,6 +47,11 @@ from nepi_api.connect_node_if import ConnectNodeClassIF
 
 APP_NODE_NAME = 'app_file_pub_img'
 
+# Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+# create_namespace(node_namespace, controls_name), so the controls topics sit
+# one level below the app node namespace, not on it.
+CONTROLS_NAME = 'controls'
+
 class ConnectAppFilePubImgIF:
     msg_if = None
     ready = False
@@ -56,6 +62,9 @@ class ConnectAppFilePubImgIF:
     connected = False
     status_msg = None
     status_connected = False
+
+    controls_namespace = ''
+    controls_status_msg = None
 
  
     #######################
@@ -83,6 +92,7 @@ class ConnectAppFilePubImgIF:
         else:
             namespace = namespace
         self.namespace = nepi_sdk.get_full_namespace(namespace)
+        self.controls_namespace = nepi_sdk.create_namespace(self.namespace, CONTROLS_NAME)
 
 
         ##############################   
@@ -99,7 +109,19 @@ class ConnectAppFilePubImgIF:
 
 
         # Publishers Config Dict ####################
+        # The app's adjustable state moved to ControlsIF, so every setter below
+        # publishes one UpdateControl instead of its own typed topic. What is
+        # still on the app namespace are the COMMANDS: folder navigation, which
+        # carries a relative name plus a traversal verb, and start/stop, which a
+        # scripted caller uses as the publishing API.
         self.PUBS_DICT = {
+            'update_control': {
+                'namespace': self.controls_namespace,
+                'topic': 'update_control',
+                'msg': UpdateControl,
+                'qsize': 1,
+                'latch': False
+            },
             'select_folder': {
                 'namespace': self.node_namespace,
                 'topic': 'select_folder',
@@ -121,34 +143,6 @@ class ConnectAppFilePubImgIF:
                 'qsize': None,
                 'latch': False
             },
-            'set_size': {
-                'namespace': self.node_namespace,
-                'topic': 'set_size',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_encoding': {
-                'namespace': self.node_namespace,
-                'topic': 'set_encoding',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_delay': {
-                'namespace': self.node_namespace,
-                'topic': 'set_delay',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_random': {
-                'namespace': self.node_namespace,
-                'topic': 'set_random',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
             'start_pub': {
                 'namespace': self.node_namespace,
                 'topic': 'start_pub',
@@ -160,34 +154,6 @@ class ConnectAppFilePubImgIF:
                 'namespace': self.node_namespace,
                 'topic': 'stop_pub',
                 'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'pause_pub': {
-                'namespace': self.node_namespace,
-                'topic': 'pause_pub',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
-            'step_forward': {
-                'namespace': self.node_namespace,
-                'topic': 'step_forward',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'step_backward': {
-                'namespace': self.node_namespace,
-                'topic': 'step_backward',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'set_overlay': {
-                'namespace': self.node_namespace,
-                'topic': 'set_overlay',
-                'msg': Bool,
                 'qsize': None,
                 'latch': False
             },
@@ -223,6 +189,13 @@ class ConnectAppFilePubImgIF:
                 'msg': FilePubImgStatus,
                 'qsize': 1,
                 'callback': self._statusCb
+            },
+            'controls_status_sub': {
+                'namespace': self.controls_namespace,
+                'topic': 'status',
+                'msg': ControlsStatus,
+                'qsize': 1,
+                'callback': self._controlsStatusCb
             }
         }
 
@@ -337,55 +310,91 @@ class ConnectAppFilePubImgIF:
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
 
+    def get_controls_namespace(self):
+        """Return the namespace the app's controls status and update_control topics sit on."""
+        return self.controls_namespace
+
+    def get_controls_status_dict(self):
+        """Return the app's last received ControlsStatus message as a dict.
+
+        Returns:
+            dict: The controls status as a dict, or None if no status has arrived yet.
+        """
+        if self.controls_status_msg is not None:
+            return nepi_sdk.convert_msg2dict(self.controls_status_msg)
+        return None
+
+    def set_control_value(self, control_name, value, index = None):
+        """Update one of the app's controls.
+
+        Args:
+            control_name (str): Name of the control, as it appears in the app's ControlsStatus.
+            value: New value. Lists are sent entry by entry; anything else is sent as one value.
+            index (int, optional): Component index for a multi-value control. Defaults to None,
+                which replaces the whole value.
+        """
+        msg = UpdateControl()
+        msg.name = str(control_name)
+        if isinstance(value, (list, tuple)):
+            msg.value = [str(item) for item in value]
+        else:
+            msg.value = [str(value)]
+        msg.index = '' if index is None else str(index)
+        self.con_node_if.publish_pub('update_control', msg)
+
     def set_image_size(self,img_size):
-        pub_name = 'set_size'
-        msg = img_size
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Set the size published images are resized to."""
+        self.set_control_value('size', img_size)
 
     def set_encoding(self,encoding):
-        pub_name = 'set_encoding'
-        msg = encoding
-        self.con_node_if.publish_pub(pub_name,msg)
-        
+        """Set the encoding published images are converted to."""
+        self.set_control_value('encoding', encoding)
+
+    def set_image_rate(self,rate_hz):
+        """Set the image publish rate in Hz (clamped to the control bounds)."""
+        self.set_control_value('rate_hz', float(rate_hz))
+
     def set_image_delay(self,image_delay):
-        pub_name = 'set_delay'
-        msg = image_delay
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Set the image publish rate in Hz.
+
+        Kept under its original name and signature. The topic it used to publish
+        on, set_delay, was never subscribed by the app node -- the node has only
+        ever had set_rate -- so this call did nothing before. It now sets the
+        rate control, which is what the name has always meant to the caller.
+        """
+        self.set_image_rate(image_delay)
 
     def set_image_random(self,set_random):
-        pub_name = 'set_random'
-        msg = set_random
-        self.con_node_if.publish_pub(pub_name,msg)        
+        """Enable or disable random image order."""
+        self.set_control_value('random', bool(set_random))
 
     def enable_publishing(self):
+        """Start publishing images from the current folder."""
         pub_name = 'start_pub'
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
 
     def disable_publishing(self):
+        """Stop publishing and release the image publishers."""
         pub_name = 'stop_pub'
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
         
     def pause_publishing(self,pause_pub):
-        pub_name = 'pause_pub'
-        msg = pause_pub
-        self.con_node_if.publish_pub(pub_name,msg)   
+        """Hold on the current image instead of advancing."""
+        self.set_control_value('paused', bool(pause_pub))
 
     def next_image(self):
-        pub_name = 'step_forward'
-        msg = Empty()
-        self.con_node_if.publish_pub(pub_name,msg)
+        """While paused, advance one image."""
+        self.set_control_value('step_forward', 'TRIGGER')
 
     def previous_image(self):
-        pub_name = 'step_backward'
-        msg = Empty()
-        self.con_node_if.publish_pub(pub_name,msg)
+        """While paused, go back one image."""
+        self.set_control_value('step_backward', 'TRIGGER')
 
     def set_image_overlay(self,set_overlay):
-        pub_name = 'set_overlay'
-        msg = set_overlay
-        self.con_node_if.publish_pub(pub_name,msg)  
+        """Draw the source filename on each published image."""
+        self.set_control_value('overlay', bool(set_overlay))
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config',Empty())
@@ -449,6 +458,9 @@ class ConnectAppFilePubImgIF:
                 self.msg_if.pub_warn("Failed to unregister image:  " + str(e))
         return success
 
+
+    def _controlsStatusCb(self,status_msg):
+        self.controls_status_msg = status_msg
 
     def _statusCb(self,status_msg):      
         self.status_connected = True

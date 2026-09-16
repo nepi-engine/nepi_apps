@@ -30,6 +30,7 @@ import threading
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_img 
+from nepi_sdk import nepi_controls
 
 
 from nepi_app_file_pub_img.msg import FilePubImgStatus
@@ -41,8 +42,122 @@ from sensor_msgs.msg import Image
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.data_if import ColorImageIF
+from nepi_api.system_if import ControlsIF
 
 
+#########################################
+# Controls
+#########################################
+
+CONTROLS_NAME         = 'controls'
+CONTROLS_DISPLAY_NAME = 'Image File Publisher Controls'
+CONTROLS_DESCRIPTION  = 'Playback, image format and overlay settings'
+
+# Button controls, keyed here so the updated callback can tell a command press
+# from a value edit without restating the names inline.
+BUTTON_CONTROLS = ['start_pub', 'stop_pub', 'step_forward', 'step_backward']
+
+# Row widths for the grouped playback line.
+_ROW_VALUE_WIDTH = 70
+
+
+class ControlValue:
+  """Stand-in for the std_msgs value the app's setter callbacks expect.
+
+  The setters kept their original signatures through this migration, so the
+  control routes hand them an object with a .data attribute exactly as the ROS
+  subscribers did. Nothing about their per-field clamping moved.
+  """
+
+  def __init__(self, data):
+    self.data = data
+
+
+def build_controls_init_dict(size_options, encoding_options,
+                             factory_size, factory_encoding,
+                             min_rate, max_rate, factory_rate):
+  """Build the app's control set.
+
+  Key order is display order: create_controls_dict iterates the init dict and
+  the RUI renders controls_msg_list in that order. Controls sharing a non-empty
+  display_group render on ONE horizontal line, in that same order.
+
+  Args:
+      size_options: image size strings the node accepts.
+      encoding_options: image encodings the node accepts.
+      factory_size: factory image size.
+      factory_encoding: factory image encoding.
+      min_rate: lowest publish rate in Hz.
+      max_rate: highest publish rate in Hz.
+      factory_rate: factory publish rate in Hz.
+
+  Returns:
+      dict: control-name -> init dict, in display order.
+  """
+  return {
+
+    'start_pub': {
+        'type': 'Button',
+        'display_name': 'Start Publishing', 'display_group': 'publish',
+        'description': 'Start publishing images from the current folder'},
+
+    'stop_pub': {
+        'type': 'Button',
+        'display_name': 'Stop Publishing', 'display_group': 'publish',
+        'description': 'Stop publishing and release the image publishers'},
+
+    # One row: the pause toggle, the rate box and the random toggle. Rate and
+    # Random hide while paused and the two step Buttons appear -- see
+    # syncControlVisibility, which mirrors what the hand-written panel did.
+    'paused': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Paused', 'display_group': 'playback',
+        'description': 'Hold on the current image instead of advancing'},
+
+    'rate_hz': {
+        'type': 'Float', 'default': float(factory_rate),
+        'bounds': [min_rate, max_rate],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Rate (Hz)', 'display_group': 'playback',
+        'display_width': _ROW_VALUE_WIDTH,
+        'description': 'Rate images are published at while not paused'},
+
+    'random': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Random', 'display_group': 'playback',
+        'description': 'Pick the next image at random rather than in order'},
+
+    'step_forward': {
+        'type': 'Button',
+        'display_name': 'Forward', 'display_group': 'step',
+        'display_hidden': True,
+        'description': 'While paused, advance one image'},
+
+    'step_backward': {
+        'type': 'Button',
+        'display_name': 'Back', 'display_group': 'step',
+        'display_hidden': True,
+        'description': 'While paused, go back one image'},
+
+    # Selection, not Menu: a Menu value is the INDEX into its option list, so a
+    # reordered list would silently re-point the stored size at a different one.
+    'size': {
+        'type': 'Selection', 'default': factory_size,
+        'options': list(size_options),
+        'display_name': 'Image Size',
+        'description': 'Size published images are resized to'},
+
+    'encoding': {
+        'type': 'Selection', 'default': factory_encoding,
+        'options': list(encoding_options),
+        'display_name': 'Image Encoding',
+        'description': 'Encoding published images are converted to'},
+
+    'overlay': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Overlay Filename',
+        'description': 'Draw the source filename on each published image'},
+  }
 
 
 #########################################
@@ -69,6 +184,7 @@ class NepiFilePubImgApp(object):
   UPDATER_DELAY_SEC = 1.0
   
   node_if = None
+  controls_if = None
   
   if os.path.exists(HOME_FOLDER + '/sample_data'):
     current_folder = HOME_FOLDER + '/sample_data'
@@ -143,30 +259,15 @@ class NepiFilePubImgApp(object):
     }
 
     # Params Config Dict ####################
+    # size, encoding, random, overlay and rate all moved to ControlsIF, which
+    # registers and persists its own param under the controls namespace. The two
+    # that stay are node-WRITTEN state rather than operator-typed values:
+    # current_folder is set by the folder navigation commands, and running is a
+    # side effect of start/stop that seeds the restart on the next launch.
     self.PARAMS_DICT = {
         'current_folder': {
             'namespace': self.node_namespace,
             'factory_val': self.HOME_FOLDER
-        },
-        'size': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_SIZE
-        },
-        'encoding': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_ENCODING_OPTION
-        },
-        'random': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-        'overlay': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-        'rate': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_IMG_PUB_RATE
         },
         'running': {
             'namespace': self.node_namespace,
@@ -186,6 +287,15 @@ class NepiFilePubImgApp(object):
     }
 
     # Subscribers Config Dict ####################
+    # What stays here are the COMMANDS. Folder navigation carries a relative
+    # name plus a traversal verb, which a control set -- where each value is
+    # written independently -- cannot express atomically, and start/stop are the
+    # app's programmatic publishing API. The Button controls call the same
+    # private methods these callbacks do; neither path reimplements the other.
+    #
+    # Removed here and now driven over <node>/controls/update_control:
+    # set_size, set_encoding, set_rate, set_random, set_overlay, pause_pub,
+    # step_forward and step_backward.
     self.SUBS_DICT = {
         'select_folder': {
             'namespace': self.node_namespace,
@@ -211,38 +321,6 @@ class NepiFilePubImgApp(object):
             'callback': self.backFolderCb, 
             'callback_args': ()
         },
-        'set_size': {
-            'namespace': self.node_namespace,
-            'topic': 'set_size',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setSizeCb, 
-            'callback_args': ()
-        },
-        'set_encoding': {
-            'namespace': self.node_namespace,
-            'topic': 'set_encoding',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setEncodingCb, 
-            'callback_args': ()
-        },
-        'set_rate': {
-            'namespace': self.node_namespace,
-            'topic': 'set_rate',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setRateCb, 
-            'callback_args': ()
-        },
-        'set_random': {
-            'namespace': self.node_namespace,
-            'topic': 'set_random',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setRandomCb, 
-            'callback_args': ()
-        },
         'start_pub': {
             'namespace': self.node_namespace,
             'topic': 'start_pub',
@@ -259,38 +337,6 @@ class NepiFilePubImgApp(object):
             'callback': self.stopPubCb, 
             'callback_args': ()
         },
-        'pause_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'pause_pub',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.pausePubCb, 
-            'callback_args': ()
-        },
-        'step_forward': {
-            'namespace': self.node_namespace,
-            'topic': 'step_forward',
-            'msg': Empty,
-            'qsize': None,
-            'callback': self.stepForwardPubCb, 
-            'callback_args': ()
-        },
-        'step_backward': {
-            'namespace': self.node_namespace,
-            'topic': 'step_backward',
-            'msg': Empty,
-            'qsize': None,
-            'callback': self.stepBackwardPubCb, 
-            'callback_args': ()
-        },
-        'set_overlay': {
-            'namespace': self.node_namespace,
-            'topic': 'set_overlay',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setOverlayCb, 
-            'callback_args': ()
-        },
     }
 
 
@@ -301,6 +347,16 @@ class NepiFilePubImgApp(object):
                     pubs_dict = self.PUBS_DICT,
                     subs_dict = self.SUBS_DICT
     )
+
+    self.node_if.wait_for_ready()
+
+    ##############################
+    # Controls. Mounted after the node's own NodeClassIF is ready and before
+    # anything reads app state, because initCb below sources every value from
+    # it. Like ColorImageIF it is given no node_if and builds its own: sharing
+    # the node's would merge both registries and a generic key would silently
+    # orphan a sibling's publisher (2026-07 DECISION LOG).
+    self.setupControls()
 
   
     image_ns = self.node_namespace
@@ -345,38 +401,173 @@ class NepiFilePubImgApp(object):
 
 
   def initCb(self,do_updates = False):
+    # Runs twice at startup: once from NodeClassIF's init_configs, before
+    # ControlsIF exists, and once explicitly after setupControls. The first pass
+    # falls back to the factory values, the second picks up whatever the config
+    # manager restored.
     if self.node_if is not None:
       current_folder = self.node_if.get_param('current_folder')
       if os.path.exists(current_folder) == False:
         current_folder = self.HOME_FOLDER
       self.current_folder = current_folder
-      self.size = self.node_if.get_param('size')
-      self.setSize(self.size)
-      self.encoding = self.node_if.get_param('encoding')
-      self.random = self.node_if.get_param('random')
-      self.overlay = self.node_if.get_param('overlay')
-      self.rate = self.node_if.get_param('rate')
       self.restart = self.node_if.get_param('running')
+    self.applyControls()
+    # setSize parses the selected size into self.width / self.height; the
+    # control only carries the string.
+    self.setSize(self.size)
+    self.syncControlVisibility()
     if do_updates == True:
       pass
-    self.publish_status
+    self.publish_status()
 
   def resetCb(self,do_updates = True):
       self.msg_if.pub_warn("Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      # ControlsIF owns its own config tier under its own namespace, so the app
+      # level reset has to hand the reset down to it or the controls keep their
+      # current values while the rest of the app resets.
+      if self.controls_if is not None:
+        try:
+          self.controls_if.reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Img: controls reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
 
 
   def factoryResetCb(self,do_updates = True):
       self.msg_if.pub_warn("Factory Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      if self.controls_if is not None:
+        try:
+          self.controls_if.factory_reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Img: controls factory reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
+
+
+  #######################
+  ### Controls
+
+  def setupControls(self):
+    self.controls_init_dict = build_controls_init_dict(
+        self.STANDARD_IMAGE_SIZES, self.IMG_PUB_ENCODING_OPTIONS,
+        self.FACTORY_IMG_SIZE, self.FACTORY_IMG_ENCODING_OPTION,
+        self.MIN_RATE, self.MAX_RATE, self.FACTORY_IMG_PUB_RATE)
+    self.controls_routes = self.controlRoutes()
+    self.checkControlsInitDict()
+    try:
+      self.controls_if = ControlsIF(
+          controls_name = CONTROLS_NAME,
+          controls_display_name = CONTROLS_DISPLAY_NAME,
+          controls_description = CONTROLS_DESCRIPTION,
+          controls_init_dict = self.controls_init_dict,
+          controls_updated_callback = self.controlsUpdatedCb,
+          pub_status = True,
+          save_params = True,
+          msg_if = self.msg_if,
+      )
+      self.controls_if.wait_for_controls_ready(timeout = 10)
+    except Exception as e:
+      # Degrade to None rather than failing to start: every read goes through
+      # getControlValue, which falls back to the factory value, so the app still
+      # publishes at factory settings.
+      self.msg_if.pub_warn("File Pub Img: controls unavailable: " + str(e))
+      self.controls_if = None
+
+  def checkControlsInitDict(self):
+    # create_controls_dict drops a malformed control with a log warning rather
+    # than raising, so a typo in the init dict costs one widget and nothing else
+    # says so. Run it here first and name what went missing.
+    try:
+      controls_dict = nepi_controls.create_controls_dict(self.controls_init_dict)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Img: could not validate controls init dict: " + str(e))
+      return
+    missing = [name for name in self.controls_init_dict.keys() if name not in controls_dict.keys()]
+    if len(missing) > 0:
+      self.msg_if.pub_warn("File Pub Img: controls dropped at registration: " + str(missing))
+
+  def controlRoutes(self):
+    # control name -> the app callback that already owns that value. Routing
+    # rather than reimplementing is what keeps setSize's parse-and-range-check
+    # and setRateCb's clamp exactly where they were.
+    return {
+        'paused':     self.pausePubCb,
+        'rate_hz':    self.setRateCb,
+        'random':     self.setRandomCb,
+        'size':       self.setSizeCb,
+        'encoding':   self.setEncodingCb,
+        'overlay':    self.setOverlayCb,
+    }
+
+  def getControlValue(self, control_name, fallback = None):
+    if self.controls_if is None:
+      return fallback
+    value = None
+    try:
+      value = self.controls_if.get_control_value(control_name)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Img: failed to read control " +
+                           str(control_name) + ": " + str(e))
+    if value is None:
+      return fallback
+    return value
+
+  def setControlHidden(self, control_name, hidden):
+    if self.controls_if is None:
+      return
+    try:
+      self.controls_if.set_control_hidden(control_name, hidden)
+    except Exception:
+      pass
+
+  def applyControls(self):
+    # The single point where a control value becomes running app state.
+    self.paused = bool(self.getControlValue('paused', False))
+    self.rate = float(self.getControlValue('rate_hz', self.FACTORY_IMG_PUB_RATE))
+    self.random = bool(self.getControlValue('random', False))
+    self.size = str(self.getControlValue('size', self.FACTORY_IMG_SIZE))
+    self.encoding = str(self.getControlValue('encoding', self.FACTORY_IMG_ENCODING_OPTION))
+    self.overlay = bool(self.getControlValue('overlay', False))
+
+  def syncControlVisibility(self):
+    # Mirrors what the hand-written panel did: rate and random are shown while
+    # running forward, the two step Buttons while paused. Re-derived after every
+    # update rather than special-casing the pause control's name.
+    paused = (self.paused == True)
+    self.setControlHidden('rate_hz', paused)
+    self.setControlHidden('random', paused)
+    self.setControlHidden('step_forward', paused == False)
+    self.setControlHidden('step_backward', paused == False)
+
+  def controlsUpdatedCb(self, control_name):
+    # Called by ControlsIF with the control name AFTER its dict is updated and
+    # its status published.
+    if control_name == 'start_pub':
+      self.startPub()
+    elif control_name == 'stop_pub':
+      self.stopPub()
+    elif control_name == 'step_forward':
+      self.stepForwardPubCb(None)
+    elif control_name == 'step_backward':
+      self.stepBackwardPubCb(None)
+    else:
+      route = self.controls_routes.get(control_name, None)
+      if route is not None:
+        value = self.getControlValue(control_name)
+        if value is not None:
+          route(ControlValue(value))
+
+    # applyControls runs after the route so an in-callback clamp (setRateCb) is
+    # what lands in app state, then visibility is re-derived from it.
+    self.applyControls()
+    self.syncControlVisibility()
+
+    # Matches what the removed set_param calls did: persist on change. The
+    # config IF debounces this onto its own timer, so a slider drag does not
+    # write a file per frame.
+    if control_name not in BUTTON_CONTROLS and self.node_if is not None:
+      self.node_if.save_config()
+
+    self.publish_status()
 
  
 
@@ -438,12 +629,12 @@ class NepiFilePubImgApp(object):
     self.setSize(size_str)
   
   def setSize(self,size_str):
+    # The control persists the size string; this only parses it into the
+    # width/height the resize path uses, and range-checks it as it always did.
     new_size = size_str
     success = False
     if new_size == 'Original':
       self.size = new_size
-      if self.node_if is not None:
-            self.node_if.set_param('size',new_size)
     else:
       try:
         size_list = new_size.split("x")
@@ -457,8 +648,6 @@ class NepiFilePubImgApp(object):
         if h >= self.MIN_SIZE and h <= self.MAX_SIZE and w >= self.MIN_SIZE and w <= self.MAX_SIZE:
           self.size = new_size
           self.publish_status()
-          if self.node_if is not None:
-            self.node_if.set_param('size',new_size)
           self.width = w
           self.height = h
           self.msg_if.pub_warn( "Received width,height to: " + str([self.width,self.height]) )
@@ -470,17 +659,12 @@ class NepiFilePubImgApp(object):
     new_encoding = msg.data
     if new_encoding in self.IMG_PUB_ENCODING_OPTIONS:
       self.encoding = new_encoding
-      self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('encoding',new_encoding)
     self.publish_status()
 
   def setRandomCb(self,msg):
     ##self.msg_if.pub_info(msg)
     self.random = msg.data
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('random',msg.data)
 
 
   def setOverlayCb(self,msg):
@@ -488,8 +672,6 @@ class NepiFilePubImgApp(object):
       overlay = msg.data
       self.overlay = overlay
       self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('overlay',overlay)
 
   def setRateCb(self,msg):
     ##self.msg_if.pub_info(msg)
@@ -500,8 +682,6 @@ class NepiFilePubImgApp(object):
       rate = self.MAX_RATE
     self.rate = rate
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('rate',rate)
 
 
   def updateFolderInfo(self, folder):
@@ -759,6 +939,12 @@ class NepiFilePubImgApp(object):
   
   def cleanup_actions(self):
     self.msg_if.pub_info(" Shutting down: Executing script cleanup actions")
+    if self.controls_if is not None:
+      try:
+        self.controls_if.unregister()
+      except Exception:
+        pass
+      self.controls_if = None
 
 
 #########################################

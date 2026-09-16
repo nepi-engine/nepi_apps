@@ -32,6 +32,23 @@ import Select, { Option } from "./Select"
 import BooleanIndicator from "./BooleanIndicator"
 import Styles from "./Styles"
 
+import NepiIFControls from "./Nepi_IF_Controls"
+
+// Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+// create_namespace(node_namespace, controls_name), so the control set sits one
+// level BELOW the app node namespace. Appending '/controls' here is what makes
+// Nepi_IF_Controls subscribe to .../app_onvif_mgr/controls/status and publish
+// its updates to .../app_onvif_mgr/controls/update_control.
+//
+// The node name is 'app_onvif_mgr', which is NOT the package name and NOT the
+// script's DEFAULT_NODE_NAME. apps_mgr launches every app under the node_name
+// from its params yaml (apps_mgr.py: app_node_name = app_dict['node_name'],
+// then launch_node(...)); this app's yaml says app_onvif_mgr while its script's
+// DEFAULT_NODE_NAME still says onvif_app, so that script constant is dead and
+// the yaml wins. Same name the device_list_query and driver_list_query service
+// calls below already use.
+const APP_NODE_NAME = "app_onvif_mgr"
+const CONTROLS_NAME = "controls"
 
 @inject("ros")
 @observer
@@ -81,11 +98,55 @@ class OnvifMgr extends Component {
     this.onOnvifDeviceCfgUpdate = this.onOnvifDeviceCfgUpdate.bind(this)
     this.onOnvifDeviceCfgDelete = this.onOnvifDeviceCfgDelete.bind(this)
 
+    this.getControlsNamespace = this.getControlsNamespace.bind(this)
+    this.renderAppSettings = this.renderAppSettings.bind(this)
+
     // onvif mgr services
     //this.callOnvifDeviceListQueryService(true) // Start it polling
     //this.callOnvifDriverListQueryService(true) // Start it polling
   }
 
+
+  getControlsNamespace() {
+    const { namespacePrefix, deviceId } = this.props.ros
+    if (namespacePrefix !== null && deviceId !== null) {
+      return "/" + namespacePrefix + "/" + deviceId + "/" + APP_NODE_NAME + "/" + CONTROLS_NAME
+    }
+    return null
+  }
+
+  // The manager's own settings: discovery interval, discovery cache handling
+  // and config auto-save.
+  //
+  // These three have always existed on the node and have never had a widget
+  // here -- an operator could only reach them by editing the param file. They
+  // are app-wide rather than per-device, so they sit in their own Section below
+  // the two device list columns rather than inside the per-device config panel.
+  //
+  // title is passed as null because the Section above is already this block's
+  // heading; the component's own default title would print a second one under
+  // it. allways_show_controls keeps the set open -- there are only three.
+  renderAppSettings() {
+    const controlsNamespace = this.getControlsNamespace()
+    if (controlsNamespace === null || controlsNamespace.indexOf('null') !== -1) {
+      return null
+    }
+    return (
+      <Columns>
+        <Column>
+          <Section title={"Manager Settings"}>
+            <NepiIFControls
+              key={controlsNamespace}
+              namespace={controlsNamespace}
+              title={null}
+              make_section={false}
+              allways_show_controls={true}
+            />
+          </Section>
+        </Column>
+      </Columns>
+    )
+  }
 
   componentDidMount(){
     // onvif mgr services
@@ -387,6 +448,7 @@ class OnvifMgr extends Component {
     return (
 
 
+      <React.Fragment>
 
       <Columns>
         <Column>
@@ -576,6 +638,10 @@ class OnvifMgr extends Component {
           </Section>
         </Column>
       </Columns>
+
+      {this.renderAppSettings()}
+
+      </React.Fragment>
     )
   }
 };

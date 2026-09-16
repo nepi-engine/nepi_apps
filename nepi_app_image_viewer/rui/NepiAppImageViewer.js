@@ -24,13 +24,22 @@ import { observer, inject } from "mobx-react"
 
 import Section from "./Section"
 import { Columns, Column } from "./Columns"
+import Label from "./Label"
 import Styles from "./Styles"
 
 import NepiIFImageViewersSelector from "./Nepi_IF_ImageViewersSelector"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
+import NepiIFControls from "./Nepi_IF_Controls"
 import NepiIFConfig from "./Nepi_IF_Config"
 
 import {createMenuFirstLastNames} from "./Utilities"
+
+// Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+// create_namespace(node_namespace, controls_name), so the control set sits one
+// level BELOW the app node namespace. Appending '/controls' here is what makes
+// Nepi_IF_Controls subscribe to .../app_image_viewer/controls/status and publish
+// its updates to .../app_image_viewer/controls/update_control.
+const CONTROLS_NAME = "controls"
 
 @inject("ros")
 @observer
@@ -57,8 +66,10 @@ class ImageViewerApp extends Component {
     this.getBaseNamespace = this.getBaseNamespace.bind(this)
     this.getAllSaveNamespace = this.getAllSaveNamespace.bind(this)
     this.getAppNamespace = this.getAppNamespace.bind(this)
+    this.getControlsNamespace = this.getControlsNamespace.bind(this)
 
     this.renderImageViewers = this.renderImageViewers.bind(this)
+    this.renderControls = this.renderControls.bind(this)
     this.renderSaveData = this.renderSaveData.bind(this)
     this.renderConfig = this.renderConfig.bind(this)
 
@@ -95,6 +106,14 @@ class ImageViewerApp extends Component {
       appNamespace = "/" + namespacePrefix + "/" + deviceId + "/" + this.state.appName
     }
     return appNamespace
+  }
+
+  getControlsNamespace(){
+    const appNamespace = this.getAppNamespace()
+    if (appNamespace !== null){
+      return appNamespace + "/" + CONTROLS_NAME
+    }
+    return null
   }
 
   // Callback for handling ROS Status messages
@@ -208,6 +227,42 @@ class ImageViewerApp extends Component {
 
 
 
+  // The app's control set: window count and the four topic selections.
+  //
+  // This does NOT replace the selector's own control bar above. The image
+  // windows and their per-window topic dropdowns live in
+  // Nepi_IF_ImageViewersSelector, a shared component under nepi_rui, and
+  // retiring that bar is a separate pass -- so until then the same five values
+  // are reachable from two places on this page. That is safe rather than merely
+  // tolerated: the node routes the selector's set_topic_N / set_num_windows
+  // topics through the same control set, so both paths write one store and each
+  // shows the other's change on the next status tick.
+  renderControls(){
+    const controlsNamespace = this.getControlsNamespace()
+    if (controlsNamespace === null || controlsNamespace.indexOf('null') !== -1){
+      return null
+    }
+    return (
+
+      <React.Fragment>
+
+            <div style={{ borderTop: "1px solid #ffffff", marginTop: Styles.vars.spacing.medium, marginBottom: Styles.vars.spacing.xs }}/>
+            <Label title={"Image Viewer Controls"} />
+
+              <NepiIFControls
+                key={controlsNamespace}
+                namespace={controlsNamespace}
+                title={null}
+                make_section={false}
+                allways_show_controls={true}
+              />
+
+      </React.Fragment>
+
+      )
+  }
+
+
   renderSaveData(){
       const allSaveNamespace = this.getAllSaveNamespace()
       return (
@@ -255,6 +310,7 @@ class ImageViewerApp extends Component {
         <Columns>
         <Column>
               {this.renderImageViewers()}
+                {this.renderControls()}
                 {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 
@@ -269,6 +325,7 @@ class ImageViewerApp extends Component {
       <Section>
 
               {this.renderImageViewers()}
+                {this.renderControls()}
                 {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 

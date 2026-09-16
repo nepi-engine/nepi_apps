@@ -16,7 +16,6 @@
 # - mailto:nepi@numurus.com
 
 import os
-import rospy
 import sys
 import subprocess
 import time
@@ -35,6 +34,7 @@ from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_system
 from nepi_sdk import nepi_drvs
+from nepi_sdk import nepi_controls
 
 from std_msgs.msg import String, Bool
 from std_srvs.srv import Empty, EmptyResponse
@@ -47,9 +47,66 @@ from nepi_app_onvif_mgr.srv import OnvifDriverListQuery, OnvifDriverListQueryReq
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
+from nepi_api.system_if import ControlsIF
 
 MGR_NAME = 'ONVIF Manager' # Use in display menus
 FILE_TYPE = 'MANAGER'
+
+
+#########################################
+# Controls
+#########################################
+
+CONTROLS_NAME         = 'controls'
+CONTROLS_DISPLAY_NAME = 'ONVIF Manager Settings'
+CONTROLS_DESCRIPTION  = 'Discovery interval, discovery cache handling and config auto-save'
+
+FACTORY_DISCOVERY_INTERVAL_SEC = 5.0
+FACTORY_AUTOSAVE_CFG_CHANGES = True
+FACTORY_CLEAR_DISCOVERY = False
+
+# Bounds the node does not declare anywhere, derived from how the value is used.
+# The interval is the period of the timer that calls runDiscovery(), which does a
+# wsd.searchServices(timeout=1): below one second a scan would be asked for
+# before the previous one has returned. Sixty seconds is a slow but still usable
+# ceiling for a network that changes rarely.
+MIN_DISCOVERY_INTERVAL_SEC = 1.0
+MAX_DISCOVERY_INTERVAL_SEC = 60.0
+
+
+class ControlValue:
+  """Stand-in for the std_msgs value the app's setter callbacks expect.
+
+  clearDiscCb kept its original signature through this migration, so the control
+  route hands it an object with a .data attribute exactly as the ROS subscriber
+  did.
+  """
+
+  def __init__(self, data):
+    self.data = data
+
+
+# Key order is display order: create_controls_dict iterates the init dict and
+# the RUI renders controls_msg_list in that order.
+CONTROLS_INIT_DICT = {
+
+    'discovery_interval_sec': {
+        'type': 'Float', 'default': FACTORY_DISCOVERY_INTERVAL_SEC,
+        'bounds': [MIN_DISCOVERY_INTERVAL_SEC, MAX_DISCOVERY_INTERVAL_SEC],
+        'round': 2, 'display_round': 1,
+        'display_name': 'Discovery Interval (s)',
+        'description': 'Seconds between WS-Discovery scans for ONVIF devices'},
+
+    'clear_discovery': {
+        'type': 'Toggle', 'default': FACTORY_CLEAR_DISCOVERY,
+        'display_name': 'Clear Discovery Cache Each Scan',
+        'description': 'Drop cached WS-Discovery services before each scan; needed for devices that answer discovery only once'},
+
+    'autosave_cfg_changes': {
+        'type': 'Toggle', 'default': FACTORY_AUTOSAVE_CFG_CHANGES,
+        'display_name': 'Auto-save Config Changes',
+        'description': 'Write the device configuration file whenever a device config changes'},
+}
 
 class ONVIFMgr:
   
@@ -68,6 +125,7 @@ class ONVIFMgr:
   ONVIF_SCOPE_PTZ_ID = 'ptz'
 
   node_if = None
+  controls_if = None
   status_msg = OnvifStatus()
 
   discovery_interval = DEFAULT_DISCOVERY_INTERVAL_SEC
@@ -164,19 +222,13 @@ class ONVIFMgr:
     }
 
     # Params Config Dict ####################
+    # discovery_interval, autosave_cfg_changes and clear_discovery moved to
+    # ControlsIF, which registers and persists its own param under the controls
+    # namespace. configured_onvifs stays: it is a dict of per-device
+    # configuration owned by the four config services, not an operator-typed
+    # value, and setCurrentSettingsAsDefault() dumps the whole node subtree --
+    # which includes <node>/controls -- to the user config file.
     self.PARAMS_DICT = {
-        'discovery_interval': {
-            'namespace': self.node_namespace,
-            'factory_val':  self.discovery_interval
-        },
-        'autosave_cfg_changes': {
-            'namespace': self.node_namespace,
-            'factory_val':  self.autosave_cfg_changes
-        },
-        'clear_discovery': {
-            'namespace': self.node_namespace,
-            'factory_val':  self.clear_discovery
-        },
         'configured_onvifs': {
             'namespace': self.node_namespace,
             'factory_val':  self.configured_onvifs
@@ -243,15 +295,11 @@ class ONVIFMgr:
 
 
     # Subscribers Config Dict ####################
+    # allow_discovery_clearing was removed here: it is a control now, driven
+    # over <node>/controls/update_control. What is left are the two INBOUND
+    # telemetry subscriptions -- another node's drivers status and the system
+    # status -- which are not operator state at all.
     self.SUBS_DICT = {
-        'allow_discovery_clearing': {
-            'namespace': self.node_namespace,
-            'topic': 'allow_discovery_clearing',
-            'msg': Bool,
-            'qsize': 10,
-            'callback': self.clearDiscCb, 
-            'callback_args': ()
-        },
         'drivers_status': {
             'namespace': drivers_mgr_status,
             'topic': '',
@@ -285,6 +333,13 @@ class ONVIFMgr:
     nepi_sdk.wait()
 
     ###########################
+    # Controls. Mounted after the node's own NodeClassIF is up and before
+    # initCb below reads app state from it. Given no node_if so it builds and
+    # owns its own: sharing the node's would merge both registries and a generic
+    # key would silently orphan a sibling's publisher (2026-07 DECISION LOG).
+    self.setupControls()
+
+    ###########################
     # Initialize Params
 
     self.initCb(do_updates = True)
@@ -315,11 +370,13 @@ class ONVIFMgr:
 
 
   def initCb(self,do_updates = False):
+      # Runs twice at startup: once from NodeClassIF's init_configs, before
+      # ControlsIF exists, and once explicitly after setupControls. The first
+      # pass falls back to the factory values, the second picks up whatever the
+      # config manager restored.
       if self.node_if is not None:
-        self.discovery_interval = self.node_if.get_param('discovery_interval')
-        self.autosave_cfg_changes = self.node_if.get_param('autosave_cfg_changes')
-        self.clear_discovery = self.node_if.get_param('clear_discovery')
         self.configured_onvifs = self.node_if.get_param('configured_onvifs')
+      self.applyControls()
       if do_updates == True:
         pass
       self.publish_status()
@@ -327,20 +384,108 @@ class ONVIFMgr:
 
   def resetCb(self,do_updates = True):
       self.msg_if.pub_warn("Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      # ControlsIF owns its own config tier under its own namespace, so the app
+      # level reset has to hand the reset down to it or the controls keep their
+      # current values while the rest of the app resets.
+      if self.controls_if is not None:
+        try:
+          self.controls_if.reset()
+        except Exception as e:
+          self.msg_if.pub_warn("ONVIF Mgr: controls reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
 
 
   def factoryResetCb(self,do_updates = True):
       self.msg_if.pub_warn("Factory Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      if self.controls_if is not None:
+        try:
+          self.controls_if.factory_reset()
+        except Exception as e:
+          self.msg_if.pub_warn("ONVIF Mgr: controls factory reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
+
+
+  #######################
+  ### Controls
+
+  def setupControls(self):
+    self.controls_routes = self.controlRoutes()
+    self.checkControlsInitDict()
+    try:
+      self.controls_if = ControlsIF(
+          controls_name = CONTROLS_NAME,
+          controls_display_name = CONTROLS_DISPLAY_NAME,
+          controls_description = CONTROLS_DESCRIPTION,
+          controls_init_dict = CONTROLS_INIT_DICT,
+          controls_updated_callback = self.controlsUpdatedCb,
+          pub_status = True,
+          save_params = True,
+          msg_if = self.msg_if,
+      )
+      self.controls_if.wait_for_controls_ready(timeout = 10)
+    except Exception as e:
+      # Degrade to None rather than failing to start: every read goes through
+      # getControlValue, which falls back to the factory value, so discovery
+      # still runs at its factory interval.
+      self.msg_if.pub_warn("ONVIF Mgr: controls unavailable: " + str(e))
+      self.controls_if = None
+
+  def checkControlsInitDict(self):
+    # create_controls_dict drops a malformed control with a log warning rather
+    # than raising, so a typo in the init dict costs one widget and nothing else
+    # says so. Run it here first and name what went missing.
+    try:
+      controls_dict = nepi_controls.create_controls_dict(CONTROLS_INIT_DICT)
+    except Exception as e:
+      self.msg_if.pub_warn("ONVIF Mgr: could not validate controls init dict: " + str(e))
+      return
+    missing = [name for name in CONTROLS_INIT_DICT.keys() if name not in controls_dict.keys()]
+    if len(missing) > 0:
+      self.msg_if.pub_warn("ONVIF Mgr: controls dropped at registration: " + str(missing))
+
+  def controlRoutes(self):
+    # control name -> the app callback that already owns that value. Only the
+    # discovery-clearing toggle had one; the other two controls are read by
+    # applyControls and have no side effect beyond their own value.
+    return {
+        'clear_discovery': self.clearDiscCb,
+    }
+
+  def getControlValue(self, control_name, fallback = None):
+    if self.controls_if is None:
+      return fallback
+    value = None
+    try:
+      value = self.controls_if.get_control_value(control_name)
+    except Exception as e:
+      self.msg_if.pub_warn("ONVIF Mgr: failed to read control " +
+                           str(control_name) + ": " + str(e))
+    if value is None:
+      return fallback
+    return value
+
+  def applyControls(self):
+    # The single point where a control value becomes running app state.
+    self.discovery_interval = float(self.getControlValue(
+        'discovery_interval_sec', FACTORY_DISCOVERY_INTERVAL_SEC))
+    self.clear_discovery = bool(self.getControlValue(
+        'clear_discovery', FACTORY_CLEAR_DISCOVERY))
+    self.autosave_cfg_changes = bool(self.getControlValue(
+        'autosave_cfg_changes', FACTORY_AUTOSAVE_CFG_CHANGES))
+
+  def controlsUpdatedCb(self, control_name):
+    # Called by ControlsIF with the control name AFTER its dict is updated and
+    # its status published.
+    route = self.controls_routes.get(control_name, None)
+    if route is not None:
+      value = self.getControlValue(control_name)
+      if value is not None:
+        route(ControlValue(value))
+    # applyControls runs unconditionally so a control with no route of its own
+    # still reaches app state. A changed discovery_interval is picked up by the
+    # next runDiscovery() pass, which re-arms its own one-shot timer from it.
+    self.applyControls()
+    self.publish_status()
 
 
   def statusPublishCb(self,timer):
@@ -352,14 +497,14 @@ class ONVIFMgr:
 
 
   def clearDiscCb(self,msg):
+    # Reached from the control route now rather than from a ROS subscriber. The
+    # value is persisted by ControlsIF itself, so the set_param this used to do
+    # is gone; the auto-save side effect is unchanged.
     clear = msg.data
     self.clear_discovery = clear
-    if self.node_if is not None:
-          self.node_if.set_param('clear_discovery',clear)
     if self.autosave_cfg_changes is True:
       self.msg_if.pub_info('Auto-saving updated config')
       self.setCurrentSettingsAsDefault()
-      #self.saveParamsCb_publisher.publish(self.node_namespace)
 
   def systemStatusCb(self,msg):
     self.active_nodes = msg.active_nodes
@@ -1036,9 +1181,11 @@ class ONVIFMgr:
     #rosparam.load_file(filename = full_path_config_file, default_namespace = node_namespace)
 
   def setCurrentSettingsAsDefault(self):
+    # discovery_interval and autosave_cfg_changes are no longer written here:
+    # ControlsIF persists them under <node>/controls, and the dump below is
+    # save_all over the whole node namespace, so that subtree goes to the file
+    # with everything else.
     if self.node_if is not None:
-      self.node_if.set_param('discovery_interval', self.discovery_interval)
-      self.node_if.set_param('autosave_cfg_changes', self.autosave_cfg_changes)
       self.node_if.set_param('configured_onvifs', self.configured_onvifs)
       nepi_sdk.save_params_to_file(self.MGR_USER_CFG_FILE, self.node_namespace, save_all = True, log_name_list = [self.node_name])
   
@@ -1049,6 +1196,12 @@ class ONVIFMgr:
   
   def cleanup_actions(self):
     self.msg_if.pub_info("Shutting down: Executing script cleanup actions")
+    if self.controls_if is not None:
+      try:
+        self.controls_if.unregister()
+      except Exception:
+        pass
+      self.controls_if = None
 
 # Direct SOAP calls
 DEVICE_SERVICE_PATH = "/onvif/device_service"

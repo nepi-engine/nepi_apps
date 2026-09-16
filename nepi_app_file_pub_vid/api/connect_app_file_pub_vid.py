@@ -32,6 +32,8 @@ from nepi_sdk import nepi_img
 
 from nepi_interfaces.msg import SaveDataRate, SaveDataStatus
 
+from nepi_interfaces.msg import ControlsStatus, UpdateControl
+
 from nepi_app_file_pub_vid.msg import FilePubVidStatus
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -45,6 +47,11 @@ from nepi_api.connect_node_if import ConnectNodeClassIF
 
 APP_NODE_NAME = 'app_file_pub_vid'
 
+# Leaf of the app's ControlsIF namespace. ControlsIF roots itself at
+# create_namespace(node_namespace, controls_name), so the controls topics sit
+# one level below the app node namespace, not on it.
+CONTROLS_NAME = 'controls'
+
 class ConnectAppFilePubVidIF:
     msg_if = None
     ready = False
@@ -55,6 +62,9 @@ class ConnectAppFilePubVidIF:
     connected = False
     status_msg = None
     status_connected = False
+
+    controls_namespace = ''
+    controls_status_msg = None
 
  
     #######################
@@ -82,6 +92,7 @@ class ConnectAppFilePubVidIF:
         else:
             namespace = namespace
         self.namespace = nepi_sdk.get_full_namespace(namespace)
+        self.controls_namespace = nepi_sdk.create_namespace(self.namespace, CONTROLS_NAME)
 
 
         ##############################   
@@ -97,12 +108,29 @@ class ConnectAppFilePubVidIF:
         self.SRVS_DICT = None
 
         # Publishers Config Dict ####################
+        # The app's adjustable state moved to ControlsIF, so every setter below
+        # publishes one UpdateControl instead of its own typed topic. What is
+        # still on the app namespace are the COMMANDS: folder navigation, which
+        # carries a relative name plus a traversal verb, and start/stop, which a
+        # scripted caller uses as the publishing API.
+        #
+        # The folder-selection entry is keyed 'select_folder', matching the name
+        # save_data_prefix_pub() publishes on. It was keyed 'sub_name' (twice),
+        # so that call named a key the registry did not carry and could never
+        # have published.
         self.PUBS_DICT = {
-            'sub_name': {
-            'namespace': self.node_namespace,
-            'topic': 'select_folder',
-            'msg': String,
-            'qsize': None,
+            'update_control': {
+                'namespace': self.controls_namespace,
+                'topic': 'update_control',
+                'msg': UpdateControl,
+                'qsize': 1,
+                'latch': False
+            },
+            'select_folder': {
+                'namespace': self.node_namespace,
+                'topic': 'select_folder',
+                'msg': String,
+                'qsize': None,
                 'latch': False
             },
             'home_folder': {
@@ -116,42 +144,6 @@ class ConnectAppFilePubVidIF:
                 'namespace': self.node_namespace,
                 'topic': 'back_folder',
                 'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'set_size': {
-                'namespace': self.node_namespace,
-                'topic': 'set_size',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_encoding': {
-                'namespace': self.node_namespace,
-                'topic': 'set_encoding',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_random': {
-                'namespace': self.node_namespace,
-                'topic': 'set_random',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
-            'sub_name': {
-                'namespace': self.node_namespace,
-                'topic': 'select_folder',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_overlay': {
-                'namespace': self.node_namespace,
-                'topic': 'set_overlay',
-                'msg': Bool,
-                'qsize': None,
                 'qsize': None,
                 'latch': False
             },
@@ -169,53 +161,44 @@ class ConnectAppFilePubVidIF:
                 'qsize': None,
                 'latch': False
             },
-            'pause_pub': {
+            'save_config': {
                 'namespace': self.node_namespace,
-                'topic': 'pause_pub',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
-            'step_forward': {
-                'namespace': self.node_namespace,
-                'topic': 'step_forward',
+                'topic': 'save_config',
                 'msg': Empty,
                 'qsize': None,
+                'latch': False
+            },
+            'reset_config': {
+                'namespace': self.node_namespace,
+                'topic': 'reset_config',
+                'msg': Empty,
                 'qsize': None,
                 'latch': False
             },
-        'save_config': {
-            'namespace': self.node_namespace,
-            'topic': 'save_config',
-            'msg': Empty,
-            'qsize': None,
-            'latch': False
-        },
-        'reset_config': {
-            'namespace': self.node_namespace,
-            'topic': 'reset_config',
-            'msg': Empty,
-            'qsize': None,
-            'latch': False
-        },
-        'factory_reset_config': {
-            'namespace': self.node_namespace,
-            'topic': 'factory_reset_config',
-            'msg': Empty,
-            'qsize': None,
-            'latch': False
+            'factory_reset_config': {
+                'namespace': self.node_namespace,
+                'topic': 'factory_reset_config',
+                'msg': Empty,
+                'qsize': None,
+                'latch': False
+            }
         }
-    }
-
 
         # Subscribers Config Dict ####################
         self.SUBS_DICT = {
             'status_sub': {
-            'namespace': self.node_namespace,
-            'topic': 'status',
-            'msg': FilePubVidStatus,
-            'qsize': 1,
+                'namespace': self.node_namespace,
+                'topic': 'status',
+                'msg': FilePubVidStatus,
+                'qsize': 1,
                 'callback': self._statusCb
+            },
+            'controls_status_sub': {
+                'namespace': self.controls_namespace,
+                'topic': 'status',
+                'msg': ControlsStatus,
+                'qsize': 1,
+                'callback': self._controlsStatusCb
             }
         }
 
@@ -328,20 +311,49 @@ class ConnectAppFilePubVidIF:
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
 
+    def get_controls_namespace(self):
+        """Return the namespace the app's controls status and update_control topics sit on."""
+        return self.controls_namespace
+
+    def get_controls_status_dict(self):
+        """Return the app's last received ControlsStatus message as a dict.
+
+        Returns:
+            dict: The controls status as a dict, or None if no status has arrived yet.
+        """
+        if self.controls_status_msg is not None:
+            return nepi_sdk.convert_msg2dict(self.controls_status_msg)
+        return None
+
+    def set_control_value(self, control_name, value, index = None):
+        """Update one of the app's controls.
+
+        Args:
+            control_name (str): Name of the control, as it appears in the app's ControlsStatus.
+            value: New value. Lists are sent entry by entry; anything else is sent as one value.
+            index (int, optional): Component index for a multi-value control. Defaults to None,
+                which replaces the whole value.
+        """
+        msg = UpdateControl()
+        msg.name = str(control_name)
+        if isinstance(value, (list, tuple)):
+            msg.value = [str(item) for item in value]
+        else:
+            msg.value = [str(value)]
+        msg.index = '' if index is None else str(index)
+        self.con_node_if.publish_pub('update_control', msg)
+
     def set_video_size(self,img_size):
-        pub_name = 'set_size'
-        msg = img_size
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Set the size published frames are resized to."""
+        self.set_control_value('size', img_size)
 
     def set_encoding(self,encoding):
-        pub_name = 'set_encoding'
-        msg = encoding
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Set the encoding published frames are converted to."""
+        self.set_control_value('encoding', encoding)
 
     def set_video_random(self,set_random):
-        pub_name = 'set_random'
-        msg = set_random
-        self.con_node_if.publish_pub(pub_name,msg)        
+        """Enable or disable random video order."""
+        self.set_control_value('random', bool(set_random))
 
     def enable_publishing(self):
         pub_name = 'start_pub'
@@ -354,19 +366,16 @@ class ConnectAppFilePubVidIF:
         self.con_node_if.publish_pub(pub_name,msg)
         
     def pause_publishing(self,pause_pub):
-        pub_name = 'pause_pub'
-        msg = pause_pub
-        self.con_node_if.publish_pub(pub_name,msg)   
+        """Hold on the current frame instead of advancing."""
+        self.set_control_value('paused', bool(pause_pub))
 
     def next_video(self):
-        pub_name = 'step_forward'
-        msg = Empty()
-        self.con_node_if.publish_pub(pub_name,msg)
+        """While paused, advance one frame."""
+        self.set_control_value('step_forward', 'TRIGGER')
 
     def set_video_overlay(self,set_overlay):
-        pub_name = 'set_overlay'
-        msg = set_overlay
-        self.con_node_if.publish_pub(pub_name,msg)  
+        """Draw the source filename on each published frame."""
+        self.set_control_value('overlay', bool(set_overlay))
 
     def save_config(self):
         self.con_node_if.publish_pub('save_config',Empty())
@@ -430,6 +439,9 @@ class ConnectAppFilePubVidIF:
                 self.msg_if.pub_warn("Failed to unregister image:  " + str(e))
         return success
 
+
+    def _controlsStatusCb(self,status_msg):
+        self.controls_status_msg = status_msg
 
     def _statusCb(self,status_msg):      
         self.status_connected = True

@@ -30,6 +30,7 @@ from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_img
 from nepi_sdk import nepi_nav
+from nepi_sdk import nepi_controls
 
 
 from nepi_app_file_pub_depthmap.msg import FilePubDepthmapStatus
@@ -46,8 +47,268 @@ from nepi_api.data_if import ColorImageIF
 from nepi_api.data_if import DepthMapIF
 from nepi_api.data_if import ImageIF
 from nepi_api.data_if import NavPoseIF
+from nepi_api.system_if import ControlsIF
 
 
+#########################################
+# Controls
+#########################################
+#
+# THREE control sets, because the page groups its rows under three headings and
+# a control set renders as one flat list.
+#
+# A ControlsIF is ALWAYS a direct child of the NODE namespace: its __init__
+# builds create_namespace(node_namespace, controls_name), there is no namespace
+# argument, and nepi_utils.get_clean_name() rewrites '/' to '_' so the name
+# cannot carry a path. The set NAME is therefore the only thing distinguishing
+# one set from another, and the RUI derives the same three names.
+#
+# The third set is named navpose_SOURCE, not navpose, and that is load bearing.
+# This node builds NavPoseIF(namespace = node_namespace), and NavPoseIF appends
+# its own data_product when the basename is not already it (data_if.py), so that
+# IF is rooted at <node>/navpose. A control set named 'navpose' would land on
+# exactly that namespace and advertise a second <node>/navpose/status of a
+# different message type. Getting this wrong is silent.
+
+CONTROLS_NAME_PLAYBACK        = 'controls'
+CONTROLS_NAME_FOLDER_SETTINGS = 'folder_settings'
+CONTROLS_NAME_NAVPOSE         = 'navpose_source'
+
+# Button controls, keyed here so the updated callback can tell a command press
+# from a value edit without restating the names inline.
+BUTTON_CONTROLS = ['start_pub', 'stop_pub', 'step_forward', 'step_backward']
+
+# Row widths for the grouped lines.
+_ROW_VALUE_WIDTH = 70
+_ROW_FOV_WIDTH = 80
+
+# Bounds for the operator-authored static pose. The node declares none of these:
+# they are the WGS84 domain for the geopoint, the full turn for the three
+# attitude angles, an operator sanity range for a local ENU offset, and a span
+# from deep subsea to high-altitude flight for altitude and depth.
+MIN_LATITUDE_DEG  = -90.0
+MAX_LATITUDE_DEG  = 90.0
+MIN_LONGITUDE_DEG = -180.0
+MAX_LONGITUDE_DEG = 180.0
+MIN_ANGLE_DEG     = -360.0
+MAX_ANGLE_DEG     = 360.0
+MIN_ALTITUDE_M    = -500.0
+MAX_ALTITUDE_M    = 20000.0
+MIN_DEPTH_M       = 0.0
+MAX_DEPTH_M       = 11000.0
+MAX_POSITION_M    = 100000.0
+
+# nepi_controls clamps 'round' to 6 decimal places, so a latitude control holds
+# about 0.11 m of resolution.
+GEO_ROUND_PLACES = 6
+
+# Static pose value controls: (control name, param/dict suffix, label, bounds).
+# The control name IS the param name the app has always used, and the navpose
+# dict key is that name without the navpose_static_ prefix -- so one table drives
+# the control set, the route into setNavPoseStaticValueCb, and the dict write.
+NAVPOSE_STATIC_VALUE_CONTROLS = (
+    ('navpose_static_latitude',    'Latitude (deg)',    [MIN_LATITUDE_DEG, MAX_LATITUDE_DEG],   GEO_ROUND_PLACES),
+    ('navpose_static_longitude',   'Longitude (deg)',   [MIN_LONGITUDE_DEG, MAX_LONGITUDE_DEG], GEO_ROUND_PLACES),
+    ('navpose_static_altitude_m',  'Altitude (m)',      [MIN_ALTITUDE_M, MAX_ALTITUDE_M],       2),
+    ('navpose_static_depth_m',     'Depth (m)',         [MIN_DEPTH_M, MAX_DEPTH_M],             2),
+    ('navpose_static_heading_deg', 'Heading (deg)',     [MIN_ANGLE_DEG, MAX_ANGLE_DEG],         2),
+    ('navpose_static_roll_deg',    'Roll (deg)',        [MIN_ANGLE_DEG, MAX_ANGLE_DEG],         2),
+    ('navpose_static_pitch_deg',   'Pitch (deg)',       [MIN_ANGLE_DEG, MAX_ANGLE_DEG],         2),
+    ('navpose_static_yaw_deg',     'Yaw (deg)',         [MIN_ANGLE_DEG, MAX_ANGLE_DEG],         2),
+    ('navpose_static_x_m',         'Position X (m)',    [-MAX_POSITION_M, MAX_POSITION_M],      2),
+    ('navpose_static_y_m',         'Position Y (m)',    [-MAX_POSITION_M, MAX_POSITION_M],      2),
+    ('navpose_static_z_m',         'Position Z (m)',    [-MAX_POSITION_M, MAX_POSITION_M],      2),
+)
+
+# Static pose frame controls: (control name, navpose dict key, label).
+NAVPOSE_STATIC_FRAME_CONTROLS = (
+    ('navpose_static_frame_nav',      'frame_nav',      'Nav Frame'),
+    ('navpose_static_frame_altitude', 'frame_altitude', 'Altitude Frame'),
+    ('navpose_static_frame_depth',    'frame_depth',    'Depth Frame'),
+)
+
+
+class ControlValue:
+  """Stand-in for the std_msgs value the app's setter callbacks expect.
+
+  The setters kept their original signatures through this migration, so the
+  control routes hand them an object with a .data attribute exactly as the ROS
+  subscribers did. Nothing about their per-field clamping or frame validation
+  moved.
+  """
+
+  def __init__(self, data):
+    self.data = data
+
+
+def build_playback_controls_init_dict(min_rate, max_rate, factory_rate):
+  """Build the playback control set.
+
+  Key order is display order: create_controls_dict iterates the init dict and
+  the RUI renders controls_msg_list in that order. Controls sharing a non-empty
+  display_group render on ONE horizontal line, in that same order.
+
+  Args:
+      min_rate: lowest publish rate in Hz.
+      max_rate: highest publish rate in Hz.
+      factory_rate: factory publish rate in Hz.
+
+  Returns:
+      dict: control-name -> init dict, in display order.
+  """
+  return {
+
+    'start_pub': {
+        'type': 'Button',
+        'display_name': 'Start Publishing', 'display_group': 'publish',
+        'description': 'Start publishing collections from the current folder'},
+
+    'stop_pub': {
+        'type': 'Button',
+        'display_name': 'Stop Publishing', 'display_group': 'publish',
+        'description': 'Stop publishing and release the data publishers'},
+
+    # One row: the pause toggle, the rate box and the random toggle. Rate and
+    # Random hide while paused and the two step Buttons appear -- see
+    # syncControlVisibility, which mirrors what the hand-written panel did.
+    'paused': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Paused', 'display_group': 'playback',
+        'description': 'Hold on the current collection instead of advancing'},
+
+    'rate_hz': {
+        'type': 'Float', 'default': float(factory_rate),
+        'bounds': [min_rate, max_rate],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Rate (Hz)', 'display_group': 'playback',
+        'display_width': _ROW_VALUE_WIDTH,
+        'description': 'Rate collections are published at while not paused'},
+
+    'random': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Random', 'display_group': 'playback',
+        'description': 'Pick the next collection at random rather than in order'},
+
+    'step_forward': {
+        'type': 'Button',
+        'display_name': 'Forward', 'display_group': 'step',
+        'display_hidden': True,
+        'description': 'While paused, advance one collection'},
+
+    'step_backward': {
+        'type': 'Button',
+        'display_name': 'Back', 'display_group': 'step',
+        'display_hidden': True,
+        'description': 'While paused, go back one collection'},
+
+    'overlay': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Overlay Filename',
+        'description': 'Draw the source filename on each published color image'},
+  }
+
+
+def build_folder_settings_controls_init_dict(min_fov, max_fov,
+                                             factory_width, factory_height):
+  """Build the field of view and folder settings control set.
+
+  Args:
+      min_fov: lowest field of view in degrees.
+      max_fov: highest field of view in degrees.
+      factory_width: factory horizontal field of view in degrees.
+      factory_height: factory vertical field of view in degrees.
+
+  Returns:
+      dict: control-name -> init dict, in display order.
+  """
+  return {
+
+    # One row. Both axes share the same degree bound, but they stay two Float
+    # controls rather than one Floats control because the folder settings
+    # sidecar sets them independently and each carries its own label.
+    'width_deg': {
+        'type': 'Float', 'default': float(factory_width),
+        'bounds': [min_fov, max_fov],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Width (deg)', 'display_group': 'fov',
+        'display_width': _ROW_FOV_WIDTH,
+        'description': 'Angular width the published products declare'},
+
+    'height_deg': {
+        'type': 'Float', 'default': float(factory_height),
+        'bounds': [min_fov, max_fov],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Height (deg)', 'display_group': 'fov',
+        'display_width': _ROW_FOV_WIDTH,
+        'description': 'Angular height the published products declare'},
+
+    'apply_folder_settings': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Apply Folder Settings',
+        'description': 'Read a collection folder settings sidecar and apply the field of view it declares'},
+  }
+
+
+def build_navpose_controls_init_dict(source_mode_options, factory_source_mode,
+                                     min_timeout, max_timeout, factory_timeout,
+                                     frame_nav_options, frame_altitude_options,
+                                     frame_depth_options):
+  """Build the NavPose source control set.
+
+  Args:
+      source_mode_options: the three navpose source modes.
+      factory_source_mode: factory source mode.
+      min_timeout: lowest system pose staleness window in seconds.
+      max_timeout: highest system pose staleness window in seconds.
+      factory_timeout: factory staleness window in seconds.
+      frame_nav_options: nav frames NavPoseIF offers.
+      frame_altitude_options: altitude frames NavPoseIF offers.
+      frame_depth_options: depth frames NavPoseIF offers.
+
+  Returns:
+      dict: control-name -> init dict, in display order.
+  """
+  controls = {
+
+    # Selection, not Menu: the stored value is the mode STRING the node compares
+    # against NAVPOSE_SOURCE_MODE_OPTIONS, and a Menu value is an index that
+    # would re-point if that list were ever reordered.
+    'navpose_source_mode': {
+        'type': 'Selection', 'default': factory_source_mode,
+        'options': list(source_mode_options),
+        'display_name': 'Source Mode',
+        'description': 'Which pose is published: the system pose, a static one, or auto'},
+
+    'navpose_system_timeout_sec': {
+        'type': 'Float', 'default': float(factory_timeout),
+        'bounds': [min_timeout, max_timeout],
+        'round': 2, 'display_round': 1,
+        'display_name': 'System Pose Timeout (s)',
+        'description': 'A system pose older than this counts as unavailable, which is what makes auto fall back to static'},
+  }
+
+  for name, label, bounds, round_places in NAVPOSE_STATIC_VALUE_CONTROLS:
+    controls[name] = {
+        'type': 'Float', 'default': 0.0,
+        'bounds': bounds,
+        'round': round_places, 'display_round': round_places,
+        'display_name': label,
+        'description': 'Static pose ' + label}
+
+  frame_options = {
+      'navpose_static_frame_nav': frame_nav_options,
+      'navpose_static_frame_altitude': frame_altitude_options,
+      'navpose_static_frame_depth': frame_depth_options,
+  }
+  for name, dict_key, label in NAVPOSE_STATIC_FRAME_CONTROLS:
+    options = list(frame_options[name])
+    controls[name] = {
+        'type': 'Selection', 'default': options[0] if len(options) > 0 else '',
+        'options': options,
+        'display_name': label,
+        'description': 'Frame the static pose ' + label.lower() + ' is declared in'}
+
+  return controls
 
 
 #########################################
@@ -163,6 +424,9 @@ class NepiFilePubDepthmapApp(object):
   NAVPOSE_PUB_RATE_HZ = 5.0
 
   node_if = None
+  controls_if = None
+  folder_controls_if = None
+  navpose_controls_if = None
 
   if os.path.exists(HOME_FOLDER + '/sample_data'):
     current_folder = HOME_FOLDER + '/sample_data'
@@ -260,119 +524,20 @@ class NepiFilePubDepthmapApp(object):
     }
 
     # Params Config Dict ####################
+    # Every operator-adjustable value moved to one of the three ControlsIF sets,
+    # each of which registers and persists its own param under its own
+    # namespace. The two that stay are node-WRITTEN state rather than
+    # operator-typed values: current_folder is set by the folder navigation
+    # commands, and running is a side effect of start/stop that seeds the
+    # restart on the next launch.
     self.PARAMS_DICT = {
         'current_folder': {
             'namespace': self.node_namespace,
             'factory_val': self.HOME_FOLDER
         },
-        'random': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-        'overlay': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-        'rate': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_PUB_RATE
-        },
         'running': {
             'namespace': self.node_namespace,
             'factory_val': False
-        },
-
-        # Field of view of the published products.  Operator settings like any
-        # other, and the two values a collection folder's settings sidecar sets
-        # when apply_folder_settings is on.
-        'width_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_WIDTH_DEG
-        },
-        'height_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': self.FACTORY_HEIGHT_DEG
-        },
-        'apply_folder_settings': {
-            'namespace': self.node_namespace,
-            'factory_val': False
-        },
-
-        # NavPose source params.  Unlike pub/sub/service registry keys, a param's
-        # ROS wire name IS namespace + key, so the navpose_ prefix here is both
-        # the domain-unique registry key and the operator-visible param name.
-        'navpose_source_mode': {
-            'namespace': self.node_namespace,
-            'factory_val': self.NAVPOSE_SOURCE_MODE_AUTO
-        },
-        'navpose_system_timeout_sec': {
-            'namespace': self.node_namespace,
-            'factory_val': self.NAVPOSE_SYSTEM_TIMEOUT_SEC
-        },
-
-        # The static pose the operator authors.  One param per navpose dict key
-        # this app lets an operator set; the key names are the navpose dict key
-        # names with the navpose_static_ prefix, so there is no translation table
-        # between a param and the dict field it fills.
-        'navpose_static_latitude': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_longitude': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_heading_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_roll_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_pitch_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_yaw_deg': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_x_m': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_y_m': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_z_m': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_altitude_m': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-        'navpose_static_depth_m': {
-            'namespace': self.node_namespace,
-            'factory_val': 0.0
-        },
-
-        # Frames the STATIC pose is declared in.  These are the operator's
-        # declaration about a pose the operator authored, and they are applied
-        # only when the resolved active mode is 'static' -- see publishNavPoseCb().
-        'navpose_static_frame_nav': {
-            'namespace': self.node_namespace,
-            'factory_val': NavPoseIF.NAVPOSE_NAV_FRAME_OPTIONS[0]
-        },
-        'navpose_static_frame_altitude': {
-            'namespace': self.node_namespace,
-            'factory_val': NavPoseIF.NAVPOSE_ALT_FRAME_OPTIONS[0]
-        },
-        'navpose_static_frame_depth': {
-            'namespace': self.node_namespace,
-            'factory_val': NavPoseIF.NAVPOSE_DEPTH_FRAME_OPTIONS[0]
         }
     }
 
@@ -388,6 +553,18 @@ class NepiFilePubDepthmapApp(object):
     }
 
     # Subscribers Config Dict ####################
+    # What stays here are the COMMANDS and one inbound telemetry subscription.
+    # Folder navigation carries a relative name plus a traversal verb, which a
+    # control set -- where each value is written independently -- cannot express
+    # atomically; start/stop are the app's programmatic publishing API, and the
+    # Button controls call the same private methods these callbacks do.
+    #
+    # Removed here and now driven over the three control sets' update_control
+    # topics: set_rate, set_random, set_overlay, pause_pub, step_forward,
+    # step_backward, set_width_deg, set_height_deg, set_apply_folder_settings,
+    # set_navpose_source_mode, set_navpose_system_timeout, the eleven
+    # set_navpose_static_* topics and the three set_navpose_static_frame_*
+    # topics.
     self.SUBS_DICT = {
         'select_folder': {
             'namespace': self.node_namespace,
@@ -413,22 +590,6 @@ class NepiFilePubDepthmapApp(object):
             'callback': self.backFolderCb,
             'callback_args': ()
         },
-        'set_rate': {
-            'namespace': self.node_namespace,
-            'topic': 'set_rate',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setRateCb,
-            'callback_args': ()
-        },
-        'set_random': {
-            'namespace': self.node_namespace,
-            'topic': 'set_random',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setRandomCb,
-            'callback_args': ()
-        },
         'start_pub': {
             'namespace': self.node_namespace,
             'topic': 'start_pub',
@@ -445,74 +606,12 @@ class NepiFilePubDepthmapApp(object):
             'callback': self.stopPubCb,
             'callback_args': ()
         },
-        'pause_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'pause_pub',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.pausePubCb,
-            'callback_args': ()
-        },
-        'step_forward': {
-            'namespace': self.node_namespace,
-            'topic': 'step_forward',
-            'msg': Empty,
-            'qsize': None,
-            'callback': self.stepForwardPubCb,
-            'callback_args': ()
-        },
-        'step_backward': {
-            'namespace': self.node_namespace,
-            'topic': 'step_backward',
-            'msg': Empty,
-            'qsize': None,
-            'callback': self.stepBackwardPubCb,
-            'callback_args': ()
-        },
-        'set_overlay': {
-            'namespace': self.node_namespace,
-            'topic': 'set_overlay',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setOverlayCb,
-            'callback_args': ()
-        },
-        'set_width_deg': {
-            'namespace': self.node_namespace,
-            'topic': 'set_width_deg',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setWidthDegCb,
-            'callback_args': ()
-        },
-        'set_height_deg': {
-            'namespace': self.node_namespace,
-            'topic': 'set_height_deg',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setHeightDegCb,
-            'callback_args': ()
-        },
-        'set_apply_folder_settings': {
-            'namespace': self.node_namespace,
-            'topic': 'set_apply_folder_settings',
-            'msg': Bool,
-            'qsize': None,
-            'callback': self.setApplyFolderSettingsCb,
-            'callback_args': ()
-        },
 
-        #############################
-        ## NavPose source subscribers
-        #
-        # Every key below is prefixed navpose_ so it cannot collide with an entry
-        # this node or a sub-IF sharing its node_if already registered -- see the
-        # 2026-07 DECISION LOG entry on domain-unique registry keys.  The ROS wire
-        # name comes from namespace + topic, not from the key, so the topics read
-        # set_navpose_* while the keys read navpose_set_*.
-
-        # The system navpose, published by navpose_mgr for its base frame.  Same
-        # topic join device_if_idx makes for its reference-frame subscription.
+        # The system navpose, published by navpose_mgr for its base frame. This
+        # is INBOUND telemetry, not operator state, so it stays a subscriber.
+        # Same topic join device_if_idx makes for its reference-frame
+        # subscription. The navpose_ key prefix keeps it domain-unique -- see the
+        # 2026-07 DECISION LOG entry on registry keys.
         'navpose_system_sub': {
             'namespace': nepi_sdk.create_namespace(
                             nepi_sdk.create_namespace(self.base_namespace, self.NAVPOSE_SYSTEM_SUBFOLDER),
@@ -521,141 +620,6 @@ class NepiFilePubDepthmapApp(object):
             'msg': NavPose,
             'qsize': 1,
             'callback': self.systemNavPoseCb,
-            'callback_args': ()
-        },
-        'navpose_set_system_timeout': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_system_timeout',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseSystemTimeoutCb,
-            'callback_args': ()
-        },
-        'navpose_set_source_mode': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_source_mode',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setNavPoseSourceModeCb,
-            'callback_args': ()
-        },
-
-        # One topic per static pose value.  All eleven share setNavPoseStaticValueCb
-        # and carry the param key in callback_args, the same callback_args form
-        # node_if_ai_detector uses for its per-source data subscribers.
-        'navpose_set_static_latitude': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_latitude',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_latitude')
-        },
-        'navpose_set_static_longitude': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_longitude',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_longitude')
-        },
-        'navpose_set_static_heading': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_heading',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_heading_deg')
-        },
-        'navpose_set_static_roll': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_roll',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_roll_deg')
-        },
-        'navpose_set_static_pitch': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_pitch',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_pitch_deg')
-        },
-        'navpose_set_static_yaw': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_yaw',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_yaw_deg')
-        },
-        'navpose_set_static_x': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_x',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_x_m')
-        },
-        'navpose_set_static_y': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_y',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_y_m')
-        },
-        'navpose_set_static_z': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_z',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_z_m')
-        },
-        'navpose_set_static_altitude': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_altitude',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_altitude_m')
-        },
-        'navpose_set_static_depth': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_depth',
-            'msg': Float32,
-            'qsize': None,
-            'callback': self.setNavPoseStaticValueCb,
-            'callback_args': ('navpose_static_depth_m')
-        },
-
-        # The three frames of the STATIC pose.  Each is validated against the
-        # matching NavPoseIF option list before it is accepted.
-        'navpose_set_static_frame_nav': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_frame_nav',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setNavPoseStaticFrameNavCb,
-            'callback_args': ()
-        },
-        'navpose_set_static_frame_altitude': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_frame_altitude',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setNavPoseStaticFrameAltitudeCb,
-            'callback_args': ()
-        },
-        'navpose_set_static_frame_depth': {
-            'namespace': self.node_namespace,
-            'topic': 'set_navpose_static_frame_depth',
-            'msg': String,
-            'qsize': None,
-            'callback': self.setNavPoseStaticFrameDepthCb,
             'callback_args': ()
         },
     }
@@ -779,6 +743,14 @@ class NepiFilePubDepthmapApp(object):
     self.depth_map_image_if.set_image_callback('needs_update_callback', self.publish_collection)
 
     ##############################
+    # Controls. Mounted AFTER navpose_if, because the navpose set's three frame
+    # Selections take their option lists from it, and before initCb below reads
+    # app state from the sets. Each set is given no node_if and builds its own:
+    # sharing one would merge the registries and a generic key would silently
+    # orphan a sibling's publisher (2026-07 DECISION LOG).
+    self.setupControls()
+
+    ##############################
     self.initCb(do_updates = True)
 
     ##############################
@@ -809,63 +781,284 @@ class NepiFilePubDepthmapApp(object):
 
 
   def initCb(self,do_updates = False):
+    # Runs twice at startup: once from NodeClassIF's init_configs, before any
+    # ControlsIF exists, and once explicitly after setupControls. The first pass
+    # falls back to the factory values, the second picks up whatever the config
+    # manager restored.
     if self.node_if is not None:
       current_folder = self.node_if.get_param('current_folder')
       if os.path.exists(current_folder) == False:
         current_folder = self.HOME_FOLDER
       self.current_folder = current_folder
-      self.random = self.node_if.get_param('random')
-      self.overlay = self.node_if.get_param('overlay')
-      self.rate = self.node_if.get_param('rate')
       self.restart = self.node_if.get_param('running')
-
-      # Clamped on the way back in as well as on the way in, so a param file
-      # hand-edited to something unusable cannot reach a published product.
-      self.width_deg = self.clampFovDeg(self.node_if.get_param('width_deg'),
-                                        self.FACTORY_WIDTH_DEG)
-      self.height_deg = self.clampFovDeg(self.node_if.get_param('height_deg'),
-                                         self.FACTORY_HEIGHT_DEG)
-      self.apply_folder_settings = self.node_if.get_param('apply_folder_settings')
-
-      self.navpose_source_mode = self.node_if.get_param('navpose_source_mode')
-      self.navpose_system_timeout_sec = self.node_if.get_param('navpose_system_timeout_sec')
-      # The static pose is only loaded once it has been seeded.  NodeClassIF can
-      # call this back during its own construction, which is before
-      # setupNavPoseSource() has run.
-      if self.static_navpose_dict is not None:
-        self.navpose_lock.acquire()
-        for param_name in ['navpose_static_latitude','navpose_static_longitude',
-                           'navpose_static_heading_deg',
-                           'navpose_static_roll_deg','navpose_static_pitch_deg',
-                           'navpose_static_yaw_deg',
-                           'navpose_static_x_m','navpose_static_y_m','navpose_static_z_m',
-                           'navpose_static_altitude_m','navpose_static_depth_m',
-                           'navpose_static_frame_nav','navpose_static_frame_altitude',
-                           'navpose_static_frame_depth']:
-          dict_key = param_name.replace('navpose_static_','')
-          if dict_key in self.static_navpose_dict:
-            self.static_navpose_dict[dict_key] = self.node_if.get_param(param_name)
-        self.navpose_lock.release()
+    self.applyControls()
+    self.syncControlVisibility()
     if do_updates == True:
       pass
-    self.publish_status
+    self.publish_status()
 
   def resetCb(self,do_updates = True):
       self.msg_if.pub_warn("Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      # Each ControlsIF owns its own config tier under its own namespace, so the
+      # app level reset has to hand the reset down to all three or the controls
+      # keep their current values while the rest of the app resets.
+      for controls_if in self.allControlsIfs():
+        try:
+          controls_if.reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Depthmap: controls reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
 
 
   def factoryResetCb(self,do_updates = True):
       self.msg_if.pub_warn("Factory Reseting")
-      if self.node_if is not None:
-        pass
-      if do_updates == True:
-        pass
+      for controls_if in self.allControlsIfs():
+        try:
+          controls_if.factory_reset()
+        except Exception as e:
+          self.msg_if.pub_warn("File Pub Depthmap: controls factory reset failed: " + str(e))
       self.initCb(do_updates = do_updates)
+
+
+  #############################
+  ## Controls
+
+  def setupControls(self):
+    # Three sets, one per page heading. All three share one updated callback and
+    # one route table: a control name is unique across the three sets, so the
+    # name alone says which value changed.
+    self.controls_init_dicts = {
+        CONTROLS_NAME_PLAYBACK: build_playback_controls_init_dict(
+            self.MIN_RATE, self.MAX_RATE, self.FACTORY_PUB_RATE),
+        CONTROLS_NAME_FOLDER_SETTINGS: build_folder_settings_controls_init_dict(
+            self.MIN_FOV_DEG, self.MAX_FOV_DEG,
+            self.FACTORY_WIDTH_DEG, self.FACTORY_HEIGHT_DEG),
+        CONTROLS_NAME_NAVPOSE: build_navpose_controls_init_dict(
+            self.NAVPOSE_SOURCE_MODE_OPTIONS, self.NAVPOSE_SOURCE_MODE_AUTO,
+            self.MIN_NAVPOSE_SYSTEM_TIMEOUT_SEC, self.MAX_NAVPOSE_SYSTEM_TIMEOUT_SEC,
+            self.NAVPOSE_SYSTEM_TIMEOUT_SEC,
+            self.navpose_if.get_frame_nav_options(),
+            self.navpose_if.get_frame_altitude_options(),
+            self.navpose_if.get_frame_depth_options()),
+    }
+    self.controls_routes = self.controlRoutes()
+
+    self.controls_if = self.buildControlsIf(
+        CONTROLS_NAME_PLAYBACK, 'Playback Controls',
+        'Publishing, playback and overlay settings')
+    self.folder_controls_if = self.buildControlsIf(
+        CONTROLS_NAME_FOLDER_SETTINGS, 'Field of View and Folder Settings',
+        'Field of view the published products declare, and the folder settings sidecar')
+    self.navpose_controls_if = self.buildControlsIf(
+        CONTROLS_NAME_NAVPOSE, 'NavPose Source',
+        'Which pose is published and the static pose this app authors')
+
+  def buildControlsIf(self, controls_name, display_name, description):
+    init_dict = self.controls_init_dicts[controls_name]
+    self.checkControlsInitDict(controls_name, init_dict)
+    try:
+      controls_if = ControlsIF(
+          controls_name = controls_name,
+          controls_display_name = display_name,
+          controls_description = description,
+          controls_init_dict = init_dict,
+          controls_updated_callback = self.controlsUpdatedCb,
+          pub_status = True,
+          save_params = True,
+          msg_if = self.msg_if,
+      )
+      controls_if.wait_for_controls_ready(timeout = 10)
+      return controls_if
+    except Exception as e:
+      # Same degrade-to-None contract the data interfaces already have in this
+      # node: the app still publishes, it just loses that panel, because every
+      # read goes through getControlValue and falls back to the factory value.
+      self.msg_if.pub_warn("File Pub Depthmap: controls unavailable for " +
+                           str(controls_name) + ": " + str(e))
+      return None
+
+  def checkControlsInitDict(self, controls_name, init_dict):
+    # create_controls_dict drops a malformed control with a log warning rather
+    # than raising, so a typo in an init dict costs one widget and nothing else
+    # says so. Run it here first and name what went missing.
+    try:
+      controls_dict = nepi_controls.create_controls_dict(init_dict)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Depthmap: could not validate controls init dict " +
+                           str(controls_name) + ": " + str(e))
+      return
+    missing = [name for name in init_dict.keys() if name not in controls_dict.keys()]
+    if len(missing) > 0:
+      self.msg_if.pub_warn("File Pub Depthmap: controls dropped at registration in " +
+                           str(controls_name) + ": " + str(missing))
+
+  def allControlsIfs(self):
+    return [c for c in [self.controls_if, self.folder_controls_if,
+                        self.navpose_controls_if] if c is not None]
+
+  def findControlsIf(self, control_name):
+    # Which of the three sets owns this control. Looked up rather than captured
+    # in the callback because ControlsIF takes its updated callback at
+    # construction, before the IF it would have to close over exists.
+    for controls_if in self.allControlsIfs():
+      try:
+        if control_name in controls_if.get_controls_dict():
+          return controls_if
+      except Exception:
+        continue
+    return None
+
+  def controlRoutes(self):
+    # control name -> the app callback that already owns that value. Routing
+    # rather than reimplementing is what keeps setRateCb's clamp,
+    # clampFovDeg's not-a-number fallback, setNavPoseSourceModeCb's option
+    # check and setNavPoseStaticFrame's frame validation exactly where they were.
+    routes = {
+        'paused':   self.pausePubCb,
+        'rate_hz':  self.setRateCb,
+        'random':   self.setRandomCb,
+        'overlay':  self.setOverlayCb,
+        'width_deg':  self.setWidthDegCb,
+        'height_deg': self.setHeightDegCb,
+        'apply_folder_settings': self.setApplyFolderSettingsCb,
+        'navpose_source_mode': self.setNavPoseSourceModeCb,
+        'navpose_system_timeout_sec': self.setNavPoseSystemTimeoutCb,
+        'navpose_static_frame_nav': self.setNavPoseStaticFrameNavCb,
+        'navpose_static_frame_altitude': self.setNavPoseStaticFrameAltitudeCb,
+        'navpose_static_frame_depth': self.setNavPoseStaticFrameDepthCb,
+    }
+    # The eleven static pose values share one callback, which takes the param
+    # name as its second argument -- exactly the callback_args form the removed
+    # subscribers used. The control name IS that param name.
+    for name, label, bounds, round_places in NAVPOSE_STATIC_VALUE_CONTROLS:
+      routes[name] = (lambda m, n = name: self.setNavPoseStaticValueCb(m, n))
+    return routes
+
+  def getControlValue(self, control_name, fallback = None):
+    controls_if = self.findControlsIf(control_name)
+    if controls_if is None:
+      return fallback
+    value = None
+    try:
+      value = controls_if.get_control_value(control_name)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Depthmap: failed to read control " +
+                           str(control_name) + ": " + str(e))
+    if value is None:
+      return fallback
+    return value
+
+  def setControlValue(self, control_name, value):
+    controls_if = self.findControlsIf(control_name)
+    if controls_if is None:
+      return
+    try:
+      controls_if.set_control_value(control_name, value)
+    except Exception as e:
+      self.msg_if.pub_warn("File Pub Depthmap: failed to write control " +
+                           str(control_name) + ": " + str(e))
+
+  def setControlHidden(self, control_name, hidden):
+    controls_if = self.findControlsIf(control_name)
+    if controls_if is None:
+      return
+    try:
+      controls_if.set_control_hidden(control_name, hidden)
+    except Exception:
+      pass
+
+  def applyControls(self):
+    # The single point where a control value becomes running app state. The
+    # static pose values are NOT read here: they live in static_navpose_dict,
+    # which initCb seeds through the same route table the updates use.
+    self.paused = bool(self.getControlValue('paused', False))
+    self.rate = float(self.getControlValue('rate_hz', self.FACTORY_PUB_RATE))
+    self.random = bool(self.getControlValue('random', False))
+    self.overlay = bool(self.getControlValue('overlay', False))
+    self.width_deg = self.clampFovDeg(
+        self.getControlValue('width_deg', self.FACTORY_WIDTH_DEG), self.FACTORY_WIDTH_DEG)
+    self.height_deg = self.clampFovDeg(
+        self.getControlValue('height_deg', self.FACTORY_HEIGHT_DEG), self.FACTORY_HEIGHT_DEG)
+    self.apply_folder_settings = bool(self.getControlValue('apply_folder_settings', False))
+    self.navpose_source_mode = str(self.getControlValue(
+        'navpose_source_mode', self.NAVPOSE_SOURCE_MODE_AUTO))
+    self.navpose_system_timeout_sec = float(self.getControlValue(
+        'navpose_system_timeout_sec', self.NAVPOSE_SYSTEM_TIMEOUT_SEC))
+    self.applyStaticNavPoseControls()
+
+  def applyStaticNavPoseControls(self):
+    # Copy the static pose controls into static_navpose_dict. The control name
+    # is the param name, and the navpose dict key is that name without the
+    # navpose_static_ prefix -- the same mapping the removed per-topic callbacks
+    # used, so there is still no translation table.
+    if self.static_navpose_dict is None:
+      return
+    self.navpose_lock.acquire()
+    for name, label, bounds, round_places in NAVPOSE_STATIC_VALUE_CONTROLS:
+      dict_key = name.replace('navpose_static_','')
+      if dict_key in self.static_navpose_dict:
+        value = self.getControlValue(name, None)
+        if value is not None:
+          self.static_navpose_dict[dict_key] = float(value)
+    for name, dict_key, label in NAVPOSE_STATIC_FRAME_CONTROLS:
+      value = self.getControlValue(name, None)
+      if value is not None and value != '':
+        self.static_navpose_dict[dict_key] = str(value)
+    self.navpose_lock.release()
+
+  def syncControlVisibility(self):
+    # Mirrors what the hand-written panel did. Rate and Random are shown while
+    # running forward, the two step Buttons while paused; the static pose fields
+    # and their three frames are hidden while a SYSTEM pose is being forwarded,
+    # because in that mode the node never reads them -- the RUI disabled them for
+    # exactly this reason. Gated on the RESOLVED active mode, not the setting:
+    # 'auto' says nothing on its own about which source is publishing.
+    paused = (self.paused == True)
+    self.setControlHidden('rate_hz', paused)
+    self.setControlHidden('random', paused)
+    self.setControlHidden('step_forward', paused == False)
+    self.setControlHidden('step_backward', paused == False)
+
+    forwarding = (self.getNavPoseActiveMode() == self.NAVPOSE_SOURCE_MODE_SYSTEM)
+    for name, label, bounds, round_places in NAVPOSE_STATIC_VALUE_CONTROLS:
+      self.setControlHidden(name, forwarding)
+    for name, dict_key, label in NAVPOSE_STATIC_FRAME_CONTROLS:
+      self.setControlHidden(name, forwarding)
+
+  def controlsUpdatedCb(self, control_name):
+    # Called by whichever ControlsIF owns the control, with the control name
+    # AFTER its dict is updated and its status published. One callback for all
+    # three sets: a control name is unique across them.
+    if control_name == 'start_pub':
+      self.startPub()
+    elif control_name == 'stop_pub':
+      self.stopPub()
+    elif control_name == 'step_forward':
+      self.stepForwardPubCb(None)
+    elif control_name == 'step_backward':
+      self.stepBackwardPubCb(None)
+    else:
+      route = self.controls_routes.get(control_name, None)
+      if route is not None:
+        value = self.getControlValue(control_name)
+        if value is not None:
+          route(ControlValue(value))
+
+    # applyControls runs after the route so an in-callback clamp (setRateCb,
+    # clampFovDeg) or rejection (an unknown source mode, an unoffered frame) is
+    # what lands in app state, then visibility is re-derived from it.
+    self.applyControls()
+    self.syncControlVisibility()
+
+    # Matches what the removed set_param calls did: persist on change. The
+    # config IF debounces this onto its own timer, so a slider drag does not
+    # write a file per frame.
+    if control_name not in BUTTON_CONTROLS and self.node_if is not None:
+      self.node_if.save_config()
+
+    self.publish_status()
+
+
 
 
 
@@ -926,8 +1119,6 @@ class NepiFilePubDepthmapApp(object):
     ##self.msg_if.pub_info(msg)
     self.random = msg.data
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('random',msg.data)
 
 
   def setOverlayCb(self,msg):
@@ -935,8 +1126,6 @@ class NepiFilePubDepthmapApp(object):
       overlay = msg.data
       self.overlay = overlay
       self.publish_status()
-      if self.node_if is not None:
-        self.node_if.set_param('overlay',overlay)
 
   def setRateCb(self,msg):
     ##self.msg_if.pub_info(msg)
@@ -947,8 +1136,6 @@ class NepiFilePubDepthmapApp(object):
       rate = self.MAX_RATE
     self.rate = rate
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('rate',rate)
 
 
   #############################
@@ -980,14 +1167,14 @@ class NepiFilePubDepthmapApp(object):
     return fov_deg
 
   def setWidthDeg(self, width_deg):
+    # The control persists the value; this only clamps it into app state. Note
+    # it does NOT write the control back -- applyFolderSettings does that, once,
+    # after both axes are set, which is what keeps the update recursion at
+    # depth two.
     self.width_deg = self.clampFovDeg(width_deg, self.width_deg)
-    if self.node_if is not None:
-      self.node_if.set_param('width_deg',self.width_deg)
 
   def setHeightDeg(self, height_deg):
     self.height_deg = self.clampFovDeg(height_deg, self.height_deg)
-    if self.node_if is not None:
-      self.node_if.set_param('height_deg',self.height_deg)
 
   def setWidthDegCb(self,msg):
     self.setWidthDeg(msg.data)
@@ -1043,6 +1230,15 @@ class NepiFilePubDepthmapApp(object):
         self.setHeightDeg(settings_dict[key])
         applied.append('height_deg ' + str(self.height_deg))
 
+    # Push what the sidecar set back into the controls, or the RUI keeps showing
+    # the previous field of view next to products already published with the new
+    # one. set_control_value only fires the updated callback when the value
+    # actually changed, and the route it then takes -- setWidthDegCb ->
+    # setWidthDeg -- writes no control of its own, so this terminates at depth
+    # two.
+    self.setControlValue('width_deg', self.width_deg)
+    self.setControlValue('height_deg', self.height_deg)
+
     description = settings_dict.get(self.FOLDER_SETTINGS_DESCRIPTION_KEY, '')
     if len(applied) == 0:
       self.folder_settings_status = ('Found ' + self.FOLDER_SETTINGS_FILE +
@@ -1070,8 +1266,6 @@ class NepiFilePubDepthmapApp(object):
     else:
       self.clearFolderSettingsStatus()
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('apply_folder_settings',apply_settings)
 
 
   #############################
@@ -1131,8 +1325,6 @@ class NepiFilePubDepthmapApp(object):
       timeout_sec = self.MAX_NAVPOSE_SYSTEM_TIMEOUT_SEC
     self.navpose_system_timeout_sec = timeout_sec
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('navpose_system_timeout_sec',timeout_sec)
 
   def setNavPoseSourceModeCb(self,msg):
     mode = msg.data
@@ -1142,12 +1334,12 @@ class NepiFilePubDepthmapApp(object):
       return
     self.navpose_source_mode = mode
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param('navpose_source_mode',mode)
 
   def setNavPoseStaticValueCb(self,msg,args):
-    # args is the param key; the navpose dict key is the same name without the
-    # navpose_static_ prefix, which is why the params are named that way.
+    # args is the CONTROL name; the navpose dict key is the same name without
+    # the navpose_static_ prefix, which is why the controls are named that way.
+    # The control itself persists the value, so the set_param this used to do is
+    # gone.
     param_name = args
     dict_key = param_name.replace('navpose_static_','')
     value = float(msg.data)
@@ -1156,12 +1348,13 @@ class NepiFilePubDepthmapApp(object):
       self.static_navpose_dict[dict_key] = value
     self.navpose_lock.release()
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param(param_name,value)
 
   def setNavPoseStaticFrame(self, frame, dict_key, param_name, frame_options):
     # Reject anything the IF does not offer and leave the previous value in
-    # place, so a bad frame never reaches a published pose.
+    # place, so a bad frame never reaches a published pose. The control itself
+    # persists the value, so the set_param this used to do is gone; param_name
+    # is kept in the signature because it names the control and reads in the
+    # three callers.
     if frame not in frame_options:
       self.msg_if.pub_warn("Rejected static navpose " + str(dict_key) + ": " + str(frame) +
                            " ; not one of " + str(frame_options))
@@ -1171,8 +1364,6 @@ class NepiFilePubDepthmapApp(object):
       self.static_navpose_dict[dict_key] = frame
     self.navpose_lock.release()
     self.publish_status()
-    if self.node_if is not None:
-      self.node_if.set_param(param_name,frame)
 
   def setNavPoseStaticFrameNavCb(self,msg):
     self.setNavPoseStaticFrame(msg.data, 'frame_nav', 'navpose_static_frame_nav',
@@ -1620,6 +1811,14 @@ class NepiFilePubDepthmapApp(object):
 
   def cleanup_actions(self):
     self.msg_if.pub_info(" Shutting down: Executing script cleanup actions")
+    for controls_if in self.allControlsIfs():
+      try:
+        controls_if.unregister()
+      except Exception:
+        pass
+    self.controls_if = None
+    self.folder_controls_if = None
+    self.navpose_controls_if = None
 
 
 #########################################

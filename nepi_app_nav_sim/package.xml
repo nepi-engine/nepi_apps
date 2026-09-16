@@ -2,7 +2,7 @@
 <package format="2">
   <name>nepi_app_nav_sim</name>
   <version>0.0.0</version>
-  <description>NEPI navigation data simulator application — NMEA and HNav TCP servers</description>
+  <description>NEPI navigation data simulator application — NMEA and HNav TCP servers, and a simulated GPS with MAVLink GPS_INPUT injection</description>
 
   <maintainer email="nepi@numurus.com">numurus</maintainer>
 
@@ -21,6 +21,11 @@
   <exec_depend>time</exec_depend>
   <exec_depend>sys</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>geographic_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>mavros_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>
 
   <export>

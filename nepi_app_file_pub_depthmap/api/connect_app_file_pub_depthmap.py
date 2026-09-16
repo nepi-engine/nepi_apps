@@ -29,6 +29,8 @@ from nepi_sdk import nepi_img
 
 from nepi_interfaces.msg import SaveDataRate, SaveDataStatus
 
+from nepi_interfaces.msg import ControlsStatus, UpdateControl
+
 from nepi_app_file_pub_depthmap.msg import FilePubDepthmapStatus
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -45,6 +47,17 @@ from nepi_api.connect_node_if import ConnectNodeClassIF
 
 APP_NODE_NAME = 'app_file_pub_depthmap'
 
+# The app's THREE ControlsIF set names, matching the CONTROLS_NAME_* constants
+# in file_pub_depthmap_app_node.py. ControlsIF roots itself at
+# create_namespace(node_namespace, controls_name), so each set sits one level
+# below the app node namespace, not on it.
+#
+# The third is navpose_SOURCE, not navpose: the node's NavPoseIF already roots
+# itself at <node>/navpose, and a control set of that name would collide with it.
+CONTROLS_NAME_PLAYBACK        = 'controls'
+CONTROLS_NAME_FOLDER_SETTINGS = 'folder_settings'
+CONTROLS_NAME_NAVPOSE         = 'navpose_source'
+
 class ConnectAppFilePubDepthmapIF:
     msg_if = None
     ready = False
@@ -55,6 +68,9 @@ class ConnectAppFilePubDepthmapIF:
     connected = False
     status_msg = None
     status_connected = False
+
+    controls_namespaces = None
+    controls_status_msgs = None
 
 
     #######################
@@ -82,6 +98,15 @@ class ConnectAppFilePubDepthmapIF:
         else:
             namespace = namespace
         self.namespace = nepi_sdk.get_full_namespace(namespace)
+        # control name -> which set owns it, so a caller (and set_control_value)
+        # never has to know which of the three a value lives in.
+        self.controls_namespaces = {}
+        self.controls_status_msgs = {}
+        for controls_name in [CONTROLS_NAME_PLAYBACK, CONTROLS_NAME_FOLDER_SETTINGS,
+                              CONTROLS_NAME_NAVPOSE]:
+            self.controls_namespaces[controls_name] = nepi_sdk.create_namespace(
+                self.namespace, controls_name)
+            self.controls_status_msgs[controls_name] = None
 
 
         ##############################
@@ -98,7 +123,34 @@ class ConnectAppFilePubDepthmapIF:
 
 
         # Publishers Config Dict ####################
+        # The app's adjustable state moved to three ControlsIF sets, so every
+        # setter below publishes one UpdateControl on the right set instead of
+        # its own typed topic. What is still on the app namespace are the
+        # COMMANDS: folder navigation, which carries a relative name plus a
+        # traversal verb, and start/stop, which a scripted caller uses as the
+        # publishing API.
         self.PUBS_DICT = {
+            'update_control_' + CONTROLS_NAME_PLAYBACK: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_PLAYBACK],
+                'topic': 'update_control',
+                'msg': UpdateControl,
+                'qsize': 1,
+                'latch': False
+            },
+            'update_control_' + CONTROLS_NAME_FOLDER_SETTINGS: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_FOLDER_SETTINGS],
+                'topic': 'update_control',
+                'msg': UpdateControl,
+                'qsize': 1,
+                'latch': False
+            },
+            'update_control_' + CONTROLS_NAME_NAVPOSE: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_NAVPOSE],
+                'topic': 'update_control',
+                'msg': UpdateControl,
+                'qsize': 1,
+                'latch': False
+            },
             'select_folder': {
                 'namespace': self.node_namespace,
                 'topic': 'select_folder',
@@ -120,20 +172,6 @@ class ConnectAppFilePubDepthmapIF:
                 'qsize': None,
                 'latch': False
             },
-            'set_rate': {
-                'namespace': self.node_namespace,
-                'topic': 'set_rate',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_random': {
-                'namespace': self.node_namespace,
-                'topic': 'set_random',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
             'start_pub': {
                 'namespace': self.node_namespace,
                 'topic': 'start_pub',
@@ -145,146 +183,6 @@ class ConnectAppFilePubDepthmapIF:
                 'namespace': self.node_namespace,
                 'topic': 'stop_pub',
                 'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'pause_pub': {
-                'namespace': self.node_namespace,
-                'topic': 'pause_pub',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
-            'step_forward': {
-                'namespace': self.node_namespace,
-                'topic': 'step_forward',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'step_backward': {
-                'namespace': self.node_namespace,
-                'topic': 'step_backward',
-                'msg': Empty,
-                'qsize': None,
-                'latch': False
-            },
-            'set_overlay': {
-                'namespace': self.node_namespace,
-                'topic': 'set_overlay',
-                'msg': Bool,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_source_mode': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_source_mode',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_system_timeout': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_system_timeout',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_latitude': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_latitude',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_longitude': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_longitude',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_heading': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_heading',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_roll': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_roll',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_pitch': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_pitch',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_yaw': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_yaw',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_x': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_x',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_y': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_y',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_z': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_z',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_altitude': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_altitude',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_depth': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_depth',
-                'msg': Float32,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_frame_nav': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_frame_nav',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_frame_altitude': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_frame_altitude',
-                'msg': String,
-                'qsize': None,
-                'latch': False
-            },
-            'set_navpose_static_frame_depth': {
-                'namespace': self.node_namespace,
-                'topic': 'set_navpose_static_frame_depth',
-                'msg': String,
                 'qsize': None,
                 'latch': False
             },
@@ -309,7 +207,6 @@ class ConnectAppFilePubDepthmapIF:
                 'qsize': None,
                 'latch': False
             }
-
         }
 
         # Subscribers Config Dict ####################
@@ -320,6 +217,27 @@ class ConnectAppFilePubDepthmapIF:
                 'msg': FilePubDepthmapStatus,
                 'qsize': 1,
                 'callback': self._statusCb
+            },
+            'controls_status_' + CONTROLS_NAME_PLAYBACK: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_PLAYBACK],
+                'topic': 'status',
+                'msg': ControlsStatus,
+                'qsize': 1,
+                'callback': self._playbackControlsStatusCb
+            },
+            'controls_status_' + CONTROLS_NAME_FOLDER_SETTINGS: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_FOLDER_SETTINGS],
+                'topic': 'status',
+                'msg': ControlsStatus,
+                'qsize': 1,
+                'callback': self._folderControlsStatusCb
+            },
+            'controls_status_' + CONTROLS_NAME_NAVPOSE: {
+                'namespace': self.controls_namespaces[CONTROLS_NAME_NAVPOSE],
+                'topic': 'status',
+                'msg': ControlsStatus,
+                'qsize': 1,
+                'callback': self._navposeControlsStatusCb
             }
         }
 
@@ -434,15 +352,62 @@ class ConnectAppFilePubDepthmapIF:
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
 
+    def get_controls_namespace(self, controls_name):
+        """Return the namespace one of the app's three control sets sits on.
+
+        Args:
+            controls_name (str): 'controls', 'folder_settings' or 'navpose_source'.
+
+        Returns:
+            str: The namespace, or None if the name is not one of the three.
+        """
+        return self.controls_namespaces.get(controls_name, None)
+
+    def get_controls_status_dict(self, controls_name):
+        """Return one control set's last received ControlsStatus as a dict.
+
+        Args:
+            controls_name (str): 'controls', 'folder_settings' or 'navpose_source'.
+
+        Returns:
+            dict: The controls status as a dict, or None if none has arrived yet.
+        """
+        status_msg = self.controls_status_msgs.get(controls_name, None)
+        if status_msg is not None:
+            return nepi_sdk.convert_msg2dict(status_msg)
+        return None
+
+    def set_control_value(self, controls_name, control_name, value, index = None):
+        """Update one control in one of the app's three control sets.
+
+        Args:
+            controls_name (str): 'controls', 'folder_settings' or 'navpose_source'.
+            control_name (str): Name of the control, as it appears in that set's
+                ControlsStatus.
+            value: New value. Lists are sent entry by entry; anything else is sent
+                as one value.
+            index (int, optional): Component index for a multi-value control.
+                Defaults to None, which replaces the whole value.
+        """
+        if controls_name not in self.controls_namespaces:
+            self.msg_if.pub_warn("Unknown controls set: " + str(controls_name))
+            return
+        msg = UpdateControl()
+        msg.name = str(control_name)
+        if isinstance(value, (list, tuple)):
+            msg.value = [str(item) for item in value]
+        else:
+            msg.value = [str(value)]
+        msg.index = '' if index is None else str(index)
+        self.con_node_if.publish_pub('update_control_' + controls_name, msg)
+
     def set_rate(self,rate_hz):
-        pub_name = 'set_rate'
-        msg = rate_hz
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Set the collection publish rate in Hz (clamped by the control bounds)."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'rate_hz', float(rate_hz))
 
     def set_random(self,set_random):
-        pub_name = 'set_random'
-        msg = set_random
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Enable or disable random collection order."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'random', bool(set_random))
 
     def enable_publishing(self):
         pub_name = 'start_pub'
@@ -455,24 +420,33 @@ class ConnectAppFilePubDepthmapIF:
         self.con_node_if.publish_pub(pub_name,msg)
 
     def pause_publishing(self,pause_pub):
-        pub_name = 'pause_pub'
-        msg = pause_pub
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Hold on the current collection instead of advancing."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'paused', bool(pause_pub))
 
     def next_collection(self):
-        pub_name = 'step_forward'
-        msg = Empty()
-        self.con_node_if.publish_pub(pub_name,msg)
+        """While paused, advance one collection."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'step_forward', 'TRIGGER')
 
     def previous_collection(self):
-        pub_name = 'step_backward'
-        msg = Empty()
-        self.con_node_if.publish_pub(pub_name,msg)
+        """While paused, go back one collection."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'step_backward', 'TRIGGER')
 
     def set_overlay(self,set_overlay):
-        pub_name = 'set_overlay'
-        msg = set_overlay
-        self.con_node_if.publish_pub(pub_name,msg)
+        """Draw the source filename on each published color image."""
+        self.set_control_value(CONTROLS_NAME_PLAYBACK, 'overlay', bool(set_overlay))
+
+    def set_width_deg(self,width_deg):
+        """Set the angular width the published products declare."""
+        self.set_control_value(CONTROLS_NAME_FOLDER_SETTINGS, 'width_deg', float(width_deg))
+
+    def set_height_deg(self,height_deg):
+        """Set the angular height the published products declare."""
+        self.set_control_value(CONTROLS_NAME_FOLDER_SETTINGS, 'height_deg', float(height_deg))
+
+    def set_apply_folder_settings(self,apply_settings):
+        """Read a collection folder settings sidecar and apply the field of view it declares."""
+        self.set_control_value(CONTROLS_NAME_FOLDER_SETTINGS,
+                               'apply_folder_settings', bool(apply_settings))
 
     #################
     ## NavPose Source
@@ -607,7 +581,7 @@ class ConnectAppFilePubDepthmapIF:
             source_mode (str): 'auto', 'system' or 'static'. A value the node
                 does not recognize is rejected and the previous mode kept.
         """
-        self.con_node_if.publish_pub('set_navpose_source_mode',source_mode)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_source_mode', source_mode)
 
     def set_navpose_system_timeout(self,timeout_sec):
         """Set the system nav pose staleness window.
@@ -615,7 +589,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             timeout_sec (float): Window in seconds. Clamped by the node.
         """
-        self.con_node_if.publish_pub('set_navpose_system_timeout',timeout_sec)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_system_timeout_sec', float(timeout_sec))
 
     def set_navpose_static_latitude(self,latitude):
         """Set the static pose latitude.
@@ -623,7 +597,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             latitude (float): Latitude in degrees.
         """
-        self.con_node_if.publish_pub('set_navpose_static_latitude',latitude)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_latitude', float(latitude))
 
     def set_navpose_static_longitude(self,longitude):
         """Set the static pose longitude.
@@ -631,7 +605,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             longitude (float): Longitude in degrees.
         """
-        self.con_node_if.publish_pub('set_navpose_static_longitude',longitude)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_longitude', float(longitude))
 
     def set_navpose_static_heading(self,heading_deg):
         """Set the static pose heading.
@@ -639,7 +613,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             heading_deg (float): Heading in degrees true north.
         """
-        self.con_node_if.publish_pub('set_navpose_static_heading',heading_deg)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_heading_deg', float(heading_deg))
 
     def set_navpose_static_roll(self,roll_deg):
         """Set the static pose roll.
@@ -647,7 +621,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             roll_deg (float): Roll in degrees in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_roll',roll_deg)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_roll_deg', float(roll_deg))
 
     def set_navpose_static_pitch(self,pitch_deg):
         """Set the static pose pitch.
@@ -655,7 +629,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             pitch_deg (float): Pitch in degrees in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_pitch',pitch_deg)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_pitch_deg', float(pitch_deg))
 
     def set_navpose_static_yaw(self,yaw_deg):
         """Set the static pose yaw.
@@ -663,7 +637,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             yaw_deg (float): Yaw in degrees in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_yaw',yaw_deg)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_yaw_deg', float(yaw_deg))
 
     def set_navpose_static_x(self,x_m):
         """Set the static pose X position.
@@ -671,7 +645,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             x_m (float): X position in meters in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_x',x_m)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_x_m', float(x_m))
 
     def set_navpose_static_y(self,y_m):
         """Set the static pose Y position.
@@ -679,7 +653,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             y_m (float): Y position in meters in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_y',y_m)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_y_m', float(y_m))
 
     def set_navpose_static_z(self,z_m):
         """Set the static pose Z position.
@@ -687,7 +661,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             z_m (float): Z position in meters in the selected nav frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_z',z_m)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_z_m', float(z_m))
 
     def set_navpose_static_altitude(self,altitude_m):
         """Set the static pose altitude.
@@ -695,7 +669,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             altitude_m (float): Altitude in meters in the selected altitude frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_altitude',altitude_m)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_altitude_m', float(altitude_m))
 
     def set_navpose_static_depth(self,depth_m):
         """Set the static pose depth.
@@ -703,7 +677,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             depth_m (float): Depth in positive meters in the selected depth frame.
         """
-        self.con_node_if.publish_pub('set_navpose_static_depth',depth_m)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_depth_m', float(depth_m))
 
     def set_navpose_static_frame_nav(self,frame_nav):
         """Set the nav frame the static pose is declared in.
@@ -714,7 +688,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             frame_nav (str): Nav frame identifier, e.g. 'ENU'.
         """
-        self.con_node_if.publish_pub('set_navpose_static_frame_nav',frame_nav)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_frame_nav', frame_nav)
 
     def set_navpose_static_frame_altitude(self,frame_altitude):
         """Set the altitude frame the static pose is declared in.
@@ -725,7 +699,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             frame_altitude (str): Altitude frame identifier, e.g. 'WGS84'.
         """
-        self.con_node_if.publish_pub('set_navpose_static_frame_altitude',frame_altitude)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_frame_altitude', frame_altitude)
 
     def set_navpose_static_frame_depth(self,frame_depth):
         """Set the depth frame the static pose is declared in.
@@ -736,7 +710,7 @@ class ConnectAppFilePubDepthmapIF:
         Args:
             frame_depth (str): Depth frame identifier, e.g. 'DEPTH'.
         """
-        self.con_node_if.publish_pub('set_navpose_static_frame_depth',frame_depth)
+        self.set_control_value(CONTROLS_NAME_NAVPOSE, 'navpose_static_frame_depth', frame_depth)
 
 
     def save_config(self):
@@ -771,6 +745,15 @@ class ConnectAppFilePubDepthmapIF:
                 self.msg_if.pub_warn("Failed to unregister:  " + str(e))
         return success
 
+
+    def _playbackControlsStatusCb(self,status_msg):
+        self.controls_status_msgs[CONTROLS_NAME_PLAYBACK] = status_msg
+
+    def _folderControlsStatusCb(self,status_msg):
+        self.controls_status_msgs[CONTROLS_NAME_FOLDER_SETTINGS] = status_msg
+
+    def _navposeControlsStatusCb(self,status_msg):
+        self.controls_status_msgs[CONTROLS_NAME_NAVPOSE] = status_msg
 
     def _statusCb(self,status_msg):
         self.status_connected = True
