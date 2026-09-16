@@ -367,6 +367,7 @@ def build_section_controls(section_fields, sin_fields = ()):
 # other two kinds use.
 
 _GPS_ENU_AXIS_LABELS = ['East (m)', 'North (m)', 'Up (m)']
+_GPS_GEO_AXIS_LABELS = ['Latitude', 'Longitude', 'Altitude (m)']
 
 # Button controls, keyed here so the updated callback can tell a command press
 # from a value edit without restating the names inline.
@@ -390,9 +391,9 @@ _GPS_CONTROLS = {
     # Grouping also suppresses the control's read-only Min/Max block, because
     # renderBounds is a block element that would break the line. The bounds
     # below are still enforced -- nepi_controls clamps against them on every
-    # write -- they are simply no longer drawn. The two controls that cannot be
-    # grouped (the Floats axis row and the slider) get the same result from the
-    # show_bounds={false} the page passes when it mounts these sets.
+    # write -- they are simply no longer drawn. The controls that cannot be
+    # grouped (the two Floats axis rows and the slider) get the same result
+    # from the show_bounds={false} the page passes when it mounts these sets.
     'start_latitude': {
         'type': 'Float', 'default': FACTORY_GPS_LATITUDE,
         'bounds': [MIN_LATITUDE_DEG, MAX_LATITUDE_DEG],
@@ -432,29 +433,29 @@ _GPS_CONTROLS = {
         'description': 'Jump the simulated position to the start location with no interpolated move'},
 
     # ---- Move: the goto buffers and the commands that consume them ----
-    'goto_latitude': {
-        'type': 'Float', 'default': FACTORY_GPS_LATITUDE,
-        'bounds': [MIN_LATITUDE_DEG, MAX_LATITUDE_DEG],
+    # One Floats control, same shape as goto_position_m below, and for the same
+    # display reason: display_row lays the three boxes on one line with each
+    # axis caption above its own box. Three separately grouped controls cannot
+    # produce that -- a row group prints ONE label, in the left gutter, and
+    # every later control's caption inline AFTER its widget.
+    #
+    # The cost is the one a multi-value control always carries, and it is why
+    # these were three controls before: Control.msg holds a SINGLE
+    # min_bound/max_bound pair, so the three axes cannot each keep their own,
+    # and the axes genuinely disagree -- a pair wide enough for altitude lets
+    # latitude reach 20000, a pair that fits longitude caps altitude at 180 m.
+    # No pair is right, so bounds are left unset (the -999 no-limit sentinel)
+    # and the per-axis limits are enforced in _setGotoLocationGeoCb instead,
+    # against the same constants. Same clamping, one step later, which is the
+    # pattern _setSpeedCb already uses.
+    'goto_location_geo': {
+        'type': 'Floats',
+        'default': [FACTORY_GPS_LATITUDE, FACTORY_GPS_LONGITUDE, FACTORY_GPS_ALTITUDE_M],
         'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
-        'display_name': 'Goto Latitude',
-        'display_group': 'goto_latitude', 'display_width': _ROW_VALUE_WIDTH,
-        'description': 'WGS84 latitude to simulate a move to'},
-
-    'goto_longitude': {
-        'type': 'Float', 'default': FACTORY_GPS_LONGITUDE,
-        'bounds': [MIN_LONGITUDE_DEG, MAX_LONGITUDE_DEG],
-        'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
-        'display_name': 'Goto Longitude',
-        'display_group': 'goto_longitude', 'display_width': _ROW_VALUE_WIDTH,
-        'description': 'WGS84 longitude to simulate a move to'},
-
-    'goto_altitude_m': {
-        'type': 'Float', 'default': FACTORY_GPS_ALTITUDE_M,
-        'bounds': [MIN_ALTITUDE_M, MAX_ALTITUDE_M],
-        'round': 2, 'display_round': 2,
-        'display_name': 'Goto Altitude (m)',
-        'display_group': 'goto_altitude_m', 'display_width': _ROW_VALUE_WIDTH,
-        'description': 'WGS84 altitude to simulate a move to'},
+        'display_row': True,
+        'display_labels': _GPS_GEO_AXIS_LABELS,
+        'display_name': 'Goto Location (WGS84)',
+        'description': 'WGS84 latitude, longitude and altitude to simulate a move to'},
 
     'goto_location': {
         'type': 'Button',
@@ -463,8 +464,9 @@ _GPS_CONTROLS = {
         'description': 'Simulate a move to the goto location'},
 
     # One Floats control rather than three Floats: a control carries a single
-    # bound pair, and all three ENU axes share the same metre bound. The three
-    # geopoint axes above do not, which is why those stay separate controls.
+    # bound pair, and all three ENU axes share the same metre bound -- so this
+    # one keeps its bounds. The three geopoint axes above do not share a bound,
+    # which is why goto_location_geo declares none and clamps in its setter.
     #
     # NOT grouped, unlike every other control here. A grouped widget renders
     # with hide_label, which is what stops a row printing its caption twice --
@@ -528,7 +530,7 @@ _GPS_SECTIONS = (
         'use_current_location', 'set_location',
     )),
     ('Move', CONTROLS_SUFFIX_MOVE, (
-        'goto_latitude', 'goto_longitude', 'goto_altitude_m', 'goto_location',
+        'goto_location_geo', 'goto_location',
         'goto_position_m', 'goto_position', 'stop',
     )),
     ('Output', CONTROLS_SUFFIX_OUTPUT, (
@@ -1670,9 +1672,8 @@ class GpsSimInstance:
         self.start_latitude     = FACTORY_GPS_LATITUDE
         self.start_longitude    = FACTORY_GPS_LONGITUDE
         self.start_altitude_m   = FACTORY_GPS_ALTITUDE_M
-        self.goto_latitude      = FACTORY_GPS_LATITUDE
-        self.goto_longitude     = FACTORY_GPS_LONGITUDE
-        self.goto_altitude_m    = FACTORY_GPS_ALTITUDE_M
+        self.goto_location_geo  = [FACTORY_GPS_LATITUDE, FACTORY_GPS_LONGITUDE,
+                                   FACTORY_GPS_ALTITUDE_M]
         self.goto_position_m    = [0.0, 0.0, 0.0]
         self.mavros_node        = FACTORY_SELECTED_MAVROS
         self.gps_pub_rate_hz    = float(GPS_PUB_RATE_HZ)
@@ -1767,18 +1768,14 @@ class GpsSimInstance:
             'start_latitude':       self._setStartLatitudeCb,
             'start_longitude':      self._setStartLongitudeCb,
             'start_altitude_m':     self._setStartAltitudeCb,
-            'goto_latitude':        self._setGotoLatitudeCb,
-            'goto_longitude':       self._setGotoLongitudeCb,
-            'goto_altitude_m':      self._setGotoAltitudeCb,
+            'goto_location_geo':    self._setGotoLocationGeoCb,
             'goto_position_m':      self._setGotoPositionMCb,
             'mavros_node':          self._setMavrosNodeCb,
             'gps_pub_rate_hz':      self._setGpsPubRateCb,
             'satellites_visible':   self._setSatellitesVisibleCb,
             'use_current_location': (lambda m: self.useCurrentLocation()),
             'set_location':         (lambda m: self.setLocation()),
-            'goto_location':        (lambda m: self.gotoGeoLocation(
-                                        self.goto_latitude, self.goto_longitude,
-                                        self.goto_altitude_m)),
+            'goto_location':        (lambda m: self.gotoBufferedGeoLocation()),
             'goto_position':        (lambda m: self.gotoBufferedEnuPosition()),
             'stop':                 (lambda m: self.stopMove()),
         }
@@ -1858,16 +1855,21 @@ class GpsSimInstance:
         with self._lock: self.start_altitude_m = float(msg.data)
         self.publish_status()
 
-    def _setGotoLatitudeCb(self, msg):
-        with self._lock: self.goto_latitude = float(msg.data)
-        self.publish_status()
-
-    def _setGotoLongitudeCb(self, msg):
-        with self._lock: self.goto_longitude = float(msg.data)
-        self.publish_status()
-
-    def _setGotoAltitudeCb(self, msg):
-        with self._lock: self.goto_altitude_m = float(msg.data)
+    def _setGotoLocationGeoCb(self, msg):
+        # The per-axis limits live here, not in the control's bounds: the three
+        # axes do not share a range and a Control carries only one pair, so
+        # goto_location_geo declares none and nepi_controls clamps nothing on
+        # the way in. Clamping here keeps the limits the three separate
+        # controls used to enforce, against the same constants. Setter-side
+        # clamping is the existing pattern -- see _setSpeedCb.
+        geo = msg.data
+        if isinstance(geo, (list, tuple)) == False or len(geo) != 3:
+            return
+        with self._lock:
+            self.goto_location_geo = [
+                min(max(float(geo[0]), MIN_LATITUDE_DEG),  MAX_LATITUDE_DEG),
+                min(max(float(geo[1]), MIN_LONGITUDE_DEG), MAX_LONGITUDE_DEG),
+                min(max(float(geo[2]), MIN_ALTITUDE_M),    MAX_ALTITUDE_M)]
         self.publish_status()
 
     def _setGotoPositionMCb(self, msg):
@@ -1998,12 +2000,11 @@ class GpsSimInstance:
         # Writes six controls, each of which calls back into controlsUpdatedCb.
         # Recursion terminates at depth two because none of those value routes
         # writes another control.
-        self._setControlValue('start_latitude',   geo.latitude)
-        self._setControlValue('start_longitude',  geo.longitude)
-        self._setControlValue('start_altitude_m', geo.altitude)
-        self._setControlValue('goto_latitude',    geo.latitude)
-        self._setControlValue('goto_longitude',   geo.longitude)
-        self._setControlValue('goto_altitude_m',  geo.altitude)
+        self._setControlValue('start_latitude',    geo.latitude)
+        self._setControlValue('start_longitude',   geo.longitude)
+        self._setControlValue('start_altitude_m',  geo.altitude)
+        self._setControlValue('goto_location_geo', [geo.latitude, geo.longitude,
+                                                    geo.altitude])
 
     def setLocation(self):
         with self._lock:
@@ -2027,6 +2028,13 @@ class GpsSimInstance:
             return
         with self._lock:
             self._move_plan = None
+
+    def gotoBufferedGeoLocation(self):
+        with self._lock:
+            geo = list(self.goto_location_geo)
+        if len(geo) != 3:
+            return
+        self.gotoGeoLocation(geo[0], geo[1], geo[2])
 
     def gotoBufferedEnuPosition(self):
         with self._lock:
@@ -2387,7 +2395,6 @@ class GpsSimInstance:
         need_apply = False
         with self._lock:
             for name in ('start_latitude', 'start_longitude', 'start_altitude_m',
-                         'goto_latitude', 'goto_longitude', 'goto_altitude_m',
                          'gps_pub_rate_hz'):
                 if name in d:
                     setattr(self, name, float(d[name]))
@@ -2395,6 +2402,10 @@ class GpsSimInstance:
                 self.satellites_visible = int(d['satellites_visible'])
             if 'mavros_node' in d:
                 self.mavros_node = str(d['mavros_node'])
+            if 'goto_location_geo' in d:
+                geo = d['goto_location_geo']
+                if isinstance(geo, (list, tuple)) and len(geo) == 3:
+                    self.goto_location_geo = [float(v) for v in geo]
             if 'goto_position_m' in d:
                 offset = d['goto_position_m']
                 if isinstance(offset, (list, tuple)) and len(offset) == 3:

@@ -229,14 +229,15 @@ class ImageViewerApp extends Component {
 
   // The app's control set: window count and the four topic selections.
   //
-  // This does NOT replace the selector's own control bar above. The image
-  // windows and their per-window topic dropdowns live in
-  // Nepi_IF_ImageViewersSelector, a shared component under nepi_rui, and
-  // retiring that bar is a separate pass -- so until then the same five values
-  // are reachable from two places on this page. That is safe rather than merely
-  // tolerated: the node routes the selector's set_topic_N / set_num_windows
-  // topics through the same control set, so both paths write one store and each
-  // shows the other's change on the next status tick.
+  // NOT CURRENTLY MOUNTED -- both call sites in render() are commented out, on
+  // purpose and kept rather than deleted. Every value in this set is already
+  // reachable from Nepi_IF_ImageViewersSelector's own control bar above, so
+  // rendering this section too put the same five values on the page twice.
+  //
+  // The backend set is untouched and still live: the node routes the selector's
+  // set_topic_N / set_num_windows topics through this same control set, so the
+  // controls are doing their job -- they just have no second section of their
+  // own here. Uncomment either call site to bring the section back.
   renderControls(){
     const controlsNamespace = this.getControlsNamespace()
     if (controlsNamespace === null || controlsNamespace.indexOf('null') !== -1){
@@ -310,7 +311,7 @@ class ImageViewerApp extends Component {
         <Columns>
         <Column>
               {this.renderImageViewers()}
-                {this.renderControls()}
+                {/* {this.renderControls()} */}
                 {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 
@@ -325,7 +326,7 @@ class ImageViewerApp extends Component {
       <Section>
 
               {this.renderImageViewers()}
-                {this.renderControls()}
+                {/* {this.renderControls()} */}
                 {/* {this.renderSaveData()} */}
                   {this.renderConfig()}
 
