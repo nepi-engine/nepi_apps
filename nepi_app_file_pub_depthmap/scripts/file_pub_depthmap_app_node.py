@@ -1025,7 +1025,7 @@ class NepiFilePubDepthmapApp(object):
     for name, dict_key, label in NAVPOSE_STATIC_FRAME_CONTROLS:
       self.setControlHidden(name, forwarding)
 
-  def controlsUpdatedCb(self, control_name):
+  def controlsUpdatedCb(self, control_name, conrol_value):
     # Called by whichever ControlsIF owns the control, with the control name
     # AFTER its dict is updated and its status published. One callback for all
     # three sets: a control name is unique across them.

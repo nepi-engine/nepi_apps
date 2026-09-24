@@ -927,7 +927,7 @@ class NmeaSimInstance:
                 setControlHidden(self, 'move_step_' + field,    auto == False)
                 setControlHidden(self, 'move_rate_hz_' + field, auto == False)
 
-    def controlsUpdatedCb(self, control_name):
+    def controlsUpdatedCb(self, control_name, conrol_value):
         applyControlUpdate(self, control_name)
         # An Auto toggle changes which boxes the row shows, so re-derive
         # visibility after every update rather than special-casing the name.
@@ -1281,7 +1281,7 @@ class HNavSimInstance:
                 setControlHidden(self, 'enable_wave_' + field,   sin == False)
                 setControlHidden(self, 'sin_spread_' + field,    wave == False)
 
-    def controlsUpdatedCb(self, control_name):
+    def controlsUpdatedCb(self, control_name, conrol_value):
         applyControlUpdate(self, control_name)
         self.syncRowVisibility()
 
@@ -1793,7 +1793,7 @@ class GpsSimInstance:
         # come up with an empty selector until the next discovery pass.
         self.applyMavrosOptions()
 
-    def controlsUpdatedCb(self, control_name):
+    def controlsUpdatedCb(self, control_name, conrol_value):
         # No conditional rows in the GPS sets, so unlike the other two kinds
         # there is no syncRowVisibility pass to re-derive after an update.
         applyControlUpdate(self, control_name)

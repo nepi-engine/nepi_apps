@@ -473,7 +473,7 @@ class ONVIFMgr:
     self.autosave_cfg_changes = bool(self.getControlValue(
         'autosave_cfg_changes', FACTORY_AUTOSAVE_CFG_CHANGES))
 
-  def controlsUpdatedCb(self, control_name):
+  def controlsUpdatedCb(self, control_name, control_value):
     # Called by ControlsIF with the control name AFTER its dict is updated and
     # its status published.
     route = self.controls_routes.get(control_name, None)

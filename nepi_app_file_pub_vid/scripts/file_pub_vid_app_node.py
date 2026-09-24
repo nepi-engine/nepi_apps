@@ -511,7 +511,7 @@ class NepiFilePubVidApp(object):
     paused = (self.paused == True)
     self.setControlHidden('step_forward', paused == False)
 
-  def controlsUpdatedCb(self, control_name):
+  def controlsUpdatedCb(self, control_name, conrol_value):
     # Called by ControlsIF with the control name AFTER its dict is updated and
     # its status published.
     if control_name == 'start_pub':
