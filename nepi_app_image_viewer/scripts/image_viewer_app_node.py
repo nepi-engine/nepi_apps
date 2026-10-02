@@ -389,7 +389,7 @@ class NepiImageViewerApp(object):
     # value while num_windows is 1. One control feeds both so they cannot drift.
     self.single_image_topic = topics[0]
 
-  def controlsUpdatedCb(self, control_name):
+  def controlsUpdatedCb(self, control_name, control_value):
     # Called by ControlsIF with the control name AFTER its dict is updated and
     # its status published.
     self.applyControls()
