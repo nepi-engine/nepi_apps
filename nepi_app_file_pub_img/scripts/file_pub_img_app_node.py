@@ -118,13 +118,13 @@ def build_controls_init_dict(size_options, encoding_options,
 
     'step_forward': {
         'type': 'Button',
-        'display_name': 'Forward', 'display_group': 'step',
+        'display_name': 'Forward', 'display_group': 'playback',
         'display_hidden': True,
         'description': 'While paused, advance one image'},
 
     'step_backward': {
         'type': 'Button',
-        'display_name': 'Back', 'display_group': 'step',
+        'display_name': 'Back', 'display_group': 'playback',
         'display_hidden': True,
         'description': 'While paused, go back one image'},
 
@@ -537,8 +537,8 @@ class NepiFilePubImgApp(object):
     # running forward, the two step Buttons while paused. Re-derived after every
     # update rather than special-casing the pause control's name.
     paused = (self.paused == True)
-    self.setControlHidden('rate_hz', paused)
-    self.setControlHidden('random', paused)
+    self.setControlHidden('rate_hz', False)
+    self.setControlHidden('random', False)
     self.setControlHidden('step_forward', paused == False)
     self.setControlHidden('step_backward', paused == False)
 
