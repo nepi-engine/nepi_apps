@@ -131,7 +131,7 @@ def build_controls_init_dict(size_options, encoding_options,
     'rate_hz': {
         'type': 'Float', 'default': float(factory_rate),
         'bounds': [min_rate, max_rate],
-        'round': 2, 'display_round': 2,
+        'round': 2, 'display_round': 2, 'display_bounds': False,
         'display_name': 'Rate (Hz)',
         'display_width': _ROW_VALUE_WIDTH,
         'description': 'Rate images are published at while not paused'},
