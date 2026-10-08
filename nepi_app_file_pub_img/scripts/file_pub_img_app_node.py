@@ -114,18 +114,7 @@ def build_controls_init_dict(size_options, encoding_options,
         'display_name': 'Paused', 'display_group': 'playback',
         'description': 'Hold on the current image instead of advancing'},
 
-    'rate_hz': {
-        'type': 'Float', 'default': float(factory_rate),
-        'bounds': [min_rate, max_rate],
-        'round': 2, 'display_round': 2,
-        'display_name': 'Rate (Hz)', 'display_group': 'playback',
-        'display_width': _ROW_VALUE_WIDTH,
-        'description': 'Rate images are published at while not paused'},
 
-    'random': {
-        'type': 'Toggle', 'default': False,
-        'display_name': 'Random', 'display_group': 'playback',
-        'description': 'Pick the next image at random rather than in order'},
 
     'step_forward': {
         'type': 'Button',
@@ -138,6 +127,21 @@ def build_controls_init_dict(size_options, encoding_options,
         'display_name': 'Back', 'display_group': 'step',
         'display_hidden': True,
         'description': 'While paused, go back one image'},
+
+    'rate_hz': {
+        'type': 'Float', 'default': float(factory_rate),
+        'bounds': [min_rate, max_rate],
+        'round': 2, 'display_round': 2,
+        'display_name': 'Rate (Hz)',
+        'display_width': _ROW_VALUE_WIDTH,
+        'description': 'Rate images are published at while not paused'},
+
+
+    'random': {
+        'type': 'Toggle', 'default': False,
+        'display_name': 'Random',
+        'description': 'Pick the next image at random rather than in order'},
+
 
     # Selection, not Menu: a Menu value is the INDEX into its option list, so a
     # reordered list would silently re-point the stored size at a different one.
