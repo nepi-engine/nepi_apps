@@ -656,7 +656,6 @@ class NepiCustomRobotApp(object):
                 setMotorSpeedFunction=self.setMotorSpeed,
                 stopMotorFunction=self.stopMotor,
                 getNavPoseFunction=self.getNavPoseDict,
-                log_name='rbx',
                 msg_if=self.msg_if)
         except Exception as e:
             self.rbx_if = None
