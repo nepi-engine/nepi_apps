@@ -158,7 +158,7 @@ class ONVIFMgr:
 
     ##############################  
     # Create Msg Class
-    self.msg_if = MsgIF(log_name = self.class_name)
+    self.msg_if = MsgIF()
     self.msg_if.pub_info("Starting IF Initialization Processes")
 
     self.MGR_USER_CFG_FILE="/mnt/nepi_storage/user_cfg/" + self.node_name + ".yaml"
@@ -166,7 +166,6 @@ class ONVIFMgr:
     ##############################
     # Get for System Folders
     self.msg_if.pub_info("Waiting for system folders")
-    system_folders = nepi_system.get_system_folders(log_name_list = [self.node_name])
     #self.msg_if.pub_warn("Got system folders: " + str(system_folders))
 
     self.drivers_folder = system_folders['drivers_lib']
@@ -1187,7 +1186,6 @@ class ONVIFMgr:
     # with everything else.
     if self.node_if is not None:
       self.node_if.set_param('configured_onvifs', self.configured_onvifs)
-      nepi_sdk.save_params_to_file(self.MGR_USER_CFG_FILE, self.node_namespace, save_all = True, log_name_list = [self.node_name])
   
 
 

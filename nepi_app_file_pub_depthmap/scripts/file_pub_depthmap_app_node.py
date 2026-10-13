@@ -504,7 +504,7 @@ class NepiFilePubDepthmapApp(object):
 
     ##############################
     # Create Msg Class
-    self.msg_if = MsgIF(log_name = self.class_name)
+    self.msg_if = MsgIF()
     self.msg_if.pub_info("Starting IF Initialization Processes")
 
     ##############################
@@ -673,8 +673,8 @@ class NepiFilePubDepthmapApp(object):
                 pub_pan_tilt = False,
                 save_data_if = None,
                 save_data_enabled = False,
-                log_name = 'navpose',
-                msg_if = self.msg_if
+                msg_if = self.msg_if,
+                node_if = self.node_if
                 )
 
     # Seed the static pose before anything can read it.  The navpose publish
@@ -687,8 +687,8 @@ class NepiFilePubDepthmapApp(object):
                 data_ref_description = 'source',
                 perspective = 'pov',
                 navpose_if = self.navpose_if,
-                log_name = 'color_image',
-                msg_if = self.msg_if
+                msg_if = self.msg_if,
+                node_if = self.node_if
                 )
     self.color_if.wait_for_ready()
     self.color_if.unregister_pubs()
@@ -703,8 +703,8 @@ class NepiFilePubDepthmapApp(object):
                 perspective = 'pov',
                 pub_image = False,
                 navpose_if = self.navpose_if,
-                log_name = 'depth_map',
-                msg_if = self.msg_if
+                msg_if = self.msg_if,
+                node_if = self.node_if
                 )
     self.depth_map_if.wait_for_ready()
     self.depth_map_if.unregister_pubs()
@@ -735,8 +735,8 @@ class NepiFilePubDepthmapApp(object):
                 data_ref_description = 'source',
                 perspective = 'pov',
                 navpose_if = self.navpose_if,
-                log_name = 'depth_map_image',
-                msg_if = self.msg_if
+                msg_if = self.msg_if,
+                node_if = self.node_if
                 )
     self.depth_map_image_if.wait_for_ready()
     self.depth_map_image_if.unregister_pubs()

@@ -2461,7 +2461,7 @@ class NepiNavSimApp:
         self.class_name     = type(self).__name__
         self.node_namespace = nepi_sdk.get_node_namespace()
 
-        self.msg_if = MsgIF(log_name=self.class_name)
+        self.msg_if = MsgIF()
         self.msg_if.pub_info("Nav Sim App starting")
 
         self._inst_lock      = threading.Lock()

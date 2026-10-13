@@ -219,7 +219,7 @@ class NepiFilePubVidApp(object):
 
     ##############################  
     # Create Msg Class
-    self.msg_if = MsgIF(log_name = self.class_name)
+    self.msg_if = MsgIF()
     self.msg_if.pub_info("Starting IF Initialization Processes")
 
     ##############################     
@@ -346,7 +346,7 @@ class NepiFilePubVidApp(object):
                 data_source_description = 'file',
                 data_ref_description = 'source',
                 perspective = 'pov',
-                log_name = data_product,
+                
                 msg_if = self.msg_if
                 )
     ready = self.image_if.wait_for_ready()

@@ -74,8 +74,8 @@ class CustomRobotRbxIF:
                  setMotorSpeedFunction,
                  stopMotorFunction,
                  getNavPoseFunction,
-                 log_name=None,
-                 msg_if=None):
+                 msg_if=None,
+                 node_if=None):
         """Build and own the RBX device for the custom robot.
 
         Args:
@@ -93,7 +93,6 @@ class CustomRobotRbxIF:
                 motor.
             getNavPoseFunction (callable): Returns the robot's navpose dict, or
                 None when no navpose source is connected.
-            log_name (str): Optional log name for this interface.
             msg_if (MsgIF): Shared message interface, or None to create one.
         """
         self.class_name = type(self).__name__
@@ -108,9 +107,11 @@ class CustomRobotRbxIF:
 
         if msg_if is not None:
             self.msg_if = msg_if
-        else:
-            self.msg_if = MsgIF(log_name=self.class_name)
-        self.log_name = log_name
+
+
+        if node_if is not None:
+            self.node_if = node_if
+
 
         ##############################
         # Stop tracking. goStop latches it, checkStopFunction reads and clears
@@ -168,7 +169,6 @@ class CustomRobotRbxIF:
             gotoVelocityFunction=None,
             getNavPoseCb=self.getNavPoseCb,
             navpose_update_rate=10,
-            log_name=self.log_name,
             msg_if=self.msg_if)
 
         self.namespace = self.rbx_if.namespace
