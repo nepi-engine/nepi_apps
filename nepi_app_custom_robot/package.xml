@@ -2,7 +2,7 @@
 <package format="2">
   <name>nepi_app_custom_robot</name>
   <version>0.0.0</version>
-  <description>NEPI custom robot application — builds one RBX robot device from a selected motor device and NavPose (NPX) source, with a camera (IDX) connect for the image viewer</description>
+  <description>NEPI custom robot application — builds one RBX robot device from a selected motor device and NavPose Manager frame, with a camera (IDX) connect for the image viewer</description>
 
   <maintainer email="nepi@numurus.com">numurus</maintainer>
 

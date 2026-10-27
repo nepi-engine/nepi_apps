@@ -16,12 +16,14 @@ string selected_option
 # Current value setting
 float32 value
 
-# Device connection state, one per device connect. Each comes from that
-# Connect*IF's check_connection(). Which device is selected, and the list of
+# Connection state, one per connect. Each comes from that Connect*IF's
+# check_connection(). Which device or frame is selected, and the list of
 # candidates, is NOT repeated here: it lives on each connect's own
 # nepi_interfaces/ConnectIFStatus at <node>/<connect_name>/status.
+# navpose_connected is the selected NavPose Manager frame (the robot's navpose
+# source); it replaced npx_connected when the NPX device selector was retired.
 bool motor_connected
-bool npx_connected
+bool navpose_connected
 bool idx_connected
 
 # The RBX device this app hosts (CustomRobotRbxIF). rbx_ready is the device's

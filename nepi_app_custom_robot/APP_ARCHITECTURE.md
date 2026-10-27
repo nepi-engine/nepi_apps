@@ -2,7 +2,7 @@
 
 This is the architecture reference for **`nepi_app_custom_robot`**, the
 Custom Robot app: it composes one NEPI robot (RBX) device from a selected
-motor device and a selected NavPose (NPX) device, plus a camera (IDX) connect
+motor device and a selected NavPose Manager frame, plus a camera (IDX) connect
 for the page's image viewer. Sections 1-8 describe the NEPI app framework this
 package was built from (it started as a copy of `nepi_app_robot_stab`, which
 started from the NEPI app template); Section 9 is this app's own connects and
@@ -421,8 +421,8 @@ Adding an app = dropping the package folder into
 
 ### 9a. Connects
 
-`custom_robot_app_node.py` constructs four connects in `setupConnects()`,
-after `setupControls()` and before the explicit `initCb`. Three of them are
+`custom_robot_app_node.py` constructs three connects in `setupConnects()`,
+after `setupControls()` and before the explicit `initCb`. All three are
 operator selectors: each is a `Connect*IF` from `nepi_api` that owns one RUI
 selector row end to end -- discovery, its own persisted `selected_topic`
 param, a `std_msgs/String` subscriber on `<app>/<connect_name>/select_topic`,
@@ -432,40 +432,63 @@ and a `nepi_interfaces/ConnectIFStatus` on `<app>/<connect_name>/status`.
 |---|---|---|---|---|
 | Camera | `ConnectIDXDeviceIF` (`connect_device_if_idx`) | `<app>/idx_connect` | `Nepi_IF_ConnectIDX` | image viewer only |
 | Motor | `ConnectMotorsDeviceIF` (`connect_device_if_motor`) | `<app>/motor_connect` | `Nepi_IF_ConnectMotor` | RBX motor channels |
-| NavPose | `ConnectNPXDeviceIF` (`connect_device_if_npx`) | `<app>/npx_connect` | `Nepi_IF_ConnectNPX` | which navpose the RBX reports |
-| (hidden) | `ConnectNavPoseIF` (`connect_data_if`) | `<app>/navpose_connect` | none | RBX navpose data |
+| NavPose | `ConnectNavPoseIF` (`connect_data_if`) | `<app>/navpose_frame_connect` | `Nepi_IF_ConnectNavPose` | the RBX navpose, from a NavPose Manager frame |
 
-The three selectors are built with the default connect names,
-`show_selector=True`, `show_controls=False`, `show_data=False`,
+The three selectors are built with `show_selector=True`, `show_controls=False`, `show_data=False`,
 `msg_if=self.msg_if`, and no `namespace` or `node_if` (2026-07 DECISION LOG).
-`ConnectMotorsDeviceIF` and `ConnectIDXDeviceIF` take no
+The motor and camera connects keep their default names; the NavPose connect
+is named `navpose_frame_connect` (see below). `ConnectMotorsDeviceIF` and
+`ConnectIDXDeviceIF` take no
 `auto_select_enabled` argument -- passing one raises `TypeError`. Each
 selector's `check_connection()` is reported in the app status as
-`motor_connected`, `npx_connected` and `idx_connected`.
+`motor_connected`, `navpose_connected` and `idx_connected`.
 
-**The NPX row cannot select this app's own robot.** `RBXRobotIF` publishes an
-NPX device of its own at `<app>/npx` whenever it is given a `getNavPoseCb`, so
-an unfiltered NPX connect offers the app's own RBX as a navpose source: a loop
-in which the RBX reports the navpose it is being fed. The NPX connect is built
-with `exclude_namespaces_list=[self.node_namespace]` (`ConnectNodeIF`), which
-drops every topic at or below the app's node namespace from discovery, and so
-from the RUI list, and clears a selection of it saved before the exclusion
-existed. Other nodes' NPX connects can still select this robot's NPX.
+**The NavPose row selects a frame, not a device.** A robot usually needs
+several navpose devices -- orientation from an IMU, depth from a depth sensor,
+location from a GPS -- and NavPose Manager is where NEPI combines them: each
+frame takes every part of the pose from whichever source the operator assigns
+it, and publishes one navpose at `<base>/navposes/<frame>/navpose`, with its
+`NavPoseStatus` at `<base>/navposes/<frame>/status`. So the robot is pointed at
+one frame, and adding a sensor is a NavPose Manager change, not a change here.
+A robot with a single device uses a frame with a single source. The connect is
+built with `filter_topic_list=[<base>/navposes/]`, which limits the list to
+frames, for two reasons:
 
-**Why a hidden NavPose connect.** `ConnectNPXDeviceIF` subscribes only to the
-NPX device's `DeviceNPXStatus`, which names a `navpose_topic` but carries no
-pose values, and it has no navpose getter. So the node also builds a
-`ConnectNavPoseIF` with `show_selector=False`, `show_controls=False`,
-`show_data=False` and the default `auto_select_enabled=False`, and
-`syncNavPoseConnect()` keeps it pointed at the selected NPX's
-`navpose_topic`. It runs on every work-timer cycle (1 Hz), compares that topic
-with the NavPose connect's `get_selected_topic()`, and on a mismatch calls
-`set_selected_topic()` (inherited from `ConnectNodeIF`) with the topic, or with
-`'None'` when no NPX is connected or it reports no navpose topic.
-`set_selected_topic` quietly rejects a topic the connect has not discovered
-yet, without persisting it, so the re-assert loop is deliberate: it picks the
-topic up on the first cycle after discovery. The NPX row stays the only
-navpose selector the operator sees.
+- `ConnectNavPoseIF` subscribes to `<selected>/status` and `<selected>/navpose`,
+  which is the frame layout. A device's `NavPoseIF` publishes its `NavPose` at
+  its own namespace (`<device>/npx/navpose`), not below it, so a device entry
+  connects on its status and never delivers a pose.
+- It keeps this app's own robot out of the list. `RBXRobotIF` publishes an NPX
+  device of its own at `<app>/npx` whenever it is given a `getNavPoseCb`, and
+  selecting it would be a loop in which the RBX reports the navpose it is fed.
+  A frame can loop the same way if NavPose Manager is told to take one of its
+  sources from this robot, so don't.
+
+**base_frame is the default.** `auto_select_enabled` stays `False`, because
+auto-select takes whichever frame is discovered first. Instead
+`defaultNavPoseFrame()` runs on every work-timer cycle (1 Hz) and, while the
+selection is `'None'`, calls `set_selected_topic()` with
+`<base>/navposes/base_frame`, NavPose Manager's `NAVPOSE_BASE_FRAME`. It fills
+an empty selection only, never one that is merely not discovered yet, since
+frames appear over the first seconds after a start and replacing a restored
+choice before it shows up would lose it. `set_selected_topic` quietly rejects a
+topic the connect has not discovered yet, without persisting it, so the
+re-assert loop is deliberate: the default lands on the first cycle after
+`base_frame` is discovered. Choosing another frame overrides it, and the
+connect persists either. Choosing `'None'` in the RUI is undone on the next
+cycle, because with no frame the robot's navpose would only be blank.
+
+**Not the default connect name.** A connect's topics are
+`<node>/<connect_name>/...` (`ConnectNodeIF`), whatever `namespace` it is
+given. The RBX device this app hosts builds an `ImageIF` (`device_if_rbx.py`),
+and every image IF builds its own `ConnectNavPoseIF` under the default name
+`navpose_connect` in the same node. With both on that name they shared one
+status topic and one `select_topic`: the RUI row received this connect's
+frames list and the image IF's unfiltered list in turn and redrew every half
+second, and an operator selection reached both connects. So this connect is
+`navpose_frame_connect` (`NAVPOSE_CONNECT_NAME` in the node, the same constant
+in the RUI page). The rename also left any selection saved by the old hidden
+connect behind, so the first start after it comes up on `base_frame`.
 
 ### 9b. The RBX device
 
@@ -493,7 +516,7 @@ cycle.
 | `checkStopFunction` | read-and-clear of that latch, re-issuing `stop_motor` on every motor when set (only polled by goto loops, none of which are reachable) |
 | `manualControlsReadyFunction` | motor connect connected |
 | `autonomousControlsReadyFunction` | always False (must stay callable: goto subscribers call it unconditionally) |
-| `getNavPoseCb` | the NavPose connect's `get_navpose_dict()` while it is connected to a selected topic, else None, wrapped in try/except returning None. None makes `RBXRobotIF` fall back to the system navpose, as it does for WPILib |
+| `getNavPoseCb` | the NavPose connect's `get_navpose_dict()` while it is connected to a selected frame, passed through `cleanNavPoseDict()`, else None, wrapped in try/except returning None. The cleanup puts `BLANK_NAVPOSE_DICT` values back where the frame's message carried -999, the marker for a part its source does not have: `RBXRobotIF` converts the location without checking `has_location`, and latitude -999 failed every update. None makes `RBXRobotIF` fall back to its system navpose, which stays blank in this build: it listens on an aggregate `<base>/navposes` topic that NavPose Manager builds but never publishes |
 | states, modes, setup_actions, go_actions | empty lists; the get/set index callbacks are real callables that return 0 / False |
 | `axisControls` | all False (no goto) |
 | `getBatteryPercentFunction`, `getSettingsFunction`, `setSettingFunction` | None |

@@ -25,14 +25,15 @@
 #      NodeClassIF creates every ROS interface and the standard
 #      save_config / reset_config / factory_reset_config topics.
 #   3. Mount a ControlsIF holding everything an operator adjusts from the RUI.
-#   4. Construct the three device connects (camera, motor, NPX), one
-#      selector row each in the RUI, plus a hidden NavPose connect that
-#      follows the NPX selection.
+#   4. Construct the three connects (camera, motor, NavPose frame), one
+#      selector row each in the RUI. The NavPose row lists NavPose Manager
+#      frames, not devices: a frame combines any number of navpose devices
+#      (orientation from an IMU, depth from a depth sensor, ...).
 #   5. initCb(), start the work and status timers, spin().
-#   6. The work timer keeps the NavPose connect on the selected NPX's navpose
-#      topic and builds the one RBX device (scripts/custom_robot_rbx_if.py)
-#      once the selected motor device connects. The IDX connect does not feed
-#      the RBX; it only drives the RUI image viewer.
+#   6. The work timer fills an empty NavPose selection with base_frame and
+#      builds the one RBX device (scripts/custom_robot_rbx_if.py) once the
+#      selected motor device connects. The IDX connect does not feed the RBX;
+#      it only drives the RUI image viewer.
 #
 # This node never touches rospy. rospy lives only in nepi_sdk/nepi_ros.py; use
 # the nepi_sdk wrappers (init_node, start_timer_process, on_shutdown, spin).
@@ -79,6 +80,7 @@
 # msg fields and the work in updaterCb with your own.
 ##############################################################################
 
+import copy
 import threading
 import time
 
@@ -88,13 +90,13 @@ from nepi_app_custom_robot.msg import NepiAppCustomRobotStatus
 
 from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_controls    # controls dict: types, create/get/set value
+from nepi_sdk import nepi_nav         # BLANK_NAVPOSE_DICT
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.system_if import ControlsIF
 
 from nepi_api.connect_device_if_motor import ConnectMotorsDeviceIF
-from nepi_api.connect_device_if_npx import ConnectNPXDeviceIF
 from nepi_api.connect_device_if_idx import ConnectIDXDeviceIF
 from nepi_api.connect_data_if import ConnectNavPoseIF
 
@@ -123,6 +125,27 @@ RBX_DEVICE_NAME = 'custom_robot'
 
 # Unselected / not-built state, as the connects themselves report it.
 NONE_NAMESPACE = 'None'
+
+# NavPose Manager publishes each frame at <base>/navposes/<frame>
+# (navpose_mgr.py addNavpose), with its NavPoseStatus at .../status and its
+# NavPose at .../navpose -- exactly the layout ConnectNavPoseIF subscribes to
+# (<selected>/status and <selected>/navpose). A device's NavPoseIF publishes
+# its NavPose AT its namespace (<device>/npx/navpose) rather than below it, so
+# a device entry would connect on its status and never deliver a pose. The
+# frames-only filter is what keeps every entry in the list readable.
+NAVPOSE_FRAMES_FOLDER = 'navposes'
+# The frame every NEPI system has: navpose_mgr.py NAVPOSE_BASE_FRAME. An empty
+# NavPose selection defaults to it. Keep the two in step.
+BASE_FRAME_NAME = 'base_frame'
+# Not ConnectNavPoseIF's default 'navpose_connect'. The RBX device this app
+# hosts builds an ImageIF (device_if_rbx.py), and every image IF builds its own
+# ConnectNavPoseIF under that default name in this same node. A connect's
+# topics are <node>/<connect_name>/..., so two connects with one name share a
+# status topic and a select_topic: the RUI row received this connect's frames
+# list and the image IF's unfiltered list in turn, and redrew every half
+# second, and an operator selection reached both. rui/NepiAppCustomRobot.js
+# must use the same name.
+NAVPOSE_CONNECT_NAME = 'navpose_frame_connect'
 
 
 #########################################
@@ -198,6 +221,30 @@ CONTROLS_INIT_DICT = {
 }
 
 
+# The marker a NavPose message carries in every field of a part (location,
+# heading, depth, ...) its source does not have: nepi_nav.convert_navpose_dict2msg
+# writes it when the part's has_* flag is False.
+NAVPOSE_MISSING_VALUE = -999
+
+
+def cleanNavPoseDict(navpose_dict):
+    # A frame's navpose arrives as a NavPose message, and
+    # nepi_nav.convert_navpose_msg2dict copies the missing-part marker back into
+    # the dict unchanged. An in-process navpose dict holds BLANK_NAVPOSE_DICT's
+    # value there instead, and RBXRobotIF relies on that: it converts the
+    # location to AMSL without checking has_location, so a frame with no
+    # location source failed every update with "lat (-999) ... beyond -90
+    # degrees" and the robot's current pose never updated. has_* flags and
+    # present parts pass through untouched.
+    clean = dict(navpose_dict)
+    for key, value in navpose_dict.items():
+        if key not in nepi_nav.BLANK_NAVPOSE_DICT or isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)) and value == NAVPOSE_MISSING_VALUE:
+            clean[key] = copy.deepcopy(nepi_nav.BLANK_NAVPOSE_DICT[key])
+    return clean
+
+
 class ControlValue:
     """Stand-in for the std_msgs message this app's setter callbacks expect.
 
@@ -236,13 +283,10 @@ class NepiCustomRobotApp(object):
     # its persisted selection, <node>/<connect_name>/select_topic and
     # <node>/<connect_name>/status. None until setupConnects() runs.
     motor_connect_if = None
-    npx_connect_if = None
     idx_connect_if = None
 
-    # Hidden NavPose connect. Not an operator selector: syncNavPoseConnect()
-    # points it at whatever navpose_topic the selected NPX device reports,
-    # because ConnectNPXDeviceIF subscribes only to the NPX status and has no
-    # navpose getter of its own.
+    # The NavPose connect: the operator's choice of NavPose Manager frame, and
+    # the robot's navpose source. See setupConnects().
     navpose_connect_if = None
 
     # The one RBX device this app hosts (CustomRobotRbxIF), and the
@@ -274,6 +318,10 @@ class NepiCustomRobotApp(object):
         ##############################
         # Initialize Class Variables
         self.rbx_lock = threading.Lock()
+        # Where NavPose Manager publishes its frames, and the default frame's
+        # topic as the NavPose connect lists it.
+        self.navpose_frames_namespace = nepi_sdk.create_namespace(self.base_namespace, NAVPOSE_FRAMES_FOLDER)
+        self.base_frame_topic = nepi_sdk.create_namespace(self.navpose_frames_namespace, BASE_FRAME_NAME)
 
         ##############################
         ### Setup Node
@@ -486,10 +534,11 @@ class NepiCustomRobotApp(object):
     def setupConnects(self):
         # Constructed once, unconditionally, with no namespace argument -- each
         # one discovers its own candidates and restores its own persisted
-        # selection under <node>/<connect_name>. The default connect names
-        # (motor_connect, npx_connect, idx_connect) are already unique, so
-        # none is overridden. Selector only: device controls and data are not
-        # rendered by this app.
+        # selection under <node>/<connect_name>. motor_connect and idx_connect
+        # keep their default names; the NavPose connect does not, because the
+        # hosted RBX device already has a 'navpose_connect' in this node (see
+        # NAVPOSE_CONNECT_NAME). Selector only: device controls and data are
+        # not rendered by this app.
         #
         # No node_if: each builds and owns its own, for the same registry-key
         # reason ControlsIF does (see the header of this file).
@@ -497,19 +546,6 @@ class NepiCustomRobotApp(object):
         # ConnectMotorsDeviceIF and ConnectIDXDeviceIF take no
         # auto_select_enabled argument -- passing one raises TypeError.
         self.motor_connect_if = ConnectMotorsDeviceIF(
-                                    show_selector = True,
-                                    show_controls = False,
-                                    show_data = False,
-                                    msg_if = self.msg_if,
-                                    )
-
-        # The RBX device this app builds publishes its own NPX at <node>/npx, so
-        # unfiltered this selector offers the app's own robot as a navpose
-        # source -- a loop where the RBX reports the navpose it is fed. Excluding
-        # the node namespace keeps it out of the list, and clears a selection
-        # saved before the exclusion existed.
-        self.npx_connect_if = ConnectNPXDeviceIF(
-                                    exclude_namespaces_list = [self.node_namespace],
                                     show_selector = True,
                                     show_controls = False,
                                     show_data = False,
@@ -525,20 +561,29 @@ class NepiCustomRobotApp(object):
                                     msg_if = self.msg_if,
                                     )
 
-        # Hidden: no selector, controls or data panel, and no RUI row. The NPX
-        # row is the only navpose selector the operator sees. auto_select is
-        # left at its default (False) so this never grabs the first navpose
-        # topic it discovers; syncNavPoseConnect() is the only thing that
-        # selects for it.
+        # The robot's navpose comes from a NavPose Manager FRAME, not a device.
+        # A frame takes each part of the pose from whichever device provides
+        # it, so one selection covers a robot with any number of navpose
+        # devices; a robot with one device uses a frame with one source.
+        # filter_topic_list keeps the list to frames (<base>/navposes/<frame>;
+        # see NAVPOSE_FRAMES_FOLDER for why device entries cannot work). That
+        # also keeps out this app's own robot: its RBX publishes an NPX of its
+        # own at <node>/npx, and selecting it would be a loop in which the RBX
+        # reports the navpose it is fed. A frame can still loop the same way if
+        # NavPose Manager is told to take a source from this robot.
+        #
+        # auto_select stays off: it takes whichever frame is discovered first.
+        # defaultNavPoseFrame() fills an empty selection with base_frame instead.
         self.navpose_connect_if = ConnectNavPoseIF(
-                                    show_selector = False,
+                                    connect_name = NAVPOSE_CONNECT_NAME,
+                                    filter_topic_list = [self.navpose_frames_namespace + '/'],
+                                    show_selector = True,
                                     show_controls = False,
                                     show_data = False,
                                     msg_if = self.msg_if,
                                     )
 
         for name, connect_if in [('motor', self.motor_connect_if),
-                                  ('npx', self.npx_connect_if),
                                   ('idx', self.idx_connect_if),
                                   ('navpose', self.navpose_connect_if)]:
             if connect_if.wait_for_ready(timeout = 10) != True:
@@ -551,45 +596,41 @@ class NepiCustomRobotApp(object):
             return False
         return connect_if.check_connection()
 
-    def getNpxNavPoseTopic(self):
-        # The navpose topic the selected NPX device reports on its own status,
-        # or NONE_NAMESPACE when no NPX is connected or it reports none.
-        if self.checkConnection(self.npx_connect_if) is False:
-            return NONE_NAMESPACE
-        status_msg = self.npx_connect_if.get_status_msg()
-        if status_msg is None:
-            return NONE_NAMESPACE
-        topic = str(status_msg.navpose_topic)
-        if topic == '' or topic == NONE_NAMESPACE:
-            return NONE_NAMESPACE
-        return topic
-
-    def syncNavPoseConnect(self):
-        # Re-asserted every work cycle rather than edge-triggered:
-        # set_selected_topic (ConnectNodeIF) quietly rejects a topic the
-        # connect has not discovered yet, without persisting it, so a
-        # newly-selected NPX's navpose topic is picked up on the first cycle
-        # after discovery. A mismatch is the only case that calls it, so a
-        # steady selection costs one string compare per cycle.
+    def defaultNavPoseFrame(self):
+        # Fills an EMPTY NavPose selection with base_frame, so the robot has a
+        # navpose with no setup; choosing another frame overrides it, and the
+        # connect saves either. Never replaces a selection that is merely not
+        # discovered yet -- frames appear over the first seconds, and replacing
+        # a restored choice before it shows up would lose it (the race
+        # ConnectNodeIF.publish_status describes). Re-asserted every work cycle
+        # because set_selected_topic quietly rejects a frame the connect has
+        # not discovered yet, without persisting it; this lands on the first
+        # cycle after base_frame is discovered. 'None' chosen in the RUI is
+        # therefore undone on the next cycle: with no frame the robot's
+        # navpose would just be blank (see getNavPoseDict).
         if self.navpose_connect_if is None:
             return
-        topic = self.getNpxNavPoseTopic()
+        if self.navpose_connect_if.get_selected_topic() != NONE_NAMESPACE:
+            return
         try:
-            if self.navpose_connect_if.get_selected_topic() != topic:
-                self.navpose_connect_if.set_selected_topic(topic)
+            self.navpose_connect_if.set_selected_topic(self.base_frame_topic)
         except Exception as e:
-            self.msg_if.pub_warn("CustomRobot App: failed to sync navpose connect to " +
-                                 str(topic) + ": " + str(e), throttle_s=10.0)
+            self.msg_if.pub_warn("CustomRobot App: failed to select default navpose frame " +
+                                 str(self.base_frame_topic) + ": " + str(e), throttle_s=10.0)
 
     def getNavPoseDict(self):
-        # None, not a blank navpose, when there is no live navpose: RBXRobotIF
-        # then falls back to the system navpose, exactly as it does for the
-        # WPILib IF app.
+        # None while no frame is connected. RBXRobotIF then uses its system
+        # navpose fallback, which stays blank in this build: it listens on an
+        # aggregate <base>/navposes topic that NavPose Manager builds but never
+        # publishes (device_if_rbx.py, navpose_mgr.py).
         if self.checkConnection(self.navpose_connect_if) is False:
             return None
         if self.navpose_connect_if.get_selected_topic() == NONE_NAMESPACE:
             return None
-        return self.navpose_connect_if.get_navpose_dict()
+        navpose_dict = self.navpose_connect_if.get_navpose_dict()
+        if navpose_dict is None:
+            return None
+        return cleanNavPoseDict(navpose_dict)
 
 
     #######################
@@ -708,7 +749,7 @@ class NepiCustomRobotApp(object):
 
         # Robot composition runs whether or not the example 'enabled' control
         # is on: the RBX device is what this app is for.
-        self.syncNavPoseConnect()
+        self.defaultNavPoseFrame()
         try:
             self.updateRbxIF()
         except Exception as e:
@@ -803,7 +844,7 @@ class NepiCustomRobotApp(object):
         status_msg.selected_option = self.selected_option
         status_msg.value = self.value
         status_msg.motor_connected = self.checkConnection(self.motor_connect_if)
-        status_msg.npx_connected = self.checkConnection(self.npx_connect_if)
+        status_msg.navpose_connected = self.checkConnection(self.navpose_connect_if)
         status_msg.idx_connected = self.checkConnection(self.idx_connect_if)
         status_msg.rbx_ready = self.getRbxReadyState()
         status_msg.rbx_namespace = self.getRbxNamespace()
@@ -825,8 +866,7 @@ class NepiCustomRobotApp(object):
             self.controls_if = None
         # RBX first: its callbacks read the connects below.
         self.teardownRbxIF()
-        for connect_name in ['motor_connect_if', 'npx_connect_if', 'idx_connect_if',
-                             'navpose_connect_if']:
+        for connect_name in ['motor_connect_if', 'idx_connect_if', 'navpose_connect_if']:
             connect_if = getattr(self, connect_name)
             if connect_if is not None:
                 try:

@@ -19,8 +19,8 @@
 #
 # One robot is one RBX device: this builds ONE RBXRobotIF representing the
 # robot the operator composed from the app's connects, with the selected motor
-# device's motors as that device's motor channels and the selected NPX device's
-# navpose as its navpose. Modelled directly on WpilibRbxIF
+# device's motors as that device's motor channels and the selected NavPose
+# Manager frame's navpose as its navpose. Modelled directly on WpilibRbxIF
 # (first_robotics/nepi_app_wpilib_if/scripts/wpilib_rbx_if.py).
 #
 # TRANSPORT-BLIND. This module never imports a connect class or any transport.

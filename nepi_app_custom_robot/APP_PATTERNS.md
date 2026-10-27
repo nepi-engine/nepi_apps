@@ -9,8 +9,8 @@ essentials, so you can copy the shape rather than reinvent it.
 All quoted code is from `nepi_engine_ws/src/nepi_apps/`.
 
 > **In this package.** `nepi_app_custom_robot` composes Section 5 (connects
-> to other NEPI devices: IDX, Motor and NPX, plus a hidden NavPose connect
-> slaved to the NPX selection) with an app-hosted RBX device modelled on the
+> to other NEPI devices: IDX and Motor, plus a NavPose connect limited to
+> NavPose Manager frames) with an app-hosted RBX device modelled on the
 > WPILib IF app's `WpilibRbxIF` (`first_robotics/nepi_app_wpilib_if`).
 > See `APP_ARCHITECTURE.md` Section 9.
 

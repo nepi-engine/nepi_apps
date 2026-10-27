@@ -1,8 +1,9 @@
 # Getting Started — Custom Robot App (`nepi_app_custom_robot`)
 
 This app builds one NEPI robot (RBX) device out of devices that are already
-on the system: a motor device for the drive channels and a NavPose (NPX)
-device for position and orientation. A camera (IDX) connect drives the image
+on the system: a motor device for the drive channels and a NavPose Manager
+frame for position, orientation and depth. A frame combines any number of
+navpose devices, such as an IMU and a depth sensor. A camera (IDX) connect drives the image
 viewer on the app page. The RBX device it publishes is what the Robot
 Stabilization app (`mate_robotics/Apps/nepi_app_robot_stab`) selects through
 its RBX connect.
@@ -14,9 +15,13 @@ For *how apps work* (apps_mgr, the NodeClassIF skeleton, RUI injection), read
 
 1. Deploy and build it like any other app (Section 3 below), then enable
    "Custom Robot" in the RUI app list. Its page is in the AUTOMATION group.
-2. On the app page, pick the **Motor** device and the **NavPose (NPX)** device
-   from their selector rows. Pick a **Camera (IDX)** if you want the image
-   viewer.
+2. On the app page, pick the **Motor** device from its selector row. The
+   **NavPose Frame** row starts on `base_frame`; to use other sources, add a
+   frame in NavPose Manager, give each part of the pose its source device
+   (for example orientation from the IMU, depth from the depth sensor), and
+   pick that frame here. Never give that frame a source from this robot's own
+   navpose: the robot republishes what it is fed. Pick a **Camera (IDX)** if
+   you want the image viewer.
 3. The RBX device is built the first time the selected motor device reports
    connected. The status area shows **RBX Ready** and the RBX namespace
    (`<app>/rbx`). Selecting a motor device with a different name or motor

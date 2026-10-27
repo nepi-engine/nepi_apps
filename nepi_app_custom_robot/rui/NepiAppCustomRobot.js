@@ -66,7 +66,7 @@ import Styles from "./Styles"
 import NepiIFImageViewer from "./Nepi_IF_ImageViewer"
 import NepiIFConnectIDX from "./Nepi_IF_ConnectIDX"
 import NepiIFConnectMotor from "./Nepi_IF_ConnectMotor"
-import NepiIFConnectNPX from "./Nepi_IF_ConnectNPX"
+import NepiIFConnectNavPose from "./Nepi_IF_ConnectNavPose"
 
 import NepiIFControls from "./Nepi_IF_Controls"
 import NepiIFConfig from "./Nepi_IF_Config"
@@ -76,11 +76,14 @@ import NepiIFConfig from "./Nepi_IF_Config"
 // derive the same name independently.
 const CONTROLS_NAME = "controls"
 
-// Must match CONNECT_NAME in each nepi_api/connect_device_if_<type>.py. The
-// node constructs every connect with its default name.
+// Must match CONNECT_NAME in each nepi_api/connect_device_if_<type>.py: the
+// node constructs those connects with their default names.
 const IDX_CONNECT_NAME = "idx_connect"
 const MOTOR_CONNECT_NAME = "motor_connect"
-const NPX_CONNECT_NAME = "npx_connect"
+// Must match NAVPOSE_CONNECT_NAME in scripts/custom_robot_app_node.py. Not the
+// nepi_api default 'navpose_connect': the RBX device the node hosts already
+// has a connect by that name, and a row on it shows that connect's list.
+const NAVPOSE_CONNECT_NAME = "navpose_frame_connect"
 
 @inject("ros")
 @observer
@@ -440,13 +443,14 @@ class NepiAppCustomRobot extends Component {
     )
   }
 
-  // One selector row per device connect, selector only: device controls and
-  // data are not rendered by this app. With make_section={false} every row's
-  // own label is just "Device", so each row needs a title above it.
-  // Nepi_IF_ConnectIDX and Nepi_IF_ConnectMotor draw that title themselves
-  // with show_connect_header={true}. Nepi_IF_ConnectNPX has no header option
-  // and reads title only for its own Section, so this page draws a matching
-  // bold Label above it instead.
+  // One selector row per connect, selector only: device controls and data are
+  // not rendered by this app. With make_section={false} every row needs a
+  // title above it. Nepi_IF_ConnectIDX and Nepi_IF_ConnectMotor draw that
+  // title themselves with show_connect_header={true}. Nepi_IF_ConnectNavPose's
+  // header would print its select_title twice (as the header and again as the
+  // selector's label), so this page draws a matching bold Label above it and
+  // keeps the row on one line. The NavPose row lists NavPose Manager frames
+  // only; the node defaults an empty selection to base_frame.
   renderConnections() {
     const appNamespace = this.getAppNamespace()
 
@@ -481,9 +485,10 @@ class NepiAppCustomRobot extends Component {
           make_section={false}
         />
 
-        <Label title={"NavPose (NPX)"} labelStyle={{fontWeight: 'bold'}} />
-        <NepiIFConnectNPX
-          namespace={this.getConnectNamespace(NPX_CONNECT_NAME)}
+        <Label title={"NavPose Frame"} labelStyle={{fontWeight: 'bold'}} />
+        <NepiIFConnectNavPose
+          namespace={this.getConnectNamespace(NAVPOSE_CONNECT_NAME)}
+          select_title={"Frame"}
           show_selector={true}
           show_controls={false}
           show_data={false}
