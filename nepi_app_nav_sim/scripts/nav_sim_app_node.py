@@ -1736,6 +1736,23 @@ class GpsSimInstance:
         geo.altitude  = float(alt)
         return geo
 
+    def _enuDeltaPoint(self, org_geo, new_geo):
+        # Inverse of nepi_nav.get_geopoint_at_enu_point -- same flat-earth model,
+        # earth radius and cos(origin latitude) -- so a goto_position and the
+        # location it produces round-trip exactly. A HOLD_SENTINEL axis on the
+        # target holds its current value, i.e. contributes no delta, matching
+        # how startMove treats it.
+        lat = new_geo.latitude  if new_geo.latitude  != HOLD_SENTINEL else org_geo.latitude
+        lon = new_geo.longitude if new_geo.longitude != HOLD_SENTINEL else org_geo.longitude
+        alt = new_geo.altitude  if new_geo.altitude  != HOLD_SENTINEL else org_geo.altitude
+        m_per_lat  = 2 * math.pi * 6378137.0 / 360
+        m_per_long = m_per_lat * math.cos(math.radians(org_geo.latitude))
+        p = self._zeroPoint()
+        p.x = float((lon - org_geo.longitude) * m_per_long)  # east
+        p.y = float((lat - org_geo.latitude) * m_per_lat)    # north
+        p.z = float(alt - org_geo.altitude)                  # up
+        return p
+
     #######################
     ### ROS Interface
 
@@ -2063,7 +2080,12 @@ class GpsSimInstance:
         if self.gps_sim_enabled == False:
             return
         geo_msg = self._makeGeoPoint(latitude, longitude, altitude)
-        self.startMove(geo_msg, self._zeroPoint())
+        # The ENU delta keeps current_point (odom and navpose position) in step
+        # with the location. A zero delta here left the position behind on every
+        # goto_location, so after an RBX go-home or land it no longer matched.
+        with self._lock:
+            cur_geo = copy.deepcopy(self.current_location_wgs84_geo)
+        self.startMove(geo_msg, self._enuDeltaPoint(cur_geo, geo_msg))
 
     #######################
     # Move Planning (non-blocking)
@@ -2331,12 +2353,19 @@ class GpsSimInstance:
             return
         with self._lock:
             geo     = copy.deepcopy(self.current_location_wgs84_geo)
+            point   = copy.deepcopy(self.current_point)
             heading = self.current_heading_deg
             yaw_enu = self.current_yaw_enu_deg
         t = nepi_sdk.get_time()
         d = copy.deepcopy(nepi_nav.BLANK_NAVPOSE_DICT)
         d['has_location']    = True; d['latitude']    = geo.latitude; d['longitude'] = geo.longitude; d['time_location']    = t
         d['has_altitude']    = True; d['altitude_m']  = geo.altitude;                                 d['time_altitude']    = t
+        # Position: the simulated ENU offset from the last reset, the same point
+        # the odom topic carries. Without it a consumer that tracks local
+        # position read this source's position as unset -- an RBX device using
+        # this instance as its navpose source saw no goto_position progress and
+        # timed out every goto even after the fix had arrived.
+        d['has_position']    = True; d['x_m'] = point.x; d['y_m'] = point.y; d['z_m'] = point.z;      d['time_position']    = t
         # The navpose dict is in the ENU frame, so yaw_deg is ENU yaw; roll and
         # pitch are 0 for a level vehicle.
         d['has_heading']     = True; d['heading_deg'] = heading;                                      d['time_heading']     = t
