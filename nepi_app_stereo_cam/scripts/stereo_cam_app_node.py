@@ -81,10 +81,10 @@ from nepi_sdk import nepi_img
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.system_if import ControlsIF
+from nepi_api.utils_if import ControlsIF
 
 # NEPI data + IDX connect interfaces
-from nepi_api.data_if import DepthMapIF
+from nepi_api.data_product_if_depth_map import DepthMapIF
 from nepi_api.connect_device_if_idx import ConnectIDXDeviceIF
 
 # App-local sibling modules (co-located in scripts/). Bare imports -- the
@@ -1597,7 +1597,7 @@ class NepiStereoCamApp(object):
                         controls_init_dict = stereo_settings.PROCESSES_DICT[process_name]['default_controls_dict'],
                         controls_updated_callback = self.makeProcessControlsUpdatedCb(process_name),
                         msg_if = self.msg_if)
-            controls_if.wait_for_controls_ready()
+            controls_if.wait_for_ready()
             self.process_controls_ifs[process_name] = controls_if
 
     # Per-process controls callback, bound to the process it belongs to.
@@ -1668,7 +1668,7 @@ class NepiStereoCamApp(object):
             controls_if = self.process_controls_ifs.get(process_name, None)
             if controls_if is None:
                 return False
-            if controls_if.get_controls_ready_state() is not True:
+            if controls_if.get_ready_state() is not True:
                 return False
         return True
 
@@ -1713,7 +1713,7 @@ class NepiStereoCamApp(object):
                     controls_init_dict = self.createAdvancedControlsInitDict(),
                     controls_updated_callback = self.advancedControlsUpdatedCb,
                     msg_if = self.msg_if)
-        self.advanced_controls_if.wait_for_controls_ready()
+        self.advanced_controls_if.wait_for_ready()
         # Adopt whatever the IF restored from its param before anything reads the
         # cached copies.
         self.applyAdvancedControls()
@@ -1838,7 +1838,7 @@ class NepiStereoCamApp(object):
     def getAdvancedControlsReadyState(self):
         if self.advanced_controls_if is None:
             return False
-        return self.advanced_controls_if.get_controls_ready_state()
+        return self.advanced_controls_if.get_ready_state()
 
 
     ###################
@@ -1866,7 +1866,7 @@ class NepiStereoCamApp(object):
                     controls_init_dict = self.createExampleControlsInitDict(),
                     controls_updated_callback = self.exampleControlsUpdatedCb,
                     msg_if = self.msg_if)
-        self.example_controls_if.wait_for_controls_ready()
+        self.example_controls_if.wait_for_ready()
 
     # One entry per CONTROL_TYPE, copied from controls_sandbox_app_node.py
     # createControlsInitDict() so the box renders identically to the sandbox page.
@@ -1935,7 +1935,7 @@ class NepiStereoCamApp(object):
     def getExampleControlsReadyState(self):
         if self.example_controls_if is None:
             return False
-        return self.example_controls_if.get_controls_ready_state()
+        return self.example_controls_if.get_ready_state()
 
 
     ###################

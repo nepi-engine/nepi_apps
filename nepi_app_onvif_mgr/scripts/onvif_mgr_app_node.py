@@ -47,7 +47,7 @@ from nepi_app_onvif_mgr.srv import OnvifDriverListQuery, OnvifDriverListQueryReq
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.system_if import ControlsIF
+from nepi_api.utils_if import ControlsIF
 
 MGR_NAME = 'ONVIF Manager' # Use in display menus
 FILE_TYPE = 'MANAGER'
@@ -417,11 +417,10 @@ class ONVIFMgr:
           controls_description = CONTROLS_DESCRIPTION,
           controls_init_dict = CONTROLS_INIT_DICT,
           controls_updated_callback = self.controlsUpdatedCb,
-          pub_status = True,
           save_params = True,
           msg_if = self.msg_if,
       )
-      self.controls_if.wait_for_controls_ready(timeout = 10)
+      self.controls_if.wait_for_ready(timeout = 10)
     except Exception as e:
       # Degrade to None rather than failing to start: every read goes through
       # getControlValue, which falls back to the factory value, so discovery

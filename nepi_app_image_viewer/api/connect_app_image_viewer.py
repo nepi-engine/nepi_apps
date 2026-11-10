@@ -33,7 +33,7 @@ from nepi_sdk import nepi_sdk
 
 from nepi_api.messages_if import MsgIF
 from nepi_api.connect_system_if import ConnectSaveDataIF
-from nepi_api.connect_node_if import ConnectNodeClassIF
+from nepi_api.node_if import NodeClassIF
 
 APP_NODE_NAME = 'app_image_viewer'
 
@@ -159,13 +159,13 @@ class ConnectAppImageViewer:
 
         # Create Node Class ####################
         
-        self.con_node_if = ConnectNodeClassIF(
-                        namespace = self.namespace,
+        # NodeClassIF takes no 'namespace' or 'log_class_name' kwarg: passing them
+        # raised TypeError. The namespace is already carried by CFGS_DICT.
+        self.con_node_if = NodeClassIF(
                         configs_dict = self.CFGS_DICT,
                         services_dict = self.SRVS_DICT,
                         pubs_dict = self.PUBS_DICT,
                         subs_dict = self.SUBS_DICT,
-                        log_class_name = True,
                         msg_if = self.msg_if
         )
 

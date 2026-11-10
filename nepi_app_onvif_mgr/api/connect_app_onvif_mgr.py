@@ -39,8 +39,7 @@ from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
 from sensor_msgs.msg import Image
 
 from nepi_api.messages_if import MsgIF
-from nepi_api.data_if import ImageIF
-from nepi_api.connect_node_if import ConnectNodeClassIF
+from nepi_api.node_if import NodeClassIF
 
 
 APP_NODE_NAME = 'app_file_pub_img'
@@ -131,13 +130,13 @@ class ConnectAppFilePubImgIF:
 
         # Create Node Class ####################
         
-        self.con_node_if = ConnectNodeClassIF(
-                        namespace = self.namespace,
+        # NodeClassIF takes no 'namespace' or 'log_class_name' kwarg: passing them
+        # raised TypeError. The namespace is already carried by CFGS_DICT.
+        self.con_node_if = NodeClassIF(
                         configs_dict = self.CFGS_DICT,
                         services_dict = self.SRVS_DICT,
                         pubs_dict = self.PUBS_DICT,
-                        subs_dict = self.SUBS_DICT,
-                        log_class_name = True
+                        subs_dict = self.SUBS_DICT
         )
 
         

@@ -26,7 +26,7 @@ from nepi_app_stereo_cam.msg import NepiAppStereoCamStatus
 from nepi_sdk import nepi_sdk
 
 from nepi_api.messages_if import MsgIF
-from nepi_api.connect_node_if import ConnectNodeClassIF
+from nepi_api.node_if import NodeClassIF
 
 APP_NODE_NAME = 'app_stereo_cam'
 
@@ -158,12 +158,12 @@ class ConnectAppStereoCam:
         }
 
         # Create Node Class ####################
-        # NOTE: ConnectNodeClassIF takes no 'namespace' kwarg -- the target
+        # NOTE: NodeClassIF takes no 'namespace' kwarg -- the target
         # app's namespace is carried by the per-entry 'namespace' fields in
         # the dicts above (and CFGS_DICT['namespace']). Some shipped
         # connect_app_* files pass namespace=/log_class_name= anyway; those
         # kwargs don't exist and would TypeError if ever instantiated.
-        self.con_node_if = ConnectNodeClassIF(
+        self.con_node_if = NodeClassIF(
             configs_dict=self.CFGS_DICT,
             services_dict=self.SRVS_DICT,
             pubs_dict=self.PUBS_DICT,

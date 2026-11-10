@@ -41,8 +41,8 @@ from sensor_msgs.msg import Image
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.data_if import ColorImageIF
-from nepi_api.system_if import ControlsIF
+from nepi_api.data_product_if_image import ColorImageIF
+from nepi_api.utils_if import ControlsIF
 
 
 #########################################
@@ -464,11 +464,10 @@ class NepiFilePubImgApp(object):
           controls_description = CONTROLS_DESCRIPTION,
           controls_init_dict = self.controls_init_dict,
           controls_updated_callback = self.controlsUpdatedCb,
-          pub_status = True,
           save_params = True,
           msg_if = self.msg_if,
       )
-      self.controls_if.wait_for_controls_ready(timeout = 10)
+      self.controls_if.wait_for_ready(timeout = 10)
     except Exception as e:
       # Degrade to None rather than failing to start: every read goes through
       # getControlValue, which falls back to the factory value, so the app still

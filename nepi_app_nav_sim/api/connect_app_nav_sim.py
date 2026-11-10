@@ -28,7 +28,7 @@ from nepi_app_nav_sim.msg import NepiAppNavSimMasterStatus
 from nepi_sdk import nepi_sdk
 
 from nepi_api.messages_if import MsgIF
-from nepi_api.connect_node_if import ConnectNodeClassIF
+from nepi_api.node_if import NodeClassIF
 
 APP_NODE_NAME = 'app_nav_sim'
 
@@ -90,7 +90,7 @@ class ConnectAppNavSim:
     ready = False
     namespace = '~'
 
-    con_node_if = None
+    node_if = None
 
     connected = False
     status_msg = None
@@ -152,21 +152,23 @@ class ConnectAppNavSim:
         }
 
         # Publishers built on demand for per-instance topics and control sets,
-        # keyed by full topic namespace. ConnectNodeClassIF's registry is fixed
+        # keyed by full topic namespace. NodeClassIF's registry is fixed
         # at construction, and the instance list is not known until the master
         # status arrives, so these are created lazily and cached.
         self._dyn_pubs = {}
 
-        self.con_node_if = ConnectNodeClassIF(
-            namespace=self.namespace,
+        # NodeClassIF takes no 'namespace' or 'log_class_name' kwarg (3.3 or
+        # 3.4): passing them raised TypeError, so this IF could never be built. The
+        # app namespace is already carried by CFGS_DICT['namespace'] and the
+        # per-entry 'namespace' fields above, the same as connect_app_stereo_cam.
+        self.node_if = NodeClassIF(
             configs_dict=self.CFGS_DICT,
             services_dict=self.SRVS_DICT,
             pubs_dict=self.PUBS_DICT,
             subs_dict=self.SUBS_DICT,
-            log_class_name=True,
             msg_if=self.msg_if,
         )
-        self.con_node_if.wait_for_ready()
+        self.node_if.wait_for_ready()
 
         self.ready = True
         self.msg_if.pub_info("IF Initialization Complete")
@@ -249,14 +251,14 @@ class ConnectAppNavSim:
         if kind not in KINDS:
             return
         msg = String(); msg.data = str(instance_name)
-        self.con_node_if.publish_pub('add_' + kind + '_instance', msg)
+        self.node_if.publish_pub('add_' + kind + '_instance', msg)
 
     def remove_instance(self, kind, instance_name):
         """Remove a simulator instance. The app refuses to remove the last one."""
         if kind not in KINDS:
             return
         msg = String(); msg.data = str(instance_name)
-        self.con_node_if.publish_pub('remove_' + kind + '_instance', msg)
+        self.node_if.publish_pub('remove_' + kind + '_instance', msg)
 
     def rename_instance(self, kind, instance_name, new_name):
         """Rename a simulator instance, carrying its current state across."""
@@ -265,7 +267,7 @@ class ConnectAppNavSim:
         msg = UpdateString()
         msg.name  = str(instance_name)
         msg.value = str(new_name)
-        self.con_node_if.publish_pub('rename_' + kind + '_instance', msg)
+        self.node_if.publish_pub('rename_' + kind + '_instance', msg)
 
     def set_enabled(self, kind, instance_name, enabled):
         """Enable or disable one simulator instance.
@@ -431,13 +433,13 @@ class ConnectAppNavSim:
         self._publishDynamic(ns + '/goto_location', GeoPoint, msg)
 
     def save_config(self):
-        self.con_node_if.publish_pub('save_config', Empty())
+        self.node_if.publish_pub('save_config', Empty())
 
     def reset_config(self):
-        self.con_node_if.publish_pub('reset_config', Empty())
+        self.node_if.publish_pub('reset_config', Empty())
 
     def factory_reset_config(self):
-        self.con_node_if.publish_pub('factory_reset_config', Empty())
+        self.node_if.publish_pub('factory_reset_config', Empty())
 
     def unregister(self):
         self._unregisterNode()
@@ -506,12 +508,12 @@ class ConnectAppNavSim:
             except Exception:
                 pass
         self._dyn_pubs = {}
-        if self.con_node_if is not None:
+        if self.node_if is not None:
             self.msg_if.pub_warn("Unregistering: " + str(self.namespace))
             try:
-                self.con_node_if.unregister_class()
+                self.node_if.unregister_class()
                 time.sleep(1)
-                self.con_node_if = None
+                self.node_if = None
                 self.namespace   = None
                 self.status_connected = False
             except Exception as e:

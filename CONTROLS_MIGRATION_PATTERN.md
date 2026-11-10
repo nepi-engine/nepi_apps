@@ -16,7 +16,8 @@ migrated: `nav_sim`, `file_pub_img`, `file_pub_vid`, `file_pub_depthmap`,
 `onvif_mgr`, and `image_viewer` node-side only (see the last section).
 
 The pattern sources are `ControlsIF` in
-`nepi_engine/nepi_api/src/nepi_api/system_if.py`, the dict helpers in
+`nepi_engine/nepi_api/src/nepi_api/utils_if.py` (it lived in `system_if.py`
+before 3.4; import it from `nepi_api.utils_if`), the dict helpers in
 `nepi_engine/nepi_sdk/src/nepi_sdk/nepi_controls.py`, and the two renderers
 `Nepi_IF_Controls.js` and `Nepi_IF_Control.js` in `nepi_rui`.
 
@@ -95,7 +96,7 @@ option list is rebuilt on every discovery cycle.
 Group values into one multi-value control only when they genuinely share a
 bound. A control carries a single `min_bound`/`max_bound` pair for all of its
 entries. The three ENU offset axes share one metre bound, so they are one
-`Floats` control with `display_row` set and per-axis `display_labels`. Latitude,
+`Floats` control with `display_row` set and per-axis `value_names`. Latitude,
 longitude and altitude do not share a bound, so they stay three separate `Float`
 controls with correct per-axis bounds.
 
@@ -132,14 +133,18 @@ named warning. Copy it.
 
 ## The namespace rule, and deriving one set name on both sides
 
-A `ControlsIF` is **always a direct child of the NODE namespace**. Its `__init__`
-builds `create_namespace(node_namespace, controls_name)`, there is **no**
-`namespace` argument, and `nepi_utils.get_clean_name()` rewrites `/` to `_` so
-the name cannot carry a path.
+A `ControlsIF` is **a direct child of the NODE namespace unless it is given a
+`namespace`**. Since 3.4 the constructor takes `namespace=None`, and NodeIF
+resolves `None` to the node namespace before building
+`create_namespace(namespace, controls_name)`. No app in this document passes it,
+so every set here still lands at `<node>/<controls_name>`. A `namespace` whose
+last segment equals the set name has that segment stripped first, so it does not
+double up. `nepi_utils.get_clean_name()` rewrites `/` to `_`, so the name itself
+still cannot carry a path. Before 3.4 there was no `namespace` argument at all.
 
 Three consequences, all of which have cost real debugging time.
 
-**A set cannot be mounted under a sub-namespace.** Where an app needs more than
+**Without `namespace`, a set cannot be mounted under a sub-namespace.** Where an app needs more than
 one set, the set NAME is the only thing that distinguishes them, and the node and
 the RUI must derive the same name independently. `nav_sim` needs one set per
 section per instance, so it builds the name from the instance's own ROS path:
@@ -504,7 +509,21 @@ on hardware -- confirm ONVIF devices are still discovered after the first
 ## Upstream defects encountered
 
 Recorded during the fake GPS migration and not fixed by it. All are outside
-`nepi_apps`.
+`nepi_apps`. The `system_if.py` line numbers are from before 3.4; `ControlsIF`
+now lives in `utils_if.py`.
+
+Fixed in 3.4 (2026-11-09), found on nav_sim. Any app on an older engine shows
+both symptoms:
+
+- `ControlsIF.save_params_dict()` saved with `set_value('controls_dict', ...)`.
+  `NodeIF.set_value` also does a setattr on any name the class declares, so the
+  live controls dict was replaced by the flat `{control: value}` params dict. The
+  next status publish then logged `update_status_msg: left control '<name>' ...
+  TypeError` for every control in the set. It now saves with `set_param`.
+- `nepi_controls.apply_update_msg()` called `len()` on the current value when an
+  update carried an index. The RUI sends an index with every typed edit, so every
+  typed edit to a single-value control failed with `object of type 'float' has no
+  len()`.
 
 - `nepi_sdk/nepi_controls.py:880` -- `get_bounds()` raises `UnboundLocalError`
   for an unknown control name instead of returning its prepared `[-999,-999]`.

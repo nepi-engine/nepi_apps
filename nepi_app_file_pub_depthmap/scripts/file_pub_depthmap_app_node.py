@@ -43,11 +43,10 @@ from nepi_interfaces.msg import NavPose
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.data_if import ColorImageIF
-from nepi_api.data_if import DepthMapIF
-from nepi_api.data_if import ImageIF
-from nepi_api.data_if import NavPoseIF
-from nepi_api.system_if import ControlsIF
+from nepi_api.data_product_if_image import ColorImageIF
+from nepi_api.data_product_if_depth_map import DepthMapIF
+from nepi_api.system_if import NavPoseIF
+from nepi_api.utils_if import ControlsIF
 
 
 #########################################
@@ -649,7 +648,7 @@ class NepiFilePubDepthmapApp(object):
     # their status messages at all.  When no navpose_if is supplied, DepthMapIF
     # and BaseImageIF each build a ConnectNavPoseIF on their OWN node_if
     # (data_if.py navpose blocks), and ConnectNodeIF registers the generic key
-    # 'status_pub' on whatever node_if it is given (connect_node_if.py).
+    # 'status_pub' on whatever node_if it is given (node_if.py).
     # register_pubs() is a keyed dict.update(), so that registration overwrites
     # the data IF's own 'status_pub' entry: the DepthMapStatus / ImageStatus
     # publisher is orphaned (its topic stays advertised, so the product still
@@ -672,7 +671,6 @@ class NepiFilePubDepthmapApp(object):
                 pub_depth = False,
                 pub_pan_tilt = False,
                 save_data_if = None,
-                save_data_enabled = False,
                 msg_if = self.msg_if,
                 node_if = self.node_if
                 )
@@ -718,9 +716,10 @@ class NepiFilePubDepthmapApp(object):
     # flag and reports 'None' without it, leaving the viewer unmounted).
     self.depth_map_if.set_image_pub_enabled(True)
 
-    # ImageIF publishes the pre-rendered depth_map_image png directly (no
-    # colorization / no processing), unlike DepthMapImageIF which would
-    # colorize a raw depth array.
+    # ColorImageIF publishes the pre-rendered depth_map_image png directly (no
+    # colorization), unlike DepthMapImageIF which would colorize a raw depth
+    # array. name sets the last namespace segment, so it must be
+    # 'depth_map_image' (the default 'color_image' would land elsewhere).
     #
     # Its namespace is the DEPTH MAP namespace, not the node namespace, so the
     # image lands at <node>/depth_map/depth_map_image -- one level under the
@@ -729,7 +728,8 @@ class NepiFilePubDepthmapApp(object):
     # DEPTH_MAP_IMAGE_SUBTOPIC, nepi_app_stereo_cam DEPTH_IMAGE_SUBTOPIC).
     # Published as a sibling of the depth map, it is invisible to all of them.
     depth_map_ns = nepi_sdk.create_namespace(data_ns, 'depth_map')
-    self.depth_map_image_if = ImageIF(namespace = depth_map_ns,
+    self.depth_map_image_if = ColorImageIF(name = 'depth_map_image',
+                namespace = depth_map_ns,
                 data_product = 'depth_map_image',
                 data_source_description = 'file',
                 data_ref_description = 'source',
@@ -863,11 +863,10 @@ class NepiFilePubDepthmapApp(object):
           controls_description = description,
           controls_init_dict = init_dict,
           controls_updated_callback = self.controlsUpdatedCb,
-          pub_status = True,
           save_params = True,
           msg_if = self.msg_if,
       )
-      controls_if.wait_for_controls_ready(timeout = 10)
+      controls_if.wait_for_ready(timeout = 10)
       return controls_if
     except Exception as e:
       # Same degrade-to-None contract the data interfaces already have in this

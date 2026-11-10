@@ -50,8 +50,8 @@ from nepi_sdk import nepi_nav
 from nepi_sdk import nepi_controls
 
 from nepi_api.messages_if import MsgIF
-from nepi_api.data_if import NavPoseIF
-from nepi_api.system_if import ControlsIF
+from nepi_api.system_if import NavPoseIF
+from nepi_api.utils_if import ControlsIF
 
 
 #########################################
@@ -453,7 +453,7 @@ _GPS_CONTROLS = {
         'default': [FACTORY_GPS_LATITUDE, FACTORY_GPS_LONGITUDE, FACTORY_GPS_ALTITUDE_M],
         'round': GEO_ROUND_PLACES, 'display_round': GEO_ROUND_PLACES,
         'display_row': True,
-        'display_labels': _GPS_GEO_AXIS_LABELS,
+        'value_names': _GPS_GEO_AXIS_LABELS,
         'display_name': 'Goto Location (WGS84)',
         'description': 'WGS84 latitude, longitude and altitude to simulate a move to'},
 
@@ -470,7 +470,7 @@ _GPS_CONTROLS = {
     #
     # NOT grouped, unlike every other control here. A grouped widget renders
     # with hide_label, which is what stops a row printing its caption twice --
-    # but this control's per-component captions ARE its display_labels, and
+    # but this control's per-component captions ARE its value_names, and
     # hide_label suppresses exactly those, so grouping it would erase the
     # East/North/Up labels and leave three anonymous boxes. It keeps display_row
     # instead, which already lays the three axes out on one line, and the page's
@@ -479,7 +479,7 @@ _GPS_CONTROLS = {
         'type': 'Floats', 'default': [0.0, 0.0, 0.0],
         'bounds': [-MAX_ENU_OFFSET_M, MAX_ENU_OFFSET_M],
         'round': 2, 'display_round': 2, 'display_row': True,
-        'display_labels': _GPS_ENU_AXIS_LABELS,
+        'value_names': _GPS_ENU_AXIS_LABELS,
         'display_name': 'Goto Position (ENU meters)',
         'description': 'Relative move offset from the current simulated position'},
 
@@ -604,11 +604,10 @@ def setupInstanceControlSection(inst, title, suffix, fields, sin_fields = (),
             controls_description = title + ' controls for ' + inst.name,
             controls_init_dict = init_dict,
             controls_updated_callback = inst.controlsUpdatedCb,
-            pub_status = True,
             save_params = True,
             msg_if = inst._msg_if,
         )
-        controls_if.wait_for_controls_ready(timeout = 10)
+        controls_if.wait_for_ready(timeout = 10)
         inst._controls_ifs[suffix] = controls_if
     except Exception as e:
         # Same degrade-to-None contract NavPoseIF already has in this node: the
@@ -1527,7 +1526,11 @@ class HNavSimInstance:
         d = copy.deepcopy(nepi_nav.BLANK_NAVPOSE_DICT)
         d['has_location']    = True; d['latitude']    = lat;    d['longitude'] = lon;   d['time_location']    = t
         d['has_heading']     = True; d['heading_deg'] = heading;                        d['time_heading']     = t
-        d['has_orientation'] = True; d['roll_deg']    = roll;   d['pitch_deg'] = pitch; d['yaw_deg'] = heading; d['time_orientation'] = t
+        # heading_deg is the NED compass heading; yaw_deg is ENU (frame_nav), so it
+        # is converted the same way the GPS kind does. Roll and pitch pass through
+        # unchanged, as in nepi_nav.convert_navpose_ned2enu.
+        yaw_enu = nepi_nav.convert_yaw_ned2enu(heading)
+        d['has_orientation'] = True; d['roll_deg']    = roll;   d['pitch_deg'] = pitch; d['yaw_deg'] = yaw_enu; d['time_orientation'] = t
         d['has_altitude']    = True; d['altitude_m']  = alt;                            d['time_altitude']    = t
         d['has_depth']       = True; d['depth_m']     = depth;                          d['time_depth']       = t
         self._navpose_if.publish_navpose(d)
