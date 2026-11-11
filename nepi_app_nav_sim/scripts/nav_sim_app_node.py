@@ -1304,16 +1304,30 @@ class HNavSimInstance:
         with self._lock: self.hnav_depth_m = float(msg.data)
         self.publish_status()
 
+    def _recenterSin(self, field):
+        # Call with self._lock held. While Sin runs, the move thread rewrites the
+        # field every tick from _sin_base, so a typed value was overwritten at once
+        # and the sine stayed centred wherever it was when Sin was switched on
+        # (e.g. the top of an Auto Step ramp). Make the typed value the centre.
+        if getattr(self, 'enable_sin_' + field):
+            self._sin_base[field] = getattr(self, field)
+
     def _setHeadingCb(self, msg):
-        with self._lock: self.hnav_heading_deg = float(msg.data) % 360.0
+        with self._lock:
+            self.hnav_heading_deg = float(msg.data) % 360.0
+            self._recenterSin('hnav_heading_deg')
         self.publish_status()
 
     def _setRollCb(self, msg):
-        with self._lock: self.hnav_roll_deg = float(msg.data)
+        with self._lock:
+            self.hnav_roll_deg = float(msg.data)
+            self._recenterSin('hnav_roll_deg')
         self.publish_status()
 
     def _setPitchCb(self, msg):
-        with self._lock: self.hnav_pitch_deg = float(msg.data)
+        with self._lock:
+            self.hnav_pitch_deg = float(msg.data)
+            self._recenterSin('hnav_pitch_deg')
         self.publish_status()
 
     def _setSpeedCb(self, msg):
@@ -1428,6 +1442,10 @@ class HNavSimInstance:
                     changed = True
             if changed:
                 self.publish_status()
+                # The 1 Hz node timer alone aliases any motion faster than 2 s
+                # (a 1 s Sin period sampled once a second reads as a constant),
+                # so publish the navpose on every motion tick as well.
+                self.publishNavpose()
             time.sleep(1.0 / 20)
 
     def _applyState(self):
@@ -1516,7 +1534,10 @@ class HNavSimInstance:
             self.hnav_longitude += dlon
 
     def publishNavpose(self):
-        if self._navpose_if is None:
+        # Local reference: the move thread calls this too, and _applyState can
+        # clear self._navpose_if between the check and the publish.
+        navpose_if = self._navpose_if
+        if navpose_if is None:
             return
         with self._lock:
             lat, lon  = self.hnav_latitude, self.hnav_longitude
@@ -1533,7 +1554,7 @@ class HNavSimInstance:
         d['has_orientation'] = True; d['roll_deg']    = roll;   d['pitch_deg'] = pitch; d['yaw_deg'] = yaw_enu; d['time_orientation'] = t
         d['has_altitude']    = True; d['altitude_m']  = alt;                            d['time_altitude']    = t
         d['has_depth']       = True; d['depth_m']     = depth;                          d['time_depth']       = t
-        self._navpose_if.publish_navpose(d)
+        navpose_if.publish_navpose(d)
 
     def publish_status(self):
         self._status_pub.publish(self._buildStatusMsg())
