@@ -296,8 +296,13 @@ defines. The unshared branch calls `unregister_class()` and is unaffected.
 
 ## How the updated callback applies a change
 
-`ControlsIF` calls `controls_updated_callback(control_name)` after its dict has
-been updated and its status published. The fake GPS app registers
+`ControlsIF` calls `controls_updated_callback(control_name, update_value)` after
+its dict has been updated and its status published. It passes two arguments, so
+a one-argument callback raises `TypeError` on every update. It is called only from
+`set_control_value()`: a value changed by `init()` (saved params applied at
+construction), `reset()`, `factory_reset()` or the `reset_controls` topic never
+reaches it, so code that must follow a control reads `get_control_value()` rather
+than caching what the callback last delivered. The fake GPS app registers
 `controlsUpdatedCb`, which does three things in order.
 
 First it calls `applyControls()`, unconditionally. That method is the single
