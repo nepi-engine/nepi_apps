@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
+#
+# Copyright (c) 2026 Numurus <https://www.numurus.com>.
+#
+# This file is part of nepi applications (nepi_apps) repo
+# (see https://github.com/nepi-engine/nepi_apps)
+#
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
+# which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
+#
+# Redistributions in source code must retain this top-level comment block.
+# Plagiarizing this software to sidestep the license obligations is illegal.
+#
+# Contact Information:
+# ====================
+# - mailto:nepi@numurus.com
+#
+
 """
-CLAUDE GENERATED.
 Stereo calibration + rectification for the custom stereo driver.
 
 Library only -- no command line. Calibration is driven from the NEPI RUI
@@ -179,11 +196,8 @@ def _writable(folder, build_tree=False):
 def default_calib_folder():
     """The ZED driver's cal folder on a device, created if it does not exist yet.
 
-    CAL_PATH is the target, not merely a candidate: the previous version only
-    ACCEPTED it when it (or its parent) already existed and was writable, so on a
-    device where user_cfg/cals had not been created yet the calibration silently
-    landed in the home fallback instead of alongside the ZED cal files. The 'cals'
-    leaf is now created when the user_cfg tier is there. The home fallbacks apply
+    CAL_PATH is the target, not merely a candidate: the 'cals' leaf is created
+    when the user_cfg tier is there. The home fallbacks apply
     only where the storage mount genuinely does not exist -- i.e. a dev box.
     """
     override = os.environ.get("NEPI_STEREO_CALIB_DIR")

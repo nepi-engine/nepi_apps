@@ -1,4 +1,22 @@
 #!/usr/bin/env python3
+#
+# Copyright (c) 2026 Numurus <https://www.numurus.com>.
+#
+# This file is part of nepi applications (nepi_apps) repo
+# (see https://github.com/nepi-engine/nepi_apps)
+#
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
+# which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
+#
+# Redistributions in source code must retain this top-level comment block.
+# Plagiarizing this software to sidestep the license obligations is illegal.
+#
+# Contact Information:
+# ====================
+# - mailto:nepi@numurus.com
+#
+
 """Custom stereo depth library for NEPI.
 
 Produces a metric depth map (distance in millimeters) from a rectified

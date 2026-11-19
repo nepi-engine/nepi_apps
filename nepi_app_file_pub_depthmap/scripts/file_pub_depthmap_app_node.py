@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License",
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import os
 import time
@@ -102,7 +104,7 @@ MAX_POSITION_M    = 100000.0
 GEO_ROUND_PLACES = 6
 
 # Static pose value controls: (control name, param/dict suffix, label, bounds).
-# The control name IS the param name the app has always used, and the navpose
+# The control name IS the param name, and the navpose
 # dict key is that name without the navpose_static_ prefix -- so one table drives
 # the control set, the route into setNavPoseStaticValueCb, and the dict write.
 NAVPOSE_STATIC_VALUE_CONTROLS = (
@@ -130,10 +132,8 @@ NAVPOSE_STATIC_FRAME_CONTROLS = (
 class ControlValue:
   """Stand-in for the std_msgs value the app's setter callbacks expect.
 
-  The setters kept their original signatures through this migration, so the
-  control routes hand them an object with a .data attribute exactly as the ROS
-  subscribers did. Nothing about their per-field clamping or frame validation
-  moved.
+  The control routes hand the setters an object with a .data attribute, the
+  same shape a ROS subscriber delivers.
   """
 
   def __init__(self, data):
@@ -169,7 +169,7 @@ def build_playback_controls_init_dict(min_rate, max_rate, factory_rate):
 
     # One row: the pause toggle, the rate box and the random toggle. Rate and
     # Random hide while paused and the two step Buttons appear -- see
-    # syncControlVisibility, which mirrors what the hand-written panel did.
+    # syncControlVisibility.
     'paused': {
         'type': 'Toggle', 'default': False,
         'display_name': 'Paused', 'display_group': 'playback',
@@ -523,9 +523,9 @@ class NepiFilePubDepthmapApp(object):
     }
 
     # Params Config Dict ####################
-    # Every operator-adjustable value moved to one of the three ControlsIF sets,
+    # Every operator-adjustable value lives in one of the three ControlsIF sets,
     # each of which registers and persists its own param under its own
-    # namespace. The two that stay are node-WRITTEN state rather than
+    # namespace. The two here are node-WRITTEN state rather than
     # operator-typed values: current_folder is set by the folder navigation
     # commands, and running is a side effect of start/stop that seeds the
     # restart on the next launch.
@@ -552,18 +552,11 @@ class NepiFilePubDepthmapApp(object):
     }
 
     # Subscribers Config Dict ####################
-    # What stays here are the COMMANDS and one inbound telemetry subscription.
+    # Here are the COMMANDS and one inbound telemetry subscription.
     # Folder navigation carries a relative name plus a traversal verb, which a
     # control set -- where each value is written independently -- cannot express
     # atomically; start/stop are the app's programmatic publishing API, and the
     # Button controls call the same private methods these callbacks do.
-    #
-    # Removed here and now driven over the three control sets' update_control
-    # topics: set_rate, set_random, set_overlay, pause_pub, step_forward,
-    # step_backward, set_width_deg, set_height_deg, set_apply_folder_settings,
-    # set_navpose_source_mode, set_navpose_system_timeout, the eleven
-    # set_navpose_static_* topics and the three set_navpose_static_frame_*
-    # topics.
     self.SUBS_DICT = {
         'select_folder': {
             'namespace': self.node_namespace,
@@ -911,7 +904,7 @@ class NepiFilePubDepthmapApp(object):
     # control name -> the app callback that already owns that value. Routing
     # rather than reimplementing is what keeps setRateCb's clamp,
     # clampFovDeg's not-a-number fallback, setNavPoseSourceModeCb's option
-    # check and setNavPoseStaticFrame's frame validation exactly where they were.
+    # check and setNavPoseStaticFrame's frame validation in those callbacks.
     routes = {
         'paused':   self.pausePubCb,
         'rate_hz':  self.setRateCb,
@@ -927,8 +920,7 @@ class NepiFilePubDepthmapApp(object):
         'navpose_static_frame_depth': self.setNavPoseStaticFrameDepthCb,
     }
     # The eleven static pose values share one callback, which takes the param
-    # name as its second argument -- exactly the callback_args form the removed
-    # subscribers used. The control name IS that param name.
+    # name as its second argument. The control name IS that param name.
     for name, label, bounds, round_places in NAVPOSE_STATIC_VALUE_CONTROLS:
       routes[name] = (lambda m, n = name: self.setNavPoseStaticValueCb(m, n))
     return routes
@@ -988,8 +980,7 @@ class NepiFilePubDepthmapApp(object):
   def applyStaticNavPoseControls(self):
     # Copy the static pose controls into static_navpose_dict. The control name
     # is the param name, and the navpose dict key is that name without the
-    # navpose_static_ prefix -- the same mapping the removed per-topic callbacks
-    # used, so there is still no translation table.
+    # navpose_static_ prefix, so there is no translation table.
     if self.static_navpose_dict is None:
       return
     self.navpose_lock.acquire()
@@ -1006,11 +997,11 @@ class NepiFilePubDepthmapApp(object):
     self.navpose_lock.release()
 
   def syncControlVisibility(self):
-    # Mirrors what the hand-written panel did. Rate and Random are shown while
+    # Rate and Random are shown while
     # running forward, the two step Buttons while paused; the static pose fields
     # and their three frames are hidden while a SYSTEM pose is being forwarded,
-    # because in that mode the node never reads them -- the RUI disabled them for
-    # exactly this reason. Gated on the RESOLVED active mode, not the setting:
+    # because in that mode the node never reads them. Gated on the RESOLVED
+    # active mode, not the setting:
     # 'auto' says nothing on its own about which source is publishing.
     paused = (self.paused == True)
     self.setControlHidden('rate_hz', paused)
@@ -1049,7 +1040,7 @@ class NepiFilePubDepthmapApp(object):
     self.applyControls()
     self.syncControlVisibility()
 
-    # Matches what the removed set_param calls did: persist on change. The
+    # Persist on change. The
     # config IF debounces this onto its own timer, so a slider drag does not
     # write a file per frame.
     if control_name not in BUTTON_CONTROLS and self.node_if is not None:
@@ -1337,8 +1328,7 @@ class NepiFilePubDepthmapApp(object):
   def setNavPoseStaticValueCb(self,msg,args):
     # args is the CONTROL name; the navpose dict key is the same name without
     # the navpose_static_ prefix, which is why the controls are named that way.
-    # The control itself persists the value, so the set_param this used to do is
-    # gone.
+    # The control itself persists the value.
     param_name = args
     dict_key = param_name.replace('navpose_static_','')
     value = float(msg.data)
@@ -1351,7 +1341,7 @@ class NepiFilePubDepthmapApp(object):
   def setNavPoseStaticFrame(self, frame, dict_key, param_name, frame_options):
     # Reject anything the IF does not offer and leave the previous value in
     # place, so a bad frame never reaches a published pose. The control itself
-    # persists the value, so the set_param this used to do is gone; param_name
+    # persists the value; param_name
     # is kept in the signature because it names the control and reads in the
     # three callers.
     if frame not in frame_options:

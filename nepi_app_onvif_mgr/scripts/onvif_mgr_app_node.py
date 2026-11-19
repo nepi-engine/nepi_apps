@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import os
 import sys
@@ -77,9 +79,8 @@ MAX_DISCOVERY_INTERVAL_SEC = 60.0
 class ControlValue:
   """Stand-in for the std_msgs value the app's setter callbacks expect.
 
-  clearDiscCb kept its original signature through this migration, so the control
-  route hands it an object with a .data attribute exactly as the ROS subscriber
-  did.
+  The control route hands clearDiscCb an object with a .data attribute, the
+  same shape a ROS subscriber delivers.
   """
 
   def __init__(self, data):
@@ -221,9 +222,9 @@ class ONVIFMgr:
     }
 
     # Params Config Dict ####################
-    # discovery_interval, autosave_cfg_changes and clear_discovery moved to
+    # discovery_interval, autosave_cfg_changes and clear_discovery live in
     # ControlsIF, which registers and persists its own param under the controls
-    # namespace. configured_onvifs stays: it is a dict of per-device
+    # namespace. configured_onvifs is a node param: it is a dict of per-device
     # configuration owned by the four config services, not an operator-typed
     # value, and setCurrentSettingsAsDefault() dumps the whole node subtree --
     # which includes <node>/controls -- to the user config file.
@@ -294,9 +295,7 @@ class ONVIFMgr:
 
 
     # Subscribers Config Dict ####################
-    # allow_discovery_clearing was removed here: it is a control now, driven
-    # over <node>/controls/update_control. What is left are the two INBOUND
-    # telemetry subscriptions -- another node's drivers status and the system
+    # The two INBOUND telemetry subscriptions -- another node's drivers status and the system
     # status -- which are not operator state at all.
     self.SUBS_DICT = {
         'drivers_status': {
@@ -495,9 +494,9 @@ class ONVIFMgr:
 
 
   def clearDiscCb(self,msg):
-    # Reached from the control route now rather than from a ROS subscriber. The
-    # value is persisted by ControlsIF itself, so the set_param this used to do
-    # is gone; the auto-save side effect is unchanged.
+    # Reached from the control route. The
+    # value is persisted by ControlsIF itself; this adds only the auto-save
+    # side effect.
     clear = msg.data
     self.clear_discovery = clear
     if self.autosave_cfg_changes is True:
@@ -1179,7 +1178,7 @@ class ONVIFMgr:
     #rosparam.load_file(filename = full_path_config_file, default_namespace = node_namespace)
 
   def setCurrentSettingsAsDefault(self):
-    # discovery_interval and autosave_cfg_changes are no longer written here:
+    # discovery_interval and autosave_cfg_changes are not written here:
     # ControlsIF persists them under <node>/controls, and the dump below is
     # save_all over the whole node namespace, so that subtree goes to the file
     # with everything else.

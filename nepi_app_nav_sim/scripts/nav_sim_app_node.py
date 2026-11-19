@@ -3,9 +3,10 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License",
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
 # Redistributions in source code must retain this top-level comment block.
@@ -14,6 +15,7 @@
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import copy
 import datetime
@@ -88,7 +90,7 @@ _SIN_FIELDS = ('hnav_heading_deg', 'hnav_roll_deg', 'hnav_pitch_deg')
 #########################################
 # GPS sim factory defaults and MAVLink constants
 #
-# Ported from nepi_app_fake_gps, which this app absorbed. The GPS kind does not
+# The GPS kind does not
 # serve a TCP stream like the other two; it publishes a simulated NavSatFix and
 # Odometry and injects a MAVLink GPS_INPUT into a selected mavros node.
 #
@@ -358,7 +360,7 @@ def build_section_controls(section_fields, sin_fields = ()):
 # GPS sim control sets
 #
 # Unlike the NMEA and HNav kinds, whose controls are one generated row per
-# simulated field, the GPS kind's controls came over from nepi_app_fake_gps as
+# simulated field, the GPS kind's controls are
 # a hand-written set. They are declared here as one flat dict and sliced into
 # sections by _GPS_SECTIONS, so key order is still display order within each
 # section.
@@ -439,8 +441,8 @@ _GPS_CONTROLS = {
     # produce that -- a row group prints ONE label, in the left gutter, and
     # every later control's caption inline AFTER its widget.
     #
-    # The cost is the one a multi-value control always carries, and it is why
-    # these were three controls before: Control.msg holds a SINGLE
+    # The cost is the one a multi-value control always carries:
+    # Control.msg holds a SINGLE
     # min_bound/max_bound pair, so the three axes cannot each keep their own,
     # and the axes genuinely disagree -- a pair wide enough for altitude lets
     # latitude reach 20000, a pair that fits longitude caps altitude at 180 m.
@@ -570,9 +572,8 @@ def checkGpsControls(msg_if):
 class ControlValue:
     """Stand-in for the std_msgs value the instance setter callbacks expect.
 
-    The setters kept their original signatures through this migration, so the
-    control routes hand them an object with a .data attribute exactly as the
-    ROS subscribers did. Nothing about their per-field clamping moved.
+    The control routes hand the setters an object with a .data attribute, the
+    same shape a ROS subscriber delivers.
     """
 
     def __init__(self, data):
@@ -588,12 +589,12 @@ def setupInstanceControlSection(inst, title, suffix, fields, sin_fields = (),
     # node_if is left None so each IF builds and owns its own NodeClassIF, the
     # same choice NavPoseIF already makes in this node -- sharing one would
     # merge registries and a generic key would orphan a sibling's publisher.
-    # pub_status and save_params are passed explicitly to match how fake_gps
-    # mounts its set, even though both already default True.
+    # pub_status and save_params are passed explicitly, even though both
+    # already default True.
     #
     # init_dict is given directly by the GPS kind, whose controls are a
     # hand-written set rather than generated rows. Left None the NMEA and HNav
-    # kinds generate theirs from their field specs exactly as before.
+    # kinds generate theirs from their field specs.
     controls_name = instanceControlsName(inst._ns, inst._base_ns, suffix)
     if init_dict is None:
         init_dict = build_section_controls(fields, sin_fields = sin_fields)
@@ -645,9 +646,9 @@ def setControlHidden(inst, control_name, hidden):
 
 
 def applyControlUpdate(inst, control_name):
-    # Route a changed control back through the instance's original setter, so
+    # Route a changed control back through the instance's setter, so
     # the sin/wave side effects (start time, base value, regenerated wave
-    # components) happen exactly where they always did.
+    # components) happen in that setter.
     route = inst._routes.get(control_name, None)
     if route is None:
         return
@@ -887,15 +888,14 @@ class NmeaSimInstance:
     def _registerSubs(self, ns):
         # Only the master enable stays a topic. It is not a row control -- the
         # RUI draws it as the toggle in the instance header, beside the port
-        # readout. Every per-field setter below moved to the control sets built
-        # in _setupControls; the setter METHODS are unchanged and the control
-        # routes call exactly the same ones the subscribers used to.
+        # readout. Every per-field setter below is driven by the control sets built
+        # in _setupControls.
         S = self._subs.append
         S(nepi_sdk.create_subscriber(ns + '/set_nmea_enabled',   Bool,    self._setNmeaEnabledCb))
 
     def _controlRoutes(self):
-        # control name -> callable taking the stand-in value message. Built in
-        # the same shape the old _registerSubs used, so the per-field behavior
+        # control name -> the setter callable taking the stand-in value message,
+        # so the per-field behavior
         # (heading wrapped to 360, speed floored at 0) is the setter's, not a
         # reimplementation here.
         routes = {
@@ -1222,8 +1222,7 @@ class HNavSimInstance:
     def _registerSubs(self, ns):
         # As in NmeaSimInstance: only the master enable stays a topic, because
         # the RUI draws it in the instance header rather than as a row. Every
-        # per-field setter moved to the control sets and the setter methods
-        # themselves are untouched.
+        # per-field setter is driven by the control sets.
         S = self._subs.append
         S(nepi_sdk.create_subscriber(ns + '/set_hnav_enabled',   Bool,    self._setHnavEnabledCb))
 
@@ -1259,7 +1258,7 @@ class HNavSimInstance:
         self.syncRowVisibility()
 
     def syncRowVisibility(self):
-        # The reveal chain, mirroring what the hand-written rows did: Auto
+        # The reveal chain: Auto
         # reveals Step/Rate and the Sin toggle; Sin reveals Amp/Period and the
         # Wave toggle; Wave reveals Spread. Step and Rate hide again while Sin
         # owns the field, because the two motion modes are exclusive.
@@ -1306,9 +1305,8 @@ class HNavSimInstance:
 
     def _recenterSin(self, field):
         # Call with self._lock held. While Sin runs, the move thread rewrites the
-        # field every tick from _sin_base, so a typed value was overwritten at once
-        # and the sine stayed centred wherever it was when Sin was switched on
-        # (e.g. the top of an Auto Step ramp). Make the typed value the centre.
+        # field every tick from _sin_base, so a typed value would be overwritten
+        # at once. Make the typed value the centre.
         if getattr(self, 'enable_sin_' + field):
             self._sin_base[field] = getattr(self, field)
 
@@ -1673,7 +1671,7 @@ class HNavSimInstance:
 class GpsSimInstance:
     """Self-contained simulated GPS: own ROS subs/pubs, move thread, MAVLink injection.
 
-    Absorbed from nepi_app_fake_gps. Unlike the NMEA and HNav kinds it serves no
+    Unlike the NMEA and HNav kinds it serves no
     TCP stream: it publishes a simulated NavSatFix and Odometry on its own
     instance namespace and injects a MAVLink GPS_INPUT into a selected mavros
     node. Discovery of the available mavros nodes is process-global and pushed
@@ -1781,7 +1779,7 @@ class GpsSimInstance:
         # As in the other two kinds, the master enable stays a topic because the
         # RUI draws it as the toggle in the instance header rather than as a row.
         #
-        # The four command topics below came over from nepi_app_fake_gps and
+        # The four command topics below
         # stay topics for the reason the migration pattern gives: each carries a
         # whole geopoint or ENU offset in ONE message, which a control set --
         # where every value is written independently -- cannot express
@@ -1900,8 +1898,8 @@ class GpsSimInstance:
         # The per-axis limits live here, not in the control's bounds: the three
         # axes do not share a range and a Control carries only one pair, so
         # goto_location_geo declares none and nepi_controls clamps nothing on
-        # the way in. Clamping here keeps the limits the three separate
-        # controls used to enforce, against the same constants. Setter-side
+        # the way in. Clamping here enforces the per-axis limits
+        # against the same constants. Setter-side
         # clamping is the existing pattern -- see _setSpeedCb.
         geo = msg.data
         if isinstance(geo, (list, tuple)) == False or len(geo) != 3:
@@ -2102,8 +2100,8 @@ class GpsSimInstance:
             return
         geo_msg = self._makeGeoPoint(latitude, longitude, altitude)
         # The ENU delta keeps current_point (odom and navpose position) in step
-        # with the location. A zero delta here left the position behind on every
-        # goto_location, so after an RBX go-home or land it no longer matched.
+        # with the location. A zero delta here would leave the position behind on
+        # every goto_location.
         with self._lock:
             cur_geo = copy.deepcopy(self.current_location_wgs84_geo)
         self.startMove(geo_msg, self._enuDeltaPoint(cur_geo, geo_msg))
@@ -2218,8 +2216,7 @@ class GpsSimInstance:
 
     def _moveThreadLoop(self):
         # The sibling kinds step their simulated fields here; this kind advances
-        # its interpolated move plan and publishes the fix, which is what
-        # fake_gps's _simThreadLoop did.
+        # its interpolated move plan and publishes the fix.
         while self._alive and not nepi_sdk.is_shutdown():
             with self._lock:
                 self._advanceMove()
@@ -2266,7 +2263,7 @@ class GpsSimInstance:
 
         # NavPose output at the simulated fix rate. The master status timer also
         # calls publishNavpose once a second, the way it does for the other two
-        # kinds; this keeps the higher rate fake_gps published at.
+        # kinds; this adds the higher fix rate.
         self.publishNavpose()
 
         # Earth-frame NED velocity for GPS_INPUT (0 while hovering, move velocity
@@ -2340,9 +2337,8 @@ class GpsSimInstance:
     def _applyState(self):
         # Mirrors the other two kinds: the NavPoseIF is mounted at the INSTANCE
         # namespace while the sim is enabled and dropped when it is not.
-        # fake_gps mounted its NavPoseIF at the NODE namespace, which is the one
-        # thing that could not be ported literally -- several GPS instances would
-        # have collided on <node>/navpose.
+        # It must not be mounted at the NODE namespace: several GPS instances
+        # would collide on <node>/navpose.
         with self._lock:
             enabled = self.gps_sim_enabled
         if enabled and self._navpose_if is None:
@@ -2383,9 +2379,9 @@ class GpsSimInstance:
         d['has_altitude']    = True; d['altitude_m']  = geo.altitude;                                 d['time_altitude']    = t
         # Position: the simulated ENU offset from the last reset, the same point
         # the odom topic carries. Without it a consumer that tracks local
-        # position read this source's position as unset -- an RBX device using
-        # this instance as its navpose source saw no goto_position progress and
-        # timed out every goto even after the fix had arrived.
+        # position reads this source's position as unset -- an RBX device using
+        # this instance as its navpose source sees no goto_position progress and
+        # times out every goto even after the fix has arrived.
         d['has_position']    = True; d['x_m'] = point.x; d['y_m'] = point.y; d['z_m'] = point.z;      d['time_position']    = t
         # The navpose dict is in the ENU frame, so yaw_deg is ENU yaw; roll and
         # pitch are 0 for a level vehicle.

@@ -2,11 +2,11 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
-# are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
 # Redistributions in source code must retain this top-level comment block.
@@ -232,9 +232,9 @@ class ImageViewerApp extends Component {
   // NOT CURRENTLY MOUNTED -- both call sites in render() are commented out, on
   // purpose and kept rather than deleted. Every value in this set is already
   // reachable from Nepi_IF_ImageViewersSelector's own control bar above, so
-  // rendering this section too put the same five values on the page twice.
+  // rendering this section too would put the same five values on the page twice.
   //
-  // The backend set is untouched and still live: the node routes the selector's
+  // The backend set is live: the node routes the selector's
   // set_topic_N / set_num_windows topics through this same control set, so the
   // controls are doing their job -- they just have no second section of their
   // own here. Uncomment either call site to bring the section back.

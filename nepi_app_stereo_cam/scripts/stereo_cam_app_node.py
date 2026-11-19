@@ -3,22 +3,23 @@
 # Copyright (c) 2026 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License",
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 """Stereo Depth app node.
 
-Assembled from the NEPI app template plus the developer-authored
-idx_stereo_cam_node.py logic. It brings up:
+It brings up:
 
   * TWO ConnectIDXDeviceIF selectors (left + right camera), each owning its own
     connect namespace (<node>/left_cam_connect and <node>/right_cam_connect),
@@ -51,8 +52,8 @@ idx_stereo_cam_node.py logic. It brings up:
     focal_length_px / baseline_mm into every process so depth is true mm.
   * An "Advanced Controls" panel (RUI NepiAppStereoCam-Advanced.js): the depth
     rate cap on this node's own set_max_framerate topic, plus an
-    advanced_controls ControlsIF holding the pipeline tunables that used to be
-    edit-the-source module constants (frame pairing, buffer depth, frame time
+    advanced_controls ControlsIF holding the pipeline tunables (frame pairing,
+    buffer depth, frame time
     source, calibration capture gates). See setupAdvancedControlsIF() for why
     those live in a ControlsIF, the framerate does not, and the depth loop tick
     is not exposed at all.
@@ -96,9 +97,7 @@ from nepi_api.data_product_if_depth_map import DepthMapIF
 from nepi_api.data_product_if_image import ColorImageIF
 from nepi_api.connect_device_if_idx import ConnectIDXDeviceIF
 
-# App-local sibling modules (co-located in scripts/). Bare imports -- the
-# developer's original node used package-qualified names for the wrong package
-# (nepi_idx_stereo_cam.*); reconciled here to bare sibling imports, matching
+# App-local sibling modules (co-located in scripts/). Bare imports, matching
 # stereo_settings.py / calibrate.py.
 import calibrate
 from calibrate import Rectifier, StereoCalibrator
@@ -120,8 +119,8 @@ UPDATE_RATE_HZ = 1.0
 #
 # DELIBERATELY NOT AN ADVANCED CONTROL, unlike the tunables below. It is plumbing,
 # not a setting: what an operator wants to change is the output rate, and that is
-# max_framerate. Exposing the tick as well gave two rate boxes where the second one
-# only ever made the first one not work -- the throttle can only fire at a tick, so
+# max_framerate. Exposing the tick as well would give two rate boxes where the second one
+# would only make the first one not work -- the throttle can only fire at a tick, so
 # a tick slower than the cap silently becomes the real limit. Fixing it here and
 # capping max_framerate at it (MAX_MAX_FRAMERATE) removes that failure mode
 # entirely. Raising it is a source edit, which is the right weight for a change
@@ -172,8 +171,8 @@ CALIB_SYNC_MAX_S = 0.02
 # pair is simultaneous for calibration purposes however far apart it is stamped.
 # Set well above sensor noise (~1) so a still scene is never rejected; a board
 # being repositioned by hand sits far above it. Raise it if a noisy sensor or
-# auto-exposure hunting makes a genuinely stationary board fail -- which is now
-# done from the Advanced Controls panel rather than by editing this line.
+# auto-exposure hunting makes a genuinely stationary board fail -- from the
+# Advanced Controls panel.
 # Factory default of the 'calib_motion_max' advanced control; live value is
 # self.calib_motion_max.
 CALIB_MOTION_MAX = 3.0
@@ -294,7 +293,7 @@ class NepiStereoCamApp(object):
     # on both camera subscriber threads, and frame_sync_tolerance_s once per depth
     # pass. A dict walk per frame to fetch a value that changes when an operator
     # types is the wrong trade. They start at the module constants so every path
-    # behaves exactly as it did before the panel existed, including during the
+    # has its factory value, including during the
     # window before setupAdvancedControlsIF() has run.
     frame_sync_tolerance_s = FRAME_SYNC_TOLERANCE_S
     frame_buffer_len = FRAME_BUFFER_LEN
@@ -425,11 +424,10 @@ class NepiStereoCamApp(object):
                 'namespace': self.node_namespace,
                 'factory_val': self.selected_process
             },
-            # No 'processes_dict' param. Each process's control set is persisted by
+            # Each process's control set is persisted by
             # its own ControlsIF, under that IF's own '<process>_controls_dict'
             # param in its own namespace.
-            # Depth compute rate cap. Owned by this node (it used to ride in on
-            # the IDX device interface's setMaxFramerate hook).
+            # Depth compute rate cap. Owned by this node.
             'max_framerate': {
                 'namespace': self.node_namespace,
                 'factory_val': self.DEFAULT_MAX_FRAMERATE
@@ -483,10 +481,10 @@ class NepiStereoCamApp(object):
                 'callback': self.reloadProcessesCb,
                 'callback_args': ()
             },
-            # No 'set_process_control_value'. Every process setting is a
-            # nepi_controls control now, so an edit goes to the typed
+            # Every process setting is a
+            # nepi_controls control, so an edit goes to the typed
             # set_<type>_control_value topic of that process's own ControlsIF
-            # rather than arriving here as an UpdateFloat to be cast back.
+            # rather than arriving here.
             'set_max_framerate': {
                 'namespace': self.node_namespace,
                 'topic': 'set_max_framerate',
@@ -641,7 +639,7 @@ class NepiStereoCamApp(object):
     ###################
     ## Process selector
     #
-    # There is no settings read/write path here any more. Each process's tunable
+    # There is no settings read/write path here. Each process's tunable
     # values live in that process's own ControlsIF, which owns the typed
     # set_<type>_control_value topics the RUI publishes to, the bounds/options
     # validation, and the param persistence. The node only reads a flat snapshot
@@ -720,8 +718,8 @@ class NepiStereoCamApp(object):
     # geometry the control defaults carry.
     #
     # ControlsIF.set_control_value() persists the change to that IF's own param, so
-    # there is no set_param call here -- and no 'processes_dict' param left to write
-    # it to. A no-op before setupProcessControlsIFs() has run: NodeClassIF fires
+    # there is no set_param call here. A no-op before
+    # setupProcessControlsIFs() has run: NodeClassIF fires
     # initCb (which reloads the calibration) while it is still being constructed.
     def applyCalibGeometry(self):
         if self.rectifier is None or self.process_controls_ifs is None:
@@ -867,7 +865,7 @@ class NepiStereoCamApp(object):
 
 
     ###################
-    ## Frame acquisition + depth map (developer's idx_custom_stereo_node logic)
+    ## Frame acquisition + depth map
 
     def grabPair(self):
         """Return (ok, left_bgr, right_bgr, timestamp, reason) for the closest match.
@@ -1020,10 +1018,10 @@ class NepiStereoCamApp(object):
         # reported state alone rather than overwriting it with 'throttled'.
         #
         # dm_data_last_time is when the last publishing pass STARTED, so the cap is
-        # a period between pass starts. Timed from the end, as it was, the cap was
-        # idle time added AFTER the compute: a 130 ms pass under a 10 Hz cap ran at
+        # a period between pass starts. Timed from the end, the cap would be
+        # idle time added AFTER the compute: a 130 ms pass under a 10 Hz cap would run at
         # 1/(0.13 + 0.10) = 4.3 Hz rather than the 7.5 Hz the compute allows, and
-        # each depth map sat on screen 100 ms longer than it had to.
+        # each depth map would sit on screen 100 ms longer than it has to.
         last_time = self.dm_data_last_time
         current_time = nepi_utils.get_time()
         if last_time is not None:
@@ -1114,7 +1112,7 @@ class NepiStereoCamApp(object):
         # gets rectified: when it matches in grayscale and nothing wants the color
         # frame, the pair is converted to gray first, so the remap moves one
         # channel instead of three for the same depth map. A color subscriber still
-        # gets a color left frame -- that pass rectifies color as it always did.
+        # gets a color left frame -- that pass rectifies color.
         match_gray = (needs_color is False and
                       stereo_settings.matches_in_grayscale(self.selected_process,
                                                            process_controls_dict))
@@ -1135,10 +1133,9 @@ class NepiStereoCamApp(object):
                 float(process_controls_dict.get('focal_length_px', 0.0)) * match_scale)
         t_rectified = nepi_utils.get_time()
 
-        # A raise inside the process function is the ONE failure on this path that
-        # left the reported state lying. Everything else routes through
-        # setDepthState(); this went to depthCb's throttled 'Depth update failed'
-        # warning and nowhere else, so depth_message kept whatever the LAST pass had
+        # A raise inside the process function must be reported here too. Everything
+        # else routes through setDepthState(); left to depthCb's throttled 'Depth
+        # update failed' warning alone, depth_message would keep whatever the LAST pass had
         # put there -- and the last pass, by definition, is one that stopped at an
         # earlier gate. An operator who opens the Depth Map viewer on a rig whose
         # block matching raises every pass reads 'idle -- nothing is subscribed to the
@@ -1147,9 +1144,8 @@ class NepiStereoCamApp(object):
         # running: the panel holds the last good percentage indefinitely.
         #
         # Caught here rather than left to depthCb because this is the level that knows
-        # WHICH process was running and can say so. The gates above are untouched --
-        # this only adds a state report to a path that had none, and still returns
-        # False so a raise ends the pass exactly as it did before.
+        # WHICH process was running and can say so. It still returns
+        # False so a raise ends the pass.
         try:
             self.stereo_data_dict, _ = process['process_function'](
                 left, right, self.stereo_data_dict, process_controls_dict)
@@ -1278,8 +1274,8 @@ class NepiStereoCamApp(object):
     # log line, and this node still reporting 'running -- N% of pixels have depth'.
     # That is the worst state this app can be in: a healthy status message over a dead
     # data product. BaseImageIF.publish_cv2_img() already handles both cases the right
-    # way; DepthMapIF has not been given the same treatment, and the proper repair is
-    # a try/finally in nepi_api, which is out of scope here.
+    # way; DepthMapIF does not, and the proper repair is
+    # a try/finally in nepi_api.
     #
     # So the app guards its own call instead. Checking the flag on ENTRY is sound
     # precisely because this app has exactly one publisher thread: updateDepthMap runs
@@ -1321,7 +1317,7 @@ class NepiStereoCamApp(object):
     def computeDepthWindow(self, process_controls_dict):
         """Distances this configuration CAN measure, in mm: (near, far) or None.
 
-        The single most useful number the app never showed. Disparity search is a
+        Disparity search is a
         window, not a range of distances, and the distance it lands on depends on the
         calibrated geometry:
 
@@ -1517,7 +1513,7 @@ class NepiStereoCamApp(object):
         # subscriber threads nor gets capped by the slow updaterCb rate.
         #
         # Re-armed for what is left of the tick, not a full tick after the pass.
-        # A full tick put 33 ms of idle after EVERY pass, so a 130 ms pass ran at
+        # A full tick would put 33 ms of idle after EVERY pass, so a 130 ms pass would run at
         # 6 Hz instead of 7.5 even with the cap out of the way. An idle tick (the
         # throttle said not yet) takes microseconds, so it still re-arms at about
         # the tick rate the throttle is quantized to.
@@ -1626,11 +1622,7 @@ class NepiStereoCamApp(object):
     # A reload can ADD a process -- a new PROCESSES_DICT entry gets its own
     # ControlsIF in setupProcessControlsIFs(). It cannot change or remove the
     # controls of a process that already has one: this node never releases a
-    # ControlsIF. The reason recorded against 3.3 was that ControlsIF.unregister()
-    # in nepi_api/system_if.py called an undefined self.unsubscribe_topic() and
-    # raised AttributeError before releasing anything. In 3.4 ControlsIF lives in
-    # nepi_api/utils_if.py and inherits NodeIF.unregister() (nepi_api/node_if.py),
-    # which does not; the 3.4 port leaves the behavior as it was. Editing an
+    # ControlsIF. Editing an
     # existing process's control set still needs a node restart, and a process
     # dropped from the module keeps its namespace until then -- it just stops
     # being offered in available_processes.
@@ -1754,7 +1746,7 @@ class NepiStereoCamApp(object):
     # NodeClassIF -- the current device-IF convention, and what the sandbox app
     # does. Every registry and param key a ControlsIF creates is already prefixed
     # from its own controls_name (NodeIF in nepi_api/node_if.py builds
-    # node_if_prefix that way; system_if.py did before 3.4), so
+    # node_if_prefix that way), so
     # several instances in one node cannot overwrite each other's entries or this
     # app's own -- the collision the 2026-07 DECISION LOG entry warns about.
 
@@ -1808,14 +1800,7 @@ class NepiStereoCamApp(object):
     # that IF has no controls dict to read. This is the ONLY read path the depth
     # loop uses -- see updateDepthMap().
     #
-    # The None case used to be routine: ControlsIF.init() read its persisted
-    # controls with get_param('controls_dict') while the param is registered under
-    # '/<controls_name>_controls_dict', and ParamsIF.get_param() returns None for a
-    # name it does not know -- so every config init, reset() and factory_reset()
-    # replaced that IF's controls dict with None. Fixed in ControlsIF.init()
-    # (nepi_api/utils_if.py since 3.4, nepi_api/system_if.py before): prefixed key,
-    # plus a guard so a missing param cannot overwrite a live dict.
-    # The check stays because a None dict would make
+    # Checked because a None dict would make
     # nepi_controls.get_value() raise rather than return a default, and the
     # caller, not this helper, decides what a controls-less depth pass means.
     def getControlsValues(self, controls_if):
@@ -1856,10 +1841,8 @@ class NepiStereoCamApp(object):
     ###################
     ## Advanced Controls
     #
-    # The pipeline tunables behind the RUI "Advanced Controls" panel. Every one of
-    # them was a module constant at the top of this file until now -- changing one
-    # meant editing the source, redeploying and restarting the node, which is a poor
-    # fit for values whose right setting depends on the two cameras actually bolted
+    # The pipeline tunables behind the RUI "Advanced Controls" panel: values whose
+    # right setting depends on the two cameras actually bolted
     # to the robot (how well they synchronize, how fast they publish, how noisy
     # their sensors are).
     #
@@ -1869,14 +1852,14 @@ class NepiStereoCamApp(object):
     # Nepi_IF_Controls on this namespace, the same way the process controls are
     # mounted -- but this set is always present, since it belongs to no process.
     #
-    # max_framerate is deliberately NOT in here. It predates this panel as this
+    # max_framerate is deliberately NOT in here. It is this
     # node's own param + Float32 topic, it is reported in the app status message the
     # RUI is already subscribed to, and moving it would leave two writable sources
     # of truth for one value (or break every existing caller of set_max_framerate).
     # The panel renders it as a plain input above the controls box instead.
     #
-    # The depth loop tick (DEPTH_RATE_HZ) is not exposed anywhere. It was briefly a
-    # control here and was removed: the only thing an operator wants from a rate box
+    # The depth loop tick (DEPTH_RATE_HZ) is not exposed anywhere: the only thing
+    # an operator wants from a rate box
     # is the OUTPUT rate, which max_framerate already is, and a second rate box
     # could only ever make the first one not work -- see the constant's comment.
     #
@@ -2264,14 +2247,8 @@ class NepiStereoCamApp(object):
 
     def cleanup_actions(self):
         self.msg_if.pub_info("CUSTOM_STEREO: Shutting down: Executing script cleanup actions")
-        # The ControlsIF instances are deliberately NOT unregistered here. The
-        # reason recorded against 3.3: ControlsIF.unregister() in
-        # nepi_api/system_if.py opened with a call to an undefined
-        # self.unsubscribe_topic(), so it raised AttributeError before releasing
-        # anything -- inside the shutdown handler, ahead of the cleanup below. In
-        # 3.4 ControlsIF (nepi_api/utils_if.py) inherits NodeIF.unregister()
-        # (nepi_api/node_if.py), which does not raise; the 3.4 port leaves this as
-        # it was. Their pubs/subs go down with the node.
+        # The ControlsIF instances are deliberately NOT unregistered here.
+        # Their pubs/subs go down with the node.
         if self.depth_map_if is not None:
             self.depth_map_if.unregister()
         if self.color_image_if is not None:

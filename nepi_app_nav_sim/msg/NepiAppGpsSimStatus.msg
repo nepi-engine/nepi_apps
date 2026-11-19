@@ -32,6 +32,6 @@ float32 current_yaw_deg
 # Active move state
 bool moving
 
-# Publish settings, reported read-only the way NepiAppFakeGpsStatus reported them
+# Publish settings, reported read-only
 int32 satellites_visible
 float32 gps_pub_rate_hz

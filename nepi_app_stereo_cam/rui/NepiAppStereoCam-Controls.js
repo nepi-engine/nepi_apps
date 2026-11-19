@@ -2,10 +2,10 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
@@ -39,11 +39,7 @@ import { onChangeSwitchStateValue } from "./Utilities"
 //   * a "Show Process Settings" toggle that reveals ONE Nepi_IF_Controls, bound to
 //     the controls namespace the node reports as active.
 //
-// Pre-migration this block rendered one plain <Input> per entry of the node's
-// flattened status_msg.process_control_names / process_control_values arrays and
-// sent every edit back as an UpdateFloat to set_process_control_value -- a text box
-// for a bool, a text box for a value with three legal choices, and a float on the
-// wire regardless. All of that is gone. Each process now owns a ControlsIF whose
+// Each process owns a ControlsIF whose
 // nepi_controls control set carries type, bounds, options and display name, so
 // Nepi_IF_Controls renders the right widget per setting and publishes to the typed
 // set_<type>_control_value topic. Same arrangement as

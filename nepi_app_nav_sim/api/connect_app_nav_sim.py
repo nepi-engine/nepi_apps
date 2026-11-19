@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import time
 
@@ -115,10 +117,9 @@ class ConnectAppNavSim:
         self.CFGS_DICT = {'namespace': self.namespace}
         self.SRVS_DICT = None
 
-        # The app namespace, not the calling node's. The previous revision of
-        # this file built every publisher on nepi_sdk.get_node_namespace(),
-        # which is the CONSUMER's node, so nothing it published ever reached the
-        # app.
+        # The app namespace, not the calling node's. nepi_sdk.get_node_namespace()
+        # must not be used here: it is the CONSUMER's node, so nothing published
+        # on it would reach the app.
         ns = self.namespace
 
         # Instance management, plus the app-level config topics. Everything a
@@ -158,7 +159,7 @@ class ConnectAppNavSim:
         self._dyn_pubs = {}
 
         # NodeClassIF takes no 'namespace' or 'log_class_name' kwarg (3.3 or
-        # 3.4): passing them raised TypeError, so this IF could never be built. The
+        # 3.4): passing them raises TypeError. The
         # app namespace is already carried by CFGS_DICT['namespace'] and the
         # per-entry 'namespace' fields above, the same as connect_app_stereo_cam.
         self.node_if = NodeClassIF(
@@ -362,9 +363,8 @@ class ConnectAppNavSim:
     #######################
     # GPS instance surface
     #
-    # Carried over from ConnectAppFakeGps, which this app absorbed. The method
-    # bodies are the same publishes; every signature gained the instance name,
-    # because the GPS simulator is multi-instance here and was not there.
+    # Every signature carries the instance name, because the GPS simulator is
+    # multi-instance.
 
     def select_mavros_node(self, instance_name, node_namespace):
         """Select the target mavros (mavlink) node namespace to inject GPS_INPUT into."""

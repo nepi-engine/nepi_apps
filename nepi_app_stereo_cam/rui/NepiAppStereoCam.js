@@ -2,10 +2,10 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
@@ -323,8 +323,7 @@ class NepiAppStereoCam extends Component {
               appNamespace={appNamespace}
               status_msg={this.state.status_msg}
             />
-            {/* Depth framerate cap + the pipeline tunables that used to be
-                module constants in the node. Under calibration because it is
+            {/* Depth framerate cap + the pipeline tunables. Under calibration because it is
                 the block an operator reaches for least: the defaults are
                 right until the specific cameras on the robot say otherwise. */}
             <NepiAppStereoCamAdvanced

@@ -2,10 +2,10 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
@@ -50,8 +50,8 @@ const CONTROLS_NAME_FOLDER_SETTINGS = "folder_settings"
 const CONTROLS_NAME_NAVPOSE         = "navpose_source"
 
 // The static pose fields, the field of view fields and their local edit buffers
-// all moved into the control sets. Nepi_IF_Controls owns that state now, read
-// from each set's ControlsStatus, so none of it is mirrored here any more.
+// all live in the control sets. Nepi_IF_Controls owns that state, read
+// from each set's ControlsStatus, so none of it is mirrored here.
 
 
 @inject("ros")
@@ -90,7 +90,7 @@ class FilePubDepthmapApp extends Component {
 
       // Folder settings. The two report fields are read-only; they say whether
       // the toggle found anything in the current folder and what it did. The
-      // toggle itself and the two field of view values are controls now.
+      // toggle itself and the two field of view values are controls.
       folder_settings_found: false,
       folder_settings_status: '',
 
@@ -226,12 +226,12 @@ class FilePubDepthmapApp extends Component {
 
 
   // One control set, mounted the way the in-workspace examples mount it: the
-  // PAGE draws the heading (a divider plus a Label, as it always did) and this
+  // PAGE draws the heading (a divider plus a Label) and this
   // passes title={null}, so the component's own default "CONTROLS" heading does
   // not print a second one under it. allways_show_controls keeps the set open --
   // these controls ARE the panel.
   //
-  // key={namespace} is the habit the other migrated pages keep: without a key,
+  // key={namespace} is the habit the other control set pages keep: without a key,
   // a namespace change would leave React reusing the mounted component with its
   // old status subscription.
   renderControlSet(controls_name) {

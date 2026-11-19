@@ -144,8 +144,7 @@ bool example_controls_ready
 # Advanced Controls
 #####################
 # Namespace of the advanced control set: the stereo pipeline tunables (frame
-# pairing, frame time source, calibration capture gates) that used to be module
-# constants in stereo_cam_app_node.py. Belongs to no process, so like
+# pairing, frame time source, calibration capture gates). Belongs to no process, so like
 # the example set it is always mounted -- NepiAppStereoCam-Advanced.js mounts its
 # Nepi_IF_Controls here. Same fully-qualified form, and the same reason for it --
 # see stereo_cam_app_node.py getControlsNamespace().

@@ -1,3 +1,21 @@
+#
+# Copyright (c) 2026 Numurus <https://www.numurus.com>.
+#
+# This file is part of nepi applications (nepi_apps) repo
+# (see https://github.com/nepi-engine/nepi_apps)
+#
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
+# which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
+#
+# Redistributions in source code must retain this top-level comment block.
+# Plagiarizing this software to sidestep the license obligations is illegal.
+#
+# Contact Information:
+# ====================
+# - mailto:nepi@numurus.com
+#
+
 """Stereo depth 'process' module -- control definitions and per-cycle process functions.
 
 Same registry shape as nepi_sdk/nepi_stab_pt.py and the sibling
@@ -12,18 +30,10 @@ nepi_app_obstacles/scripts/nepi_obstacles.py:
   * DEFAULT_PROCESS       -- the process the node selects before an operator picks.
   * get_blank_data_dict() -- fresh runtime data dict for one process call.
 
-What changed from the pre-migration form of this module, and why it exists in this
-shape: each process used to carry a hand-rolled default_settings_dict of raw
-values that the node had to sanitize itself (create_processes_dict /
-update_processes_dict), with a nested 'stereo_controls_dict' the RUI populated by
-convention, and every value edited from the RUI arrived as a float regardless of
-what it actually was. Here each default_controls_dict is a nepi_controls CONTROLS
-INIT DICT instead -- the declarative form nepi_sdk/nepi_controls.create_controls_dict()
+Each default_controls_dict is a nepi_controls CONTROLS
+INIT DICT -- the declarative form nepi_sdk/nepi_controls.create_controls_dict()
 consumes -- and stereo_cam_app_node.py hands each set to its own ControlsIF. The IF
-then owns type/bounds/options validation, RUI presentation, and param persistence,
-which is why the hand-rolled create_processes_dict / update_processes_dict pair is
-gone rather than ported. See the module note at the bottom for what each removed
-function was replaced by.
+then owns type/bounds/options validation, RUI presentation, and param persistence.
 
 Init dict key schema, per nepi_controls.create_controls_dict():
   'type'      REQUIRED, one of nepi_controls.CONTROL_TYPES. An entry whose type
@@ -75,10 +85,7 @@ process_controls_dict) is called once per depth cycle by stereo_cam_app_node.py.
 process_controls_dict is a flat {control_name: current_value} snapshot the node
 reads out of that process's ControlsIF, so a control is read here by exactly the
 key it is authored under below -- a missing key means the control was dropped at
-create_controls_dict() time, not that the operator changed something. The
-positional signature and the DATA_DICT contract are unchanged from the
-pre-migration form; only the fourth argument's contents (and its name) moved from
-a nested settings dict to a flat controls snapshot.
+create_controls_dict() time, not that the operator changed something.
 
 Each process computes a depth map (mm, float32) via
 stereo_library.compute_depth_map and stashes it in stereo_data_dict['depth_map'];
@@ -129,12 +136,11 @@ DEFAULT_PROCESS = 'sgbm_1'
 # MEDIAN_FILTER_OPTIONS STOPS AT 5, and that is a hard library limit rather than a
 # taste judgement. compute_depth_map applies the filter to the float32 DEPTH map,
 # and cv2.medianBlur accepts CV_32F only at ksize 3 or 5 -- for any larger aperture
-# it accepts CV_8U alone. So 7, 9 and 11 did not merely do nothing: they raised
+# it accepts CV_8U alone. So 7, 9 and 11 would raise
 # cv2.error on EVERY pass, inside the process function, where the only trace is one
 # throttled 'Depth update failed' warning per 5 s from depthCb. The same rule is
 # already written down in calibrate.py's TRACKBARS list, whose median slider is
-# capped at 5 for exactly this reason -- the tuner had it right and this list did
-# not, and the two now agree. An operator wanting more smoothing than a 5x5 median
+# capped at 5 for exactly this reason. An operator wanting more smoothing than a 5x5 median
 # gives has Block Size, which smooths in the matcher where a larger window is legal.
 NUM_DISPARITIES_OPTIONS = ['16', '32', '48', '64', '80', '96', '112', '128',
                            '160', '192', '224', '256']
@@ -142,7 +148,7 @@ BLOCK_SIZE_OPTIONS_SGBM = ['3', '5', '7', '9', '11', '13', '15', '21']
 BLOCK_SIZE_OPTIONS_BM = ['5', '7', '9', '11', '13', '15', '17', '19', '21']
 MEDIAN_FILTER_OPTIONS = ['0', '3', '5']
 # Largest ksize cv2.medianBlur will take on a float32 image. Used by _build_cfg to
-# cover a value persisted before the option list above was corrected.
+# cover a persisted value outside the option list above.
 MAX_MEDIAN_FILTER_SIZE = 5
 # Match Resolution: the size the pair is rectified and block matched at, as a
 # fraction of the calibrated size. Half quarters the pixels, so matching, rectify
@@ -185,10 +191,10 @@ def _build_cfg(matcher, process_controls_dict):
         'min_depth_mm': float(controls.get('min_depth_mm', 50.0)),
         'max_depth_mm': float(controls.get('max_depth_mm', 5000.0)),
         # Held to the float32 medianBlur limit here as well as in the option list,
-        # because trimming MEDIAN_FILTER_OPTIONS does not reach a device that already
+        # because MEDIAN_FILTER_OPTIONS does not reach a device that already
         # saved a config: ControlsIF.init() replaces its whole controls dict with the
         # persisted '<name>_controls_dict' param, so a stored set_string of '7' comes
-        # back complete with the old option list and would go on raising cv2.error
+        # back complete with its saved option list and would go on raising cv2.error
         # every pass until a factory reset. Clamped rather than switched off, so the
         # filter the operator asked for still runs at the largest legal size.
         'median_filter_size': min(int(controls.get('median_filter_size', 5)),
@@ -210,7 +216,7 @@ def matches_in_grayscale(process_name, process_controls_dict):
     convert_to_grayscale is set, and always for BM and the GPU matcher -- because
     both call stereo_library.needs_grayscale on the same _build_cfg output. A
     process registered without a 'matcher' key answers False, which is the safe
-    side: it is handed color, exactly as before.
+    side: it is handed color.
     """
     process = PROCESSES_DICT.get(process_name, None)
     if process is None or 'matcher' not in process:
@@ -223,8 +229,8 @@ def get_match_scale(process_controls_dict):
     """Match Resolution as a scale factor: 1.0 for Full, 0.5 for Half.
 
     1.0 for anything unrecognized or missing -- a process without the control, or
-    a node reading a config saved before it existed -- so those keep matching at
-    the calibrated size exactly as before.
+    a node reading a config saved before it existed -- so those match at
+    the calibrated size.
     """
     if not process_controls_dict:
         return 1.0
@@ -608,33 +614,6 @@ if vpi_available():
 #########################
 # Stereo Utility Functions
 #########################
-
-# create_processes_dict() and update_processes_dict() are deliberately absent.
-#
-# Both were part of the hand-rolled settings pattern this module has migrated off
-# of, and ControlsIF replaces each of them outright:
-#   create_processes_dict()  built {process_name: default_settings} for the node
-#                            to hold as a 'processes_dict' param and mutate. Each
-#                            ControlsIF now builds and owns its own controls dict
-#                            from the default_controls_dict above, and persists it
-#                            to the param server itself, so there is nothing for
-#                            the node to assemble and no 'processes_dict' param.
-#   update_processes_dict()  sanitized a settings dict coming back from the RUI,
-#                            dropping unknown keys and casting values to the type
-#                            of the existing default. ControlsIF's set_* callbacks
-#                            do that per control on the way in: nepi_controls
-#                            rejects a value outside bounds, rejects a string not
-#                            in options, and there is one typed topic per control
-#                            type instead of one UpdateFloat for everything -- so
-#                            an after-the-fact sweep has nothing left to catch.
-#                            The nested 'stereo_controls_dict' it copied through
-#                            is gone with it; min_depth_mm, max_depth_mm and
-#                            median_filter_size are now ordinary controls
-#                            alongside the rest.
-#
-# The two callers both moved to the ControlsIF path: stereo_cam_app_node.py's
-# initCb / reloadProcessesCb / setProcessControlValueCb held every call site, and
-# setProcessControlValueCb is gone entirely.
 
 def get_blank_data_dict():
     return copy.deepcopy(DATA_DICT)

@@ -2,10 +2,10 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
 # are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
@@ -58,9 +58,7 @@ const CONTROLS_SUFFIX_DEADRECKONING = "dead_reckoning"
 const CONTROLS_SUFFIX_MOVE          = "move"
 const CONTROLS_SUFFIX_OUTPUT        = "output"
 
-// One configuration per simulator kind, replacing what used to be two
-// near-identical render bodies. renderKindPanel is parameterised by these, so
-// adding the GPS kind added a third entry rather than a third copy.
+// One configuration per simulator kind. renderKindPanel is parameterised by these.
 //
 // Each entry declares: the instance-path segment the node roots that kind at,
 // the master-status field listing its instances, the component-state keys the
@@ -363,8 +361,8 @@ class NepiAppNavSim extends Component {
   }
 
   // One section's control set. The page draws the heading itself (divider plus
-  // Label, as it always did), so this passes title={null} -- the same mount
-  // shape fake_gps and Nepi_IF_Process use when the parent owns the heading.
+  // Label), so this passes title={null} -- the same mount
+  // shape Nepi_IF_Process uses when the parent owns the heading.
   //
   // key={namespace} is load bearing: selecting a different instance changes the
   // namespace, and without a key React reuses the mounted component, which
@@ -372,7 +370,7 @@ class NepiAppNavSim extends Component {
   // on screen. stereo_cam keys its per-process set for the same reason.
   // show_bounds={false} suppresses the read-only Min/Max block a bounded
   // control draws above its widget. Passed only for kinds that ask for it, and
-  // undefined otherwise, which is what Nepi_IF_Control has always defaulted to.
+  // undefined otherwise, which is what Nepi_IF_Control defaults to.
   renderControlSection(instanceNamespace, suffix, disabled, hideBounds) {
     const namespace = this.getControlsNamespace(instanceNamespace, suffix)
     if (namespace == null) {
@@ -492,8 +490,7 @@ class NepiAppNavSim extends Component {
     )
   }
 
-  // Read-only simulation state for the GPS kind -- the half of the old fake_gps
-  // panel the control sets do not replace: the node reports it, the operator
+  // Read-only simulation state for the GPS kind: the node reports it, the operator
   // cannot set it.
   renderGpsState() {
     const { gps_mavros_connected, gps_selected_mavros, gps_current_latitude,
@@ -539,10 +536,7 @@ class NepiAppNavSim extends Component {
     )
   }
 
-  // The single rendered panel, parameterised by the kind config. This replaced
-  // renderNmeaSide and renderHnavSide, which were near-identical bodies
-  // differing only in prefix, status fields and enable topic. The NMEA and HNav
-  // output is unchanged apart from no longer sitting in a column.
+  // The single rendered panel, parameterised by the kind config.
   renderKindPanel(cfg) {
     const { connected, inst_enabled } = this.state
     const dis = !connected
@@ -620,8 +614,8 @@ class NepiAppNavSim extends Component {
         {main_sections.map(renderSection)}
 
         {/* Advanced Options. Rendered only for a kind that actually declares an
-            advanced section, so the NMEA and HNav panels -- which declare none
-            -- are byte-for-byte what they were. The hidden sections are not
+            advanced section; the NMEA and HNav panels declare none. The
+            hidden sections are not
             unmounted state: each is its own ControlsIF set that keeps running
             and keeps publishing whether or not it is drawn. */}
         {advanced_sections.length === 0 ? null : (
@@ -652,7 +646,7 @@ class NepiAppNavSim extends Component {
           <Columns>
             <Column>
               {/* Stop zeroes the speed control rather than its own topic: the
-                  per-field set_* topics moved into the control sets, so this
+                  per-field values live in the control sets, so this
                   publishes the same UpdateControl the speed box does. The GPS
                   kind has no Stop here because its Stop is a Button control
                   inside its own Move set. */}

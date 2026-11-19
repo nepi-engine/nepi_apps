@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 
 import os
@@ -165,7 +167,7 @@ class NepiImageViewerApp(object):
     }
 
     # Params Config Dict ####################
-    # Window count and the four topic selections moved to ControlsIF, which
+    # Window count and the four topic selections live in ControlsIF, which
     # registers and persists its own param under the controls namespace. The
     # node keeps no params of its own, but it keeps its CFGS_DICT: NodeClassIF
     # builds the config IF from configs_dict alone, so <node>/save_config,
@@ -188,7 +190,7 @@ class NepiImageViewerApp(object):
     # These five stay on the wire deliberately. The image windows themselves are
     # drawn by NepiIFImageViewersSelector, a SHARED component under nepi_rui,
     # whose own control bar publishes exactly these topics -- so removing them
-    # would break the viewer this app is built around. They no longer hold state
+    # would break the viewer this app is built around. They hold no state
     # of their own: each callback writes THROUGH the control set, so the controls
     # dict stays the single store and the two input paths cannot disagree.
     self.SUBS_DICT = {
@@ -383,7 +385,7 @@ class NepiImageViewerApp(object):
     for control_name in TOPIC_CONTROL_NAMES:
       topics.append(str(self.getControlValue(control_name, NO_TOPIC)))
     self.selected_image_topics = topics
-    # The app has always tracked window 1's topic twice: once in the four-entry
+    # The app tracks window 1's topic twice: once in the four-entry
     # list and once on its own, with publish_status preferring the standalone
     # value while num_windows is 1. One control feeds both so they cannot drift.
     self.single_image_topic = topics[0]
@@ -393,7 +395,7 @@ class NepiImageViewerApp(object):
     # its status published.
     self.applyControls()
     if self.node_if is not None:
-      # Matches what the removed set_param calls did: persist on change. The
+      # Persist on change. The
       # config IF debounces this onto its own timer.
       self.node_if.save_config()
     self.publish_status()
@@ -402,7 +404,7 @@ class NepiImageViewerApp(object):
   #######################
   ### Node Control Callbacks
   #
-  # The shared image viewer component still publishes these. Each one writes
+  # The shared image viewer component publishes these. Each one writes
   # THROUGH the control set rather than assigning app state directly, so the
   # controls dict remains the single store: set_control_value publishes controls
   # status, calls controlsUpdatedCb, and persists, and applyControls is what

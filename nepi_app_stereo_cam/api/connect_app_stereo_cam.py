@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import time
 
@@ -160,9 +162,7 @@ class ConnectAppStereoCam:
         # Create Node Class ####################
         # NOTE: NodeClassIF takes no 'namespace' kwarg -- the target
         # app's namespace is carried by the per-entry 'namespace' fields in
-        # the dicts above (and CFGS_DICT['namespace']). Some shipped
-        # connect_app_* files pass namespace=/log_class_name= anyway; those
-        # kwargs don't exist and would TypeError if ever instantiated.
+        # the dicts above (and CFGS_DICT['namespace']).
         self.con_node_if = NodeClassIF(
             configs_dict=self.CFGS_DICT,
             services_dict=self.SRVS_DICT,

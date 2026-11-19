@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 
 import os
@@ -108,9 +110,9 @@ class ConnectAppFilePubImgIF:
 
 
         # Publishers Config Dict ####################
-        # The app's adjustable state moved to ControlsIF, so every setter below
-        # publishes one UpdateControl instead of its own typed topic. What is
-        # still on the app namespace are the COMMANDS: folder navigation, which
+        # The app's adjustable state lives in ControlsIF, so every setter below
+        # publishes one UpdateControl. What is
+        # on the app namespace are the COMMANDS: folder navigation, which
         # carries a relative name plus a traversal verb, and start/stop, which a
         # scripted caller uses as the publishing API.
         self.PUBS_DICT = {
@@ -202,7 +204,7 @@ class ConnectAppFilePubImgIF:
         # Create Node Class ####################
         
         # NodeClassIF takes no 'namespace' or 'log_class_name' kwarg: passing them
-        # raised TypeError. The namespace is already carried by CFGS_DICT.
+        # raises TypeError. The namespace is already carried by CFGS_DICT.
         self.con_node_if = NodeClassIF(
                         configs_dict = self.CFGS_DICT,
                         services_dict = self.SRVS_DICT,
@@ -356,10 +358,7 @@ class ConnectAppFilePubImgIF:
     def set_image_delay(self,image_delay):
         """Set the image publish rate in Hz.
 
-        Kept under its original name and signature. The topic it used to publish
-        on, set_delay, was never subscribed by the app node -- the node has only
-        ever had set_rate -- so this call did nothing before. It now sets the
-        rate control, which is what the name has always meant to the caller.
+        It sets the rate control, which is what the name means to the caller.
         """
         self.set_image_rate(image_delay)
 

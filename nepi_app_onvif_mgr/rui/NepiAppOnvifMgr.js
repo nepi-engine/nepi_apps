@@ -2,11 +2,11 @@
 #
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
-# This file is part of nepi rui (nepi_apps) repo
+# This file is part of nepi applications (nepi_apps) repo
 # (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: NEPI RUI repo source-code and NEPI Images that use this source-code
-# are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
 # Redistributions in source code must retain this top-level comment block.
@@ -118,9 +118,7 @@ class OnvifMgr extends Component {
   // The manager's own settings: discovery interval, discovery cache handling
   // and config auto-save.
   //
-  // These three have always existed on the node and have never had a widget
-  // here -- an operator could only reach them by editing the param file. They
-  // are app-wide rather than per-device, so they sit in their own Section below
+  // They are app-wide rather than per-device, so they sit in their own Section below
   // the two device list columns rather than inside the per-device config panel.
   //
   // title is passed as null because the Section above is already this block's

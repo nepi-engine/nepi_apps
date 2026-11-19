@@ -3,17 +3,19 @@
 # Copyright (c) 2024 Numurus <https://www.numurus.com>.
 #
 # This file is part of nepi applications (nepi_apps) repo
-# (see https://https://github.com/nepi-engine/nepi_apps)
+# (see https://github.com/nepi-engine/nepi_apps)
 #
-# License: nepi applications are licensed under the "Numurus Software License", 
+# License: NEPI Applications repo source-code and NEPI Images that use this source-code
+# are licensed under the "Numurus Software License",
 # which can be found at: <https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf>
 #
-# Redistributions in source code must retain this top-level comment bstab.
+# Redistributions in source code must retain this top-level comment block.
 # Plagiarizing this software to sidestep the license obligations is illegal.
 #
 # Contact Information:
 # ====================
 # - mailto:nepi@numurus.com
+#
 
 import os
 import time
@@ -61,9 +63,8 @@ BUTTON_CONTROLS = ['start_pub', 'stop_pub', 'step_forward']
 class ControlValue:
   """Stand-in for the std_msgs value the app's setter callbacks expect.
 
-  The setters kept their original signatures through this migration, so the
-  control routes hand them an object with a .data attribute exactly as the ROS
-  subscribers did. Nothing about their per-field validation moved.
+  The control routes hand the setters an object with a .data attribute, the
+  same shape a ROS subscriber delivers.
   """
 
   def __init__(self, data):
@@ -103,8 +104,7 @@ def build_controls_init_dict(size_options, encoding_options,
         'description': 'Stop publishing and release the image publishers'},
 
     # One row: the pause toggle and the random toggle. The step Button appears
-    # only while paused -- see syncControlVisibility, which mirrors what the
-    # hand-written panel did.
+    # only while paused -- see syncControlVisibility.
     'paused': {
         'type': 'Toggle', 'default': False,
         'display_name': 'Paused', 'display_group': 'playback',
@@ -239,9 +239,9 @@ class NepiFilePubVidApp(object):
     }
 
     # Params Config Dict ####################
-    # overlay, size, encoding and random all moved to ControlsIF, which
+    # overlay, size, encoding and random all live in ControlsIF, which
     # registers and persists its own param under the controls namespace. The two
-    # that stay are node-WRITTEN state rather than operator-typed values:
+    # here are node-WRITTEN state rather than operator-typed values:
     # current_folder is set by the folder navigation commands, and running is a
     # side effect of start/stop that seeds the restart on the next launch.
     self.PARAMS_DICT = {
@@ -267,15 +267,11 @@ class NepiFilePubVidApp(object):
     }
 
     # Subscribers Config Dict ####################
-    # What stays here are the COMMANDS. Folder navigation carries a relative
+    # Here are the COMMANDS. Folder navigation carries a relative
     # name plus a traversal verb, which a control set -- where each value is
     # written independently -- cannot express atomically, and start/stop are the
     # app's programmatic publishing API. The Button controls call the same
     # private methods these callbacks do; neither path reimplements the other.
-    #
-    # Removed here and now driven over <node>/controls/update_control:
-    # set_size, set_encoding, set_random, set_overlay, pause_pub and
-    # step_forward.
     self.SUBS_DICT = {
         'select_folder': {
             'namespace': self.node_namespace,
@@ -465,7 +461,7 @@ class NepiFilePubVidApp(object):
   def controlRoutes(self):
     # control name -> the app callback that already owns that value. Routing
     # rather than reimplementing is what keeps setSizeCb's parse-and-range-check
-    # and setEncodingCb's option check exactly where they were.
+    # and setEncodingCb's option check in those callbacks.
     return {
         'paused':   self.pausePubCb,
         'random':   self.setRandomCb,
@@ -504,7 +500,7 @@ class NepiFilePubVidApp(object):
     self.overlay = bool(self.getControlValue('overlay', False))
 
   def syncControlVisibility(self):
-    # Mirrors what the hand-written panel did: the step Button appears only
+    # The step Button appears only
     # while paused. Re-derived after every update rather than special-casing the
     # pause control's name.
     paused = (self.paused == True)
@@ -531,7 +527,7 @@ class NepiFilePubVidApp(object):
     self.applyControls()
     self.syncControlVisibility()
 
-    # Matches what the removed set_param calls did: persist on change. The
+    # Persist on change. The
     # config IF debounces this onto its own timer.
     if control_name not in BUTTON_CONTROLS and self.node_if is not None:
       self.node_if.save_config()
@@ -636,8 +632,8 @@ class NepiFilePubVidApp(object):
 
   def applySize(self,size_str):
     # The control persists the size string; this only parses it into the
-    # width/height the resize path uses, and range-checks it as it always did.
-    # Split out of setSizeCb so initCb can re-run the parse on a restored value
+    # width/height the resize path uses, and range-checks it.
+    # Separate from setSizeCb so initCb can re-run the parse on a restored value
     # without going through a fake message.
     new_size = size_str
     success = False
