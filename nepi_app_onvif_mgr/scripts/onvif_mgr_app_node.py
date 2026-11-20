@@ -167,6 +167,7 @@ class ONVIFMgr:
     ##############################
     # Get for System Folders
     self.msg_if.pub_info("Waiting for system folders")
+    system_folders = nepi_system.get_system_folders()
     #self.msg_if.pub_warn("Got system folders: " + str(system_folders))
 
     self.drivers_folder = system_folders['drivers_lib']
@@ -963,7 +964,7 @@ class ONVIFMgr:
     
     hostname = self.detected_onvifs[uuid]['host']
     port = self.detected_onvifs[uuid]['port']
-    host_reachable = (os.system(f"ping -c 1 {hostname}") == 0)
+    host_reachable = (os.system(f"ping -c 1 {hostname} > /dev/null 2>&1") == 0)
     if host_reachable is False:
       return False
     
@@ -975,6 +976,7 @@ class ONVIFMgr:
       soapSyncSystemDateAndTime(hostname, str(port), username, password)
       self.msg_if.pub_info('Connected to device '  + str(uuid) + ' at ' + hostname + ':' + str(port) + ' via configured credentials')
     except Exception as e:
+      self.msg_if.pub_warn('Failed to connect to ONVIF device ' + str(uuid) + ' at ' + hostname + ':' + str(port) + ' : ' + str(e), throttle_s = 60)
       return False
    
     self.detected_onvifs[uuid]['manufacturer'] = dev_info["Manufacturer"]
@@ -1184,7 +1186,8 @@ class ONVIFMgr:
     # with everything else.
     if self.node_if is not None:
       self.node_if.set_param('configured_onvifs', self.configured_onvifs)
-  
+      nepi_sdk.save_params_to_file(self.MGR_USER_CFG_FILE, self.node_namespace, save_all = True)
+
 
 
   #######################
@@ -1240,8 +1243,7 @@ def soapGetDeviceInformation(globalip, globalport, username, password):
     }
 
     if soap_resp.status_code != 200:
-      self.msg_if.pub_warn('Got error response from onvif device at ' + globalip + ' when querying device info')
-      return device_info
+      raise Exception('GetDeviceInformation returned HTTP ' + str(soap_resp.status_code) + ' from ' + url)
     
     root = ET.fromstring(soap_resp.content)
 
